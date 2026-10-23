@@ -1,0 +1,95 @@
+name: windows
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      rev:
+        description: ooRexx SVN revision
+        default: "13286"
+      patchset:
+        description: directory under patches/
+        default: rfe-881
+      group:
+        description: test group to run first (path under test/trunk)
+        default: ooRexx/API/classic/RexxCallBack.testGroup
+
+env:
+  REV: ${{ inputs.rev || '13286' }}
+  PATCHSET: ${{ inputs.patchset || 'rfe-881' }}
+  GROUP: ${{ inputs.group || 'ooRexx/API/classic/RexxCallBack.testGroup' }}
+
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export trunk and apply the patch set
+        run: |
+          sudo apt-get install -y -qq subversion > /dev/null
+          for variant in clean patched; do
+            svn export -q -r $REV https://svn.code.sf.net/p/oorexx/code-0/main/trunk src-$variant/main
+            svn export -q -r $REV https://svn.code.sf.net/p/oorexx/code-0/test/trunk src-$variant/test
+          done
+          if [ -f patches/$PATCHSET/main.patch ]; then (cd src-patched/main && patch -p1 < $GITHUB_WORKSPACE/patches/$PATCHSET/main.patch); fi
+          if [ -f patches/$PATCHSET/test.patch ]; then (cd src-patched/test && patch -p1 < $GITHUB_WORKSPACE/patches/$PATCHSET/test.patch); fi
+          # the clean build runs the patched tests too, to show which fail without the patch
+          if [ -f patches/$PATCHSET/test.patch ]; then (cd src-clean/test && patch -p1 < $GITHUB_WORKSPACE/patches/$PATCHSET/test.patch); fi
+          tar czf src-clean.tgz src-clean; tar czf src-patched.tgz src-patched
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sources
+          path: "*.tgz"
+
+  windows:
+    needs: source
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [clean, patched]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: sources
+      - name: Unpack
+        shell: bash
+        run: tar xzf src-${{ matrix.variant }}.tgz
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Build
+        shell: cmd
+        run: |
+          mkdir build
+          cd build
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ..\src-${{ matrix.variant }}\main > ..\cmake.log 2>&1 || (type ..\cmake.log & exit /b 1)
+          ninja > ..\ninja.log 2>&1
+          set rc=%errorlevel%
+          findstr /i /c:"error" /c:"warning C4" ..\ninja.log
+          exit /b %rc%
+      - name: Test group
+        shell: cmd
+        continue-on-error: true
+        run: |
+          set PATH=%GITHUB_WORKSPACE%\build\bin;%PATH%
+          cd src-${{ matrix.variant }}\test
+          rexx testOORexx.rex -s -f %GROUP% < NUL > %GITHUB_WORKSPACE%\group.log 2>&1
+          type %GITHUB_WORKSPACE%\group.log
+      - name: Full suite
+        shell: cmd
+        continue-on-error: true
+        timeout-minutes: 45
+        run: |
+          set PATH=%GITHUB_WORKSPACE%\build\bin;%PATH%
+          cd src-${{ matrix.variant }}\test
+          rexx testOORexx.rex -s < NUL > %GITHUB_WORKSPACE%\suite.log 2>&1
+          findstr /c:"Tests ran" /c:"Failures" /c:"Errors" /c:"Test:" %GITHUB_WORKSPACE%\suite.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs-${{ matrix.variant }}
+          path: |
+            cmake.log
+            ninja.log
+            group.log
+            suite.log

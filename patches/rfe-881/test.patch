@@ -1,0 +1,237 @@
+Index: ooRexx/API/classic/RexxCallBack.testGroup
+===================================================================
+--- a/ooRexx/API/classic/RexxCallBack.testGroup	(nonexistent)
++++ b/ooRexx/API/classic/RexxCallBack.testGroup	(working copy)
+@@ -0,0 +1,232 @@
++#!/usr/bin/env rexx
++/*----------------------------------------------------------------------------*/
++/*                                                                            */
++/* Copyright (c) 2026 Rexx Language Association. All rights reserved.    */
++/*                                                                            */
++/* This program and the accompanying materials are made available under       */
++/* the terms of the Common Public License v1.0 which accompanies this         */
++/* distribution. A copy is also available at the following address:           */
++/* https://www.oorexx.org/license.html                                        */
++/*                                                                            */
++/* Redistribution and use in source and binary forms, with or                 */
++/* without modification, are permitted provided that the following            */
++/* conditions are met:                                                        */
++/*                                                                            */
++/* Redistributions of source code must retain the above copyright             */
++/* notice, this list of conditions and the following disclaimer.              */
++/* Redistributions in binary form must reproduce the above copyright          */
++/* notice, this list of conditions and the following disclaimer in            */
++/* the documentation and/or other materials provided with the distribution.   */
++/*                                                                            */
++/* Neither the name of Rexx Language Association nor the names                */
++/* of its contributors may be used to endorse or promote products             */
++/* derived from this software without specific prior written permission.      */
++/*                                                                            */
++/* THIS SOFTWARE IS PROVIDED BY THE COPYright HOLDERS AND CONTRIBUTORS        */
++/* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT          */
++/* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS          */
++/* FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYright   */
++/* OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,      */
++/* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED   */
++/* TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,        */
++/* OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY     */
++/* OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING    */
++/* NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS         */
++/* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.               */
++/*                                                                            */
++/*----------------------------------------------------------------------------*/
++use arg testTypes
++
++  parse source . . s
++  group = .TestGroup~new(s)
++  group~add(.RexxCallBack.testGroup)
++
++  if arg(1, 'E'), \ group~hasTestTypes(testTypes) then do
++    group~markNoTests("This is a native API test and not included in the test types to execute.")
++    if group~isAutomatedTest then return group
++    else return group~suite~execute~~print
++  end
++
++  if group~isAutomatedTest then return group
++
++  testResult = group~suite~execute~~print
++
++return testResult
++
++
++::requires 'ooTest.frm' -- load the ooRexxUnit classes
++
++-- RexxCallBack: an external function calls a label of the program that
++-- called it, as an internal function (Regina's API).  The test functions,
++-- in orxclassic1:
++--   TestCallBack(label [, arg]...) answers "<RexxCallBack rc> <short rc> <result>"
++--     (the result "<none>" if there is none; its result buffer is 8 bytes)
++--   TestCallBackTwice(label1, label2) answers "<rc1> <rc2>", which
++--     TestCallBackLast() also answers (an error ends it before it answers)
++--   TestCallBackThread(label) answers the rc of a call from a new thread
++::class "RexxCallBack.testGroup" subclass ooTestCase public
++
++::method init class
++  forward class (super) continue
++  -- Over-ride the default test type
++  self~ooTestType = .ooTestTypes~NATIVE_API_TEST
++  call rxfuncadd 'TestCallBack', 'orxclassic1', 'TestCallBack'
++  call rxfuncadd 'TestCallBackTwice', 'orxclassic1', 'TestCallBackTwice'
++  call rxfuncadd 'TestCallBackThread', 'orxclassic1', 'TestCallBackThread'
++  call rxfuncadd 'TestCallBackLast', 'orxclassic1', 'TestCallBackLast'
++
++::method test_result
++  self~assertEquals("0 42 42", TestCallBack('Twice', 21))
++  self~assertEquals("0 0 abc", TestCallBack('Echo', 'abc'))
++  return
++Twice: return arg(1) * 2
++Echo: return arg(1)
++
++::method test_label_not_case_sensitive
++  self~assertEquals("0 8 8", TestCallBack('tWiCe', 4))
++  return
++Twice: return arg(1) * 2
++
++::method test_arguments
++  -- the short rc is atoi() of the result, as in Regina
++  self~assertEquals("0 3 3 a 0 c", TestCallBack('Args', 'a', , 'c'))
++  self~assertEquals("0 0 0  0 ", TestCallBack('Args'))
++  return
++Args: return arg() arg(1) arg(2, 'E') arg(3)
++
++::method test_no_result
++  self~assertEquals("0 0 <none>", TestCallBack('NoResult'))
++  return
++NoResult: return
++
++::method test_result_larger_than_the_buffer
++  self~assertEquals("0 0" copies('x', 40), TestCallBack('Long'))
++  return
++Long: return copies('x', 40)
++
++::method test_no_such_label
++  self~assertEquals("8 0 <none>", TestCallBack('NoSuchLabel'))
++  return
++
++::method test_variables_shared
++  v = 1
++  self~assertEquals("0 0 set", TestCallBack('SetV'))
++  self~assertEquals(2, v)
++  return
++SetV: v = 2; return 'set'
++
++::method test_procedure
++  v = 1
++  self~assertEquals("0 0 proc", TestCallBack('ProcV'))
++  self~assertEquals(1, v)
++  return
++ProcV: procedure; v = 3; return 'proc'
++
++::method test_sigl
++  x = TestCallBack('Sigl')
++  line = .context~line - 1
++  self~assertEquals("0" line line, x)
++  return
++Sigl: return sigl
++
++::method test_numeric_restored
++  self~assertEquals("0 30 30", TestCallBack('SetDigits'))
++  self~assertEquals(9, digits())
++  return
++SetDigits: numeric digits 30; return digits()
++
++::method test_nested
++  self~assertEquals("0 0 (0 0 (0 0 bottom))", TestCallBack('Nest', 3))
++  return
++Nest: procedure
++  n = arg(1)
++  if n <= 1 then return 'bottom'
++  return '('TestCallBack('Nest', n - 1)')'
++
++::method test_from_a_routine
++  self~assertEquals("0 0 routine got 5", viaRoutine())
++
++::method test_syntax_raised_on_return
++  -- the error ends the external function and is raised at the clause that
++  -- called it
++  self~expectSyntax(42.3)
++  x = TestCallBack('Bad')
++  self~fail("not reached")
++Bad: return 1 / 0
++
++::method test_syntax_ends_the_function
++  -- an error in the call ends the external function, as in Regina: it does
++  -- not get control back (its second call does not run, it answers
++  -- nothing), and the error is raised at the clause that called it
++  .local~callBackCalls = 0
++  self~assertEquals("0 0", TestCallBackTwice('Count', 'Count'))
++  self~assertEquals(2, .local~callBackCalls)
++  .local~callBackCalls = 0
++  signal on syntax name done
++  self~callTwice
++  self~fail("not reached")
++done:
++  self~assertEquals(42.3, condition('O')~code)
++  self~assertEquals("0 0", TestCallBackLast())
++  self~assertEquals(0, .local~callBackCalls)
++Count: .local~callBackCalls += 1; return
++
++::method callTwice
++  -- no traps here: the callbacks must not inherit the test's SIGNAL ON SYNTAX
++  x = TestCallBackTwice('Bad', 'Count')
++Bad: return 1 / 0
++Count: .local~callBackCalls += 1; return
++
++::method test_condition_trapped_in_the_callback
++  -- the program's traps are inherited by the internal call, as in Rexx
++  self~assertEquals("0 0 trapped NOVALUE", TestCallBack('Novalue'))
++  return
++Novalue:
++  signal on novalue name gotIt
++  return undefined_variable_xyz
++gotIt: return 'trapped NOVALUE'
++
++::method test_unbounded_recursion
++  self~expectSyntax(11.1)
++  x = TestCallBack('Deep')
++Deep: return TestCallBack('Deep')
++
++::method test_halt
++  -- a HALT raised in the callback does what it does in an internal function
++  self~assertEquals(self~outcome(.false), self~outcome(.true))
++  self~assertEquals("SYNTAX 4.1", self~outcome(.true))
++
++::method outcome
++  use arg viaCallBack
++  signal on syntax name s
++  return haltOutcome(viaCallBack)
++s: return 'SYNTAX' condition('O')~code
++
++::method test_exit
++  -- EXIT in the callback ends the program (here, the routine): the external
++  -- function does not get control back
++  self~assertEquals(7, exitRoutine())
++
++::method test_other_thread
++  -- RX_CB_NOTSTARTED (2) from a thread that runs no Rexx code
++  self~assertEquals(2, TestCallBackThread('Twice'))
++  return
++Twice: return arg(1) * 2
++
++::routine viaRoutine
++  return TestCallBack('InRoutine', 5)
++InRoutine: return 'routine got' arg(1)
++
++::routine exitRoutine
++  x = TestCallBack('Leave')
++  return 'not reached'
++Leave: exit 7
++
++::routine haltOutcome
++  use arg viaCallBack
++  signal on halt name h
++  if viaCallBack then x = TestCallBack('HaltIt')
++  else x = HaltIt()
++  return 'none' x~word(words(x))
++h: return 'HALT'
++HaltIt: raise halt; return 'returned'
