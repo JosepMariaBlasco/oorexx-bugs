@@ -91,7 +91,7 @@ jobs:
         run: |
           set PATH=%GITHUB_WORKSPACE%\build\bin;%PATH%
           cd src-${{ matrix.variant }}\test
-          rexx testOORexx.rex -s -f %GROUP% < NUL > %GITHUB_WORKSPACE%\group.log 2>&1
+          rexx testOORexx.rex -s -S -f %GROUP% < NUL > %GITHUB_WORKSPACE%\group.log 2>&1
           type %GITHUB_WORKSPACE%\group.log
       - name: Full suite
         shell: cmd
