@@ -250,7 +250,7 @@ Index: testbinaries/orxclassic1.c
 +                              const char *Queuename, PRXSTRING Retstr) {
 +    RXSTRING result;
 +    short shortRc = -1;
-+    char small[8];
++    char smallBuffer[8];
 +    RexxReturnCode rc;
 +    size_t length;
 +
@@ -258,8 +258,8 @@ Index: testbinaries/orxclassic1.c
 +        return 40;
 +    }
 +    /* a small buffer, so that longer results need a new one */
-+    result.strptr = small;
-+    result.strlength = sizeof(small);
++    result.strptr = smallBuffer;
++    result.strlength = sizeof(smallBuffer);
 +    rc = RexxCallBack(Argv[0].strptr, (size_t)(Argc - 1), Argv + 1, &shortRc, &result);
 +    snprintf(Retstr->strptr, 256, "%d %d ", (int)rc, (int)shortRc);
 +    length = strlen(Retstr->strptr);
@@ -273,7 +273,7 @@ Index: testbinaries/orxclassic1.c
 +        }
 +        memcpy(Retstr->strptr + length, result.strptr, result.strlength);
 +        Retstr->strlength = length + result.strlength;
-+        if (result.strptr != small) {
++        if (result.strptr != smallBuffer) {
 +            RexxFreeMemory(result.strptr);
 +        }
 +    }
