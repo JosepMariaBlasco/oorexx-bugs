@@ -1,6 +1,9 @@
 -- RexxCallBack probe: one case per argument; run each in its own process
 parse arg case
 call RxFuncAdd 'TestCallBack', 'orxclassic1', 'TestCallBack'
+call RxFuncAdd 'TestCallBackTwice', 'orxclassic1', 'TestCallBackTwice'
+call RxFuncAdd 'TestCallBackLast', 'orxclassic1', 'TestCallBackLast'
+call RxFuncAdd 'TestCallBackThread', 'orxclassic1', 'TestCallBackThread'
 select case case
   when 'basic' then say TestCallBack('Twice', 21)
   when 'case' then say TestCallBack('twice', 4)
@@ -38,6 +41,9 @@ select case case
   when 'method' then say .K~new~go
   when 'routine' then say viaRoutine()
   when 'twice-after-error' then say TestCallBack('BadThenAgain')
+  when 'twice' then do; say TestCallBackTwice('Count', 'Count') 'last:' TestCallBackLast(); end
+  when 'twice-bad' then say TestCallBackTwice('Bad', 'Count')
+  when 'thread' then say 'thread rc' TestCallBackThread('Twice')
   otherwise say 'unknown case' case
 end
 say 'end'
@@ -65,6 +71,7 @@ Nest: procedure
   if n <= 1 then return 'bottom'
   return '('TestCallBack('Nest', n - 1)')'
 BadThenAgain: return 1 / 0
+Count: return
 
 ::routine viaRoutine
   return TestCallBack('InRoutine', 5)
