@@ -36,6 +36,7 @@ jobs:
           if [ -f patches/$PATCHSET/test.patch ]; then (cd src-patched/test && patch -p1 < $GITHUB_WORKSPACE/patches/$PATCHSET/test.patch); fi
           # the clean build runs the patched tests too, to show which fail without the patch
           if [ -f patches/$PATCHSET/test.patch ]; then (cd src-clean/test && patch -p1 < $GITHUB_WORKSPACE/patches/$PATCHSET/test.patch); fi
+          if [ -d probes/$PATCHSET ]; then mkdir -p src-patched/probes && cp -r probes/$PATCHSET src-patched/probes/; fi
           tar czf src-clean.tgz src-clean; tar czf src-patched.tgz src-patched
       - uses: actions/upload-artifact@v4
         with:
@@ -67,6 +68,17 @@ jobs:
           set rc=%errorlevel%
           findstr /i /c:"error" /c:"warning C4" ..\ninja.log
           exit /b %rc%
+      - name: Probe, one case per process
+        if: matrix.variant == 'patched' && hashFiles(format('src-patched/probes/{0}/probe.rex', env.PATCHSET)) != ''
+        shell: bash
+        continue-on-error: true
+        run: |
+          export PATH="$GITHUB_WORKSPACE/build/bin:$PATH"
+          cd src-patched/probes/$PATCHSET
+          for c in $(grep -o "when '[a-z-]*'" probe.rex | cut -d"'" -f2); do
+            timeout 60 rexx probe.rex $c < /dev/null > o.txt 2>&1; rc=$?
+            echo "$c rc=$rc :: $(tr '\r\n' '  ' < o.txt | cut -c1-150)"
+          done | tee $GITHUB_WORKSPACE/probe.log
       - name: Test group
         shell: cmd
         continue-on-error: true
@@ -93,3 +105,4 @@ jobs:
             ninja.log
             group.log
             suite.log
+            probe.log
