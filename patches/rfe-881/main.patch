@@ -88,17 +88,31 @@ Index: interpreter/execution/NativeActivation.cpp
 ===================================================================
 --- a/interpreter/execution/NativeActivation.cpp	(revision 13285)
 +++ b/interpreter/execution/NativeActivation.cpp	(working copy)
-@@ -1579,6 +1579,9 @@
+@@ -1534,6 +1534,8 @@
+ 
+     size_t activityLevel = activity->getActivationLevel();
+ 
++    // set when an error ended the function: dealt with after the catch
++    bool ended = false;
+     trapErrors = true;                       // trap errors from here
+     try
+     {
+@@ -1579,6 +1581,14 @@
          // nesting levels that will make it look like this activity is still in use
          // when in fact we're done with it.
          activity->restoreActivationLevel(activityLevel);
++        // finished below, out of the catch block (see callBack())
++        ended = true;
++    }
++    if (ended)
++    {
 +        // an error that ended the function (a RexxCallBack call) is raised
 +        // now, in the caller
 +        checkConditions();
          activity->popStackFrame(this);   // pop this from the activity
          setHasNoReferences();        // mark this as not having references in case we get marked
          // set the return value and get outta here
-@@ -3592,6 +3595,87 @@
+@@ -3592,6 +3602,94 @@
  
  
  /**
@@ -148,16 +162,23 @@ Index: interpreter/execution/NativeActivation.cpp
 +    ProtectedObject callResult;
 +    bool wasTrapping = trapErrors;
 +    trapErrors = true;
++    bool failed = false;
 +    try
 +    {
 +        caller->internalCall(label, target, args->messageArgs(), argc, callResult);
 +    }
 +    catch (NativeActivation *)
 +    {
-+        trapErrors = wasTrapping;
-+        throw;
++        failed = true;
 +    }
 +    trapErrors = wasTrapping;
++    // thrown again out of the catch block: with MSVC a catch block runs on top
++    // of the frames it caught from, so a throw inside it keeps them all, and
++    // deep recursion through RexxCallBack overflows the stack
++    if (failed)
++    {
++        throw this;
++    }
 +
 +    RexxObject *value = callResult;
 +    if (value == OREF_NULL)
