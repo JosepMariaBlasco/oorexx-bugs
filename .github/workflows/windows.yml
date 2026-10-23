@@ -102,6 +102,19 @@ jobs:
           cd src-${{ matrix.variant }}\test
           rexx testOORexx.rex -s < NUL > %GITHUB_WORKSPACE%\suite.log 2>&1
           findstr /c:"Tests ran" /c:"Failures" /c:"Errors" /c:"Test:" %GITHUB_WORKSPACE%\suite.log
+      - name: Keep the build (patched)
+        if: matrix.variant == 'patched'
+        shell: bash
+        run: |
+          mkdir -p oorexx/api
+          cp -r build/bin oorexx/bin
+          cp build/lib/*.lib oorexx/api/
+          cp src-patched/main/api/*.h src-patched/main/api/platform/windows/*.h oorexx/api/
+      - uses: actions/upload-artifact@v4
+        if: matrix.variant == 'patched'
+        with:
+          name: oorexx-patched
+          path: oorexx
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -112,3 +125,75 @@ jobs:
             group.log
             suite.log
             probe.log
+
+  packages:
+    needs: windows
+    if: always()
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: oorexx-patched
+          path: oorexx
+      - name: Download Rexx/SQL, Regina and SQLite
+        shell: bash
+        run: |
+          get() { curl -sSL --retry 3 -o "$2" "https://sourceforge.net/projects/$1/download"; }
+          get rexxsql/files/rexxsql/2.6/rxsql26B3_src.zip rxsql-src.zip
+          get rexxsql/files/rexxsql/2.6/rxsql26B3_odbc_w64_Regina.zip rxsql-regina.zip
+          get rexxsql/files/rexxsql/2.6/rxsql26B3_odbc_w64_ooRexx.zip rxsql-oorexx4.zip
+          get regina-rexx/files/regina-rexx/3.9.6/Regina396w64.zip regina.zip
+          for z in rxsql-src rxsql-regina rxsql-oorexx4 regina; do mkdir $z && (cd $z && unzip -q ../$z.zip); done
+          find rxsql-regina rxsql-oorexx4 regina -iname "*.dll" | head -20
+          vcpkg install sqlite3:x64-windows > vcpkg.log 2>&1 || tail -20 vcpkg.log
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: The Rexx/SQL DLLs as published, under the patched ooRexx
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $oo = "$env:GITHUB_WORKSPACE\oorexx\bin"
+          foreach ($pkg in 'rxsql-regina', 'rxsql-oorexx4') {
+            $dll = Get-ChildItem -Recurse $pkg -Filter rexxsql.dll | Select-Object -First 1
+            $regina = Get-ChildItem -Recurse regina -Filter regina.dll | Select-Object -First 1
+            $env:PATH = "$oo;$($dll.DirectoryName);$($regina.DirectoryName);$env:PATH"
+            Write-Output "=== $pkg ($($dll.FullName))"
+            & dumpbin /dependents $dll.FullName | Select-String '\.dll'
+            & "$oo\rexx.exe" probes\rexxsql\load.rex
+            Write-Output "exit $LASTEXITCODE"
+          }
+      - name: Build Rexx/SQL (SQLite) for ooRexx, source unchanged
+        shell: cmd
+        continue-on-error: true
+        run: |
+          set PATH=%GITHUB_WORKSPACE%\oorexx\bin;%PATH%
+          set REXX_HOME=%GITHUB_WORKSPACE%\oorexx
+          set SQLITE3_HOMEDIR=C:\vcpkg\installed\x64-windows
+          for /d %%d in (%GITHUB_WORKSPACE%\rxsql-src\*) do set REXXSQL_SRCDIR=%%d
+          if not exist %GITHUB_WORKSPACE%\rxsql-src\vcwin64.mak (echo nested) else set REXXSQL_SRCDIR=%GITHUB_WORKSPACE%\rxsql-src
+          echo REXXSQL_SRCDIR=%REXXSQL_SRCDIR%
+          mkdir sqlbuild
+          cd sqlbuild
+          nmake -nologo -f %REXXSQL_SRCDIR%\vcwin64.mak INT=OOREXX4 DB=LITE rexxsql.dll rexxsql.exe > ..\sqlbuild.log 2>&1
+          set rc=%errorlevel%
+          findstr /i /c:" error " /c:"fatal" /c:"unresolved" ..\sqlbuild.log
+          dir *.dll *.exe
+          exit /b %rc%
+      - name: Run the Rexx/SQL test with the ooRexx build
+        shell: cmd
+        continue-on-error: true
+        run: |
+          set PATH=%GITHUB_WORKSPACE%\sqlbuild;%GITHUB_WORKSPACE%\oorexx\bin;C:\vcpkg\installed\x64-windows\bin;%PATH%
+          cd probes\rexxsql
+          rexx sqltest.rex
+          echo exit %errorlevel%
+          rexxsql sqltest.rex
+          echo rexxsql.exe exit %errorlevel%
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs-packages
+          path: |
+            sqlbuild.log
+            vcpkg.log
+
