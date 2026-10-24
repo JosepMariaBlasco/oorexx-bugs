@@ -18,3 +18,7 @@ the ooRexx test suite, next to an unpatched build of the same revision.
   runs found two Windows-only defects in the patch, both fixed here
   (`small` is a macro in the Windows headers; a throw inside a catch block
   nests on MSVC's stack in deep recursion).
+- `nonsyntax` (#2123, v2) on r13286, Windows (MSVC): `METHOD.testGroup`
+  329/329; full suite 24,421 tests with the same 7 failures as the
+  unpatched build (whose suite has 24,092: without the patched test
+  library, `METHOD.testGroup` does not load). No new warnings.
