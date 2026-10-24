@@ -10,15 +10,15 @@ on:
         default: "13286"
       patchset:
         description: directory under patches/
-        default: nonsyntax
+        default: halt-request
       group:
         description: test group to run first (path under test/trunk)
-        default: ooRexx/API/oo/METHOD.testGroup
+        default: ooRexx/API/oo/INVOCATION.testGroup
 
 env:
   REV: ${{ inputs.rev || '13286' }}
-  PATCHSET: ${{ inputs.patchset || 'nonsyntax' }}
-  GROUP: ${{ inputs.group || 'ooRexx/API/oo/METHOD.testGroup' }}
+  PATCHSET: ${{ inputs.patchset || 'halt-request' }}
+  GROUP: ${{ inputs.group || 'ooRexx/API/oo/INVOCATION.testGroup' }}
 
 jobs:
   source:
