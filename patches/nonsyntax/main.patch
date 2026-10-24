@@ -1,0 +1,415 @@
+Index: interpreter/runtime/Interpreter.cpp
+===================================================================
+--- a/interpreter/runtime/Interpreter.cpp	(revision 13286)
++++ b/interpreter/runtime/Interpreter.cpp	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2025 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -541,10 +541,34 @@
+ void Interpreter::decodeConditionData(DirectoryClass *conditionObj, RexxCondition *condData)
+ {
+     memset(condData, 0, sizeof(RexxCondition));
+-    condData->code = messageNumber((RexxString *)conditionObj->get(GlobalNames::CODE));
+-    // just return the major part
+-    condData->rc = messageNumber((RexxString *)conditionObj->get(GlobalNames::RC))/1000;
+-    condData->conditionName = (RexxStringObject)conditionObj->get(GlobalNames::CONDITION);
++    RexxString *conditionName = (RexxString *)conditionObj->get(GlobalNames::CONDITION);
++    condData->conditionName = (RexxStringObject)conditionName;
++
++    RexxObject *code = (RexxObject *)conditionObj->get(GlobalNames::CODE);
++    RexxObject *rc = (RexxObject *)conditionObj->get(GlobalNames::RC);
++    // only a SYNTAX condition has an error code, and its RC is the error number
++    if (conditionName != OREF_NULL && conditionName->strCompare(GlobalNames::SYNTAX))
++    {
++        if (code != OREF_NULL)
++        {
++            condData->code = messageNumber((RexxString *)code);
++        }
++        if (rc != OREF_NULL)
++        {
++            // just return the major part
++            condData->rc = messageNumber((RexxString *)rc)/1000;
++        }
++    }
++    // ERROR and FAILURE have the return code of a command, which can be any
++    // value; anything that is not a whole number leaves rc as 0
++    else if (rc != OREF_NULL)
++    {
++        wholenumber_t number;
++        if (rc->numberValue(number))
++        {
++            condData->rc = number;
++        }
++    }
+ 
+     RexxObject *temp = (RexxObject *)conditionObj->get(GlobalNames::MESSAGE);
+     if (temp != OREF_NULL)
+@@ -558,8 +582,12 @@
+         condData->errortext = (RexxStringObject)temp;
+     }
+ 
++    // RAISE allows any object as the DESCRIPTION, and as the ADDITIONAL
++    // information of a condition other than SYNTAX: give them only when they
++    // are of the type the structure declares (the condition object has them
++    // as they are)
+     temp = (RexxObject *)conditionObj->get(GlobalNames::DESCRIPTION);
+-    if (temp != OREF_NULL)
++    if (temp != OREF_NULL && isString(temp))
+     {
+         condData->description = (RexxStringObject)temp;
+     }
+@@ -583,7 +611,7 @@
+     }
+ 
+     temp = (RexxObject *)conditionObj->get(GlobalNames::ADDITIONAL);
+-    if (temp != OREF_NULL)
++    if (temp != OREF_NULL && isArray(temp))
+     {
+         condData->additional = (RexxArrayObject)temp;
+     }
+Index: interpreter/execution/ActivationBase.hpp
+===================================================================
+--- a/interpreter/execution/ActivationBase.hpp	(revision 13286)
++++ b/interpreter/execution/ActivationBase.hpp	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2014 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -82,6 +82,8 @@
+     virtual void setFuzz(wholenumber_t) {;};
+     virtual void setForm(bool) {;}
+     virtual bool trap(RexxString *, DirectoryClass *) {return false;};
++    // a condition RAISEd by the activation this one called
++    virtual bool trapRaised(RexxString *c, DirectoryClass *o) { return trap(c, o); }
+     virtual bool willTrap(RexxString *) {return false;};
+     virtual void setObjNotify(MessageClass *) {;};
+     virtual void termination(){;};
+Index: interpreter/execution/RexxActivation.cpp
+===================================================================
+--- a/interpreter/execution/RexxActivation.cpp	(revision 13286)
++++ b/interpreter/execution/RexxActivation.cpp	(working copy)
+@@ -1859,7 +1859,7 @@
+         bool trapped = false;
+         if (_sender != OREF_NULL)
+         {
+-            trapped = _sender->trap(condition, conditionobj);
++            trapped = _sender->trapRaised(condition, conditionobj);
+         }
+ 
+         // If this was untrapped and either a HALT or a NOMETHOD condition, then we need to raise an error
+Index: interpreter/execution/NativeActivation.hpp
+===================================================================
+--- a/interpreter/execution/NativeActivation.hpp	(revision 13286)
++++ b/interpreter/execution/NativeActivation.hpp	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2019 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -93,6 +93,7 @@
+     void setFuzz(wholenumber_t) override;
+     void setForm(bool) override;
+     bool trap(RexxString *, DirectoryClass *) override;
++    bool trapRaised(RexxString *, DirectoryClass *) override;
+     bool willTrap(RexxString *) override;
+     void termination() override { guardOff(); }
+     bool isStackBase() override;
+@@ -155,10 +156,12 @@
+     void setObjectVariable(const char *name, RexxObject *value);
+     void dropObjectVariable(const char *name);
+     DirectoryClass *getAllContextVariables();
+-    inline void setConditionInfo(RexxString *name, DirectoryClass *info) { conditionName = name; conditionObj = info; }
++    inline void setConditionInfo(RexxString *name, DirectoryClass *info) { conditionName = name; conditionObj = info; calleeCondition = false; }
+     void setConditionInfo(DirectoryClass *info);
++    void setCalleeConditionInfo(DirectoryClass *info);
+     inline DirectoryClass *getConditionInfo() { return conditionObj; }
+-    inline void clearException() { conditionName = OREF_NULL; conditionObj = OREF_NULL; }
++    inline DirectoryClass *getCalleeConditionInfo() { return calleeCondition ? conditionObj : OREF_NULL; }
++    inline void clearException() { conditionName = OREF_NULL; conditionObj = OREF_NULL; calleeCondition = false; }
+     void clearCondition();
+     void checkConditions();
+     bool checkCondition(RexxString *name);
+@@ -241,6 +244,7 @@
+     bool            trapErrors;          // we're trapping errors from external callers
+     bool            trapConditions;      // trap any raised conditions
+     bool            captureConditions;   // but don't propagate trapped conditions via throw.
++    bool            calleeCondition;     // conditionObj was RAISEd by Rexx code we called
+     bool            variablePoolEnabled; // Variable pool access flag
+                                          // our iterator for the variable pool next function
+     VariableDictionary::VariableIterator iterator;
+Index: interpreter/execution/NativeActivation.cpp
+===================================================================
+--- a/interpreter/execution/NativeActivation.cpp	(revision 13286)
++++ b/interpreter/execution/NativeActivation.cpp	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2025 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -1658,7 +1658,9 @@
+     // belt and braces...this restores the activity level to whatever
+     // level we had when we made the callout.
+     activity->restoreActivationLevel(activityLevel);
+-    if (conditionObj != OREF_NULL)
++    // a condition RAISEd by the code we ran is not an error of the dispatch
++    // unit: Activity::run() hands it to the API caller (see trapRaised())
++    if (conditionObj != OREF_NULL && !calleeCondition)
+     {
+         // pass the condition information on to the dispatch unig
+         dispatcher.handleError(conditionObj);
+@@ -1710,8 +1712,9 @@
+     // belt and braces...this restores the activity level to whatever
+     // level we had when we made the callout.
+     activity->restoreActivationLevel(activityLevel);
+-    // make sure we handle the error notifications
+-    if (conditionObj != OREF_NULL)
++    // make sure we handle the error notifications (not a condition RAISEd
++    // by Rexx code the callback called: see trapRaised())
++    if (conditionObj != OREF_NULL && !calleeCondition)
+     {
+         // pass the condition information on to the dispatch unig
+         dispatcher.handleError(conditionObj);
+@@ -1760,8 +1763,9 @@
+     // belt and braces...this restores the activity level to whatever
+     // level we had when we made the callout.
+     activity->restoreActivationLevel(activityLevel);
+-    // make sure we handle the error notifications
+-    if (conditionObj != OREF_NULL)
++    // make sure we handle the error notifications (not a condition RAISEd
++    // by Rexx code the callback called: see trapRaised())
++    if (conditionObj != OREF_NULL && !calleeCondition)
+     {
+         // pass the condition information on to the dispatch unig
+         dispatcher.handleError(conditionObj);
+@@ -1802,8 +1806,9 @@
+                 trapErrors = false;
+                 activity->reraiseException(conditionObj);
+             }
+-            // some other condition (like NOTREADY)
+-            else
++            // some other condition (like NOTREADY); one RAISEd by Rexx code
++            // we called stops here, as it would in a Rexx caller
++            else if (!calleeCondition)
+             {
+                 // find a predecessor Rexx activation
+                 ActivationBase *_sender = getPreviousStackFrame();
+@@ -2680,10 +2685,55 @@
+     conditionObj = c;
+     // we also need to retrieve the condition name from the object
+     conditionName = (RexxString *)conditionObj->get(GlobalNames::CONDITION);
++    calleeCondition = false;
+ }
+ 
+ 
+ /**
++ * Set the condition information for a non-SYNTAX condition that Rexx
++ * code called from here raised with RAISE (see trapRaised()).  It is
++ * there for CheckCondition() and GetConditionInfo(), but it is not
++ * raised again when this activation returns.
++ *
++ * @param c      The condition object.
++ */
++void NativeActivation::setCalleeConditionInfo(DirectoryClass *c)
++{
++    setConditionInfo(c);
++    calleeCondition = !conditionName->strCompare(GlobalNames::SYNTAX);
++}
++
++
++/**
++ * A non-SYNTAX condition RAISEd by Rexx code this native activation
++ * called through the API (CallRoutine, SendMessage...).  RAISE offers it
++ * to its caller only.  Native code cannot trap it as Rexx code does, so
++ * it is not trapped (RAISE completes as for an untrapped condition), but
++ * it is kept for CheckCondition() and GetConditionInfo(), as a SYNTAX
++ * error is.  As in a Rexx caller, it goes no further: it is not raised
++ * again when this activation returns (RaiseCondition can do that).
++ *
++ * @param condition The condition name.
++ * @param conditionObject
++ *                  The condition object.
++ *
++ * @return true if trapped (only when an API call is raising a condition
++ *         itself, as trap() does), false otherwise.
++ */
++bool NativeActivation::trapRaised(RexxString *condition, DirectoryClass *conditionObject)
++{
++    // a condition raised through the API is handled as before
++    if (trapConditions)
++    {
++        return trap(condition, conditionObject);
++    }
++    setConditionInfo(condition, conditionObject);
++    calleeCondition = true;
++    return false;
++}
++
++
++/**
+  * Test if a condition is trapped at this level of the
+  * activation stack.
+  *
+Index: interpreter/concurrency/Activity.cpp
+===================================================================
+--- a/interpreter/concurrency/Activity.cpp	(revision 13286)
++++ b/interpreter/concurrency/Activity.cpp	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2025 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -3414,11 +3414,15 @@
+     // create a new native activation
+     NativeActivation *newNActa = ActivityManager::newNativeActivation(this);
+     pushStackFrame(newNActa);            /* push it on the activity stack     */
++    // a non-SYNTAX condition RAISEd by the code we run (see
++    // NativeActivation::trapRaised()), for the API caller
++    ProtectedObject calleeCondition;
+ 
+     try
+     {
+         // go run the target under the new activation
+         newNActa->run(target);
++        calleeCondition = newNActa->getCalleeConditionInfo();
+     }
+     catch (ActivityException)
+     {
+@@ -3446,6 +3450,10 @@
+     {
+         getApiContext()->setConditionInfo(target.conditionData);
+     }
++    else if ((RexxObject *)calleeCondition != OREF_NULL && isOfClass(NativeActivation, topStackFrame))
++    {
++        getApiContext()->setCalleeConditionInfo((DirectoryClass *)(RexxObject *)calleeCondition);
++    }
+     // make sure we clear this from the activity
+     clearCurrentCondition();
+ }
+Index: interpreter/execution/RexxActivation.cpp
+===================================================================
+--- a/interpreter/execution/RexxActivation.cpp	(revision 13286)
++++ b/interpreter/execution/RexxActivation.cpp	(working copy)
+@@ -2740,6 +2740,8 @@
+ {
+     // get the sender from the activity
+     ActivationBase *_sender = getPreviousStackFrame();
++    // the first native activation we pass, if any
++    ActivationBase *nativeSender = OREF_NULL;
+     // spin down to non-native activation
+     while (_sender != OREF_NULL && isOfClass(NativeActivation, _sender))
+     {
+@@ -2749,8 +2751,20 @@
+         {
+             return _sender;
+         }
++        if (nativeSender == OREF_NULL)
++        {
++            nativeSender = _sender;
++        }
+         _sender = _sender->getPreviousStackFrame();
+     }
++    // no Rexx activation to raise this in (we were called through the API from
++    // native code, as CallRoutine does, with a fresh activation stack): the
++    // native caller keeps the condition for CheckCondition() and
++    // GetConditionInfo() (NativeActivation::trapRaised()) instead of losing it
++    if (_sender == OREF_NULL)
++    {
++        return nativeSender;
++    }
+     // that is our sender
+     return _sender;
+ }
+Index: testbinaries/orxmethod.cpp
+===================================================================
+--- a/testbinaries/orxmethod.cpp	(revision 13286)
++++ b/testbinaries/orxmethod.cpp	(working copy)
+@@ -1,6 +1,6 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2008-2024 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2008-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -1909,6 +1909,49 @@
+     return context->CallRoutine((RexxRoutineObject)routine, args);
+ }
+ 
++// call a routine and report the condition it left, as an array:
++// result (or .nil), CheckCondition(), and the condition, description and
++// additional of GetConditionInfo() (or .nil); the condition is not cleared
++RexxMethod2(RexxObjectPtr,
++            TestCallRoutineCondition,
++            RexxObjectPtr, routine,
++            RexxArrayObject, args)
++{
++    RexxObjectPtr result = context->CallRoutine((RexxRoutineObject)routine, args);
++    RexxArrayObject report = context->NewArray(5);
++    context->ArrayPut(report, result != NULLOBJECT ? result : context->Nil(), 1);
++    context->ArrayPut(report, context->Logical(context->CheckCondition()), 2);
++    RexxDirectoryObject info = context->GetConditionInfo();
++    const char *items[] = { "CONDITION", "DESCRIPTION", "ADDITIONAL" };
++    for (size_t i = 0; i < 3; i++)
++    {
++        RexxObjectPtr item = info != NULLOBJECT ? context->DirectoryAt(info, items[i]) : NULLOBJECT;
++        context->ArrayPut(report, item != NULLOBJECT ? item : context->Nil(), i + 3);
++    }
++    return report;
++}
++
++// decode a condition object with DecodeConditionInfo and report it, as an
++// array: the condition name, code, rc, description and additional (.nil when
++// not given), and whether decoding left a condition pending
++RexxMethod1(RexxObjectPtr,
++            TestDecodeCondition,
++            RexxObjectPtr, condition)
++{
++    RexxCondition cd;
++    context->DecodeConditionInfo((RexxDirectoryObject)condition, &cd);
++    RexxArrayObject report = context->NewArray(6);
++    context->ArrayPut(report, cd.conditionName != NULLOBJECT ? (RexxObjectPtr)cd.conditionName : context->Nil(), 1);
++    context->ArrayPut(report, context->WholeNumber(cd.code), 2);
++    context->ArrayPut(report, context->WholeNumber(cd.rc), 3);
++    context->ArrayPut(report, cd.description != NULLOBJECT ? (RexxObjectPtr)cd.description : context->Nil(), 4);
++    context->ArrayPut(report, cd.additional != NULLOBJECT ? (RexxObjectPtr)cd.additional : context->Nil(), 5);
++    context->ArrayPut(report, context->Logical(context->CheckCondition()), 6);
++    // a condition left by decoding would otherwise be raised in the caller
++    context->ClearCondition();
++    return report;
++}
++
+ RexxMethod2(RexxObjectPtr,
+             TestCallProgram,
+             CSTRING, name,
+@@ -2662,6 +2705,8 @@
+     REXX_METHOD(TestGetPackagePublicClasses, TestGetPackagePublicClasses),
+     REXX_METHOD(TestGetPackageMethods,       TestGetPackageMethods),
+     REXX_METHOD(TestCallRoutine,             TestCallRoutine),
++    REXX_METHOD(TestCallRoutineCondition,    TestCallRoutineCondition),
++    REXX_METHOD(TestDecodeCondition,         TestDecodeCondition),
+     REXX_METHOD(TestCallProgram,             TestCallProgram),
+     REXX_METHOD(TestNewMethod,               TestNewMethod),
+     REXX_METHOD(TestNewRoutine,              TestNewRoutine),

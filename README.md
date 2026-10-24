@@ -8,6 +8,7 @@ the ooRexx test suite, next to an unpatched build of the same revision.
 | Patch set | What | Ticket |
 |---|---|---|
 | `rfe-881` | `RexxCallBack`, Regina-compatible: an external function calls a label of the running program | [RFE #881](https://sourceforge.net/p/oorexx/feature-requests/881/) |
+| `nonsyntax` | A non-SYNTAX condition raised by Rexx code called through the API is lost; `DecodeConditionInfo` on such a condition (series v2, five patches concatenated) | [#2123](https://sourceforge.net/p/oorexx/bugs/2123/) |
 
 ## Results
 
