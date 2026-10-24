@@ -22,3 +22,6 @@ the ooRexx test suite, next to an unpatched build of the same revision.
   329/329; full suite 24,421 tests with the same 7 failures as the
   unpatched build (whose suite has 24,092: without the patched test
   library, `METHOD.testGroup` does not load). No new warnings.
+- `halt-request` (#2124) on r13286, Windows (MSVC): `INVOCATION.testGroup`
+  55/55; full suite 24,412 tests with the same 7 failures as the unpatched
+  build. No new warnings.
