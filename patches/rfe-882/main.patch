@@ -1,0 +1,1431 @@
+Index: CMakeLists.txt
+===================================================================
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt	(revision 13287)
++++ b/CMakeLists.txt	(working copy)
+@@ -1045,7 +1045,8 @@
+ #################### rexximage (bin file) ##########################
+ # These are the core classes built into the .img file.
+ set (core_classes ${build_rexx_classes_dir}/CoreClasses.orx
+-            ${build_rexx_classes_dir}/StreamClasses.orx)
++            ${build_rexx_classes_dir}/StreamClasses.orx
++            ${build_rexx_classes_dir}/CommandClasses.orx)
+ # additional source files required by specific platforms
+ if (WIN32)
+    set (platform_rexximage_sources ${build_platform_dir}/verinfo.rc)
+@@ -1089,6 +1090,7 @@
+ # Copy the class files to the build directory
+ copy_build_file(CoreClasses.orx ${build_rexx_classes_dir})
+ copy_build_file(StreamClasses.orx ${build_rexx_classes_dir})
++copy_build_file(CommandClasses.orx ${build_rexx_classes_dir})
+ copy_build_file(PlatformObjects.orx ${build_interpreter_platform_dir})
+ 
+ # These are the portable class files the image requires
+@@ -1095,6 +1097,7 @@
+ set (image_class_files
+    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/CoreClasses.orx
+    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/StreamClasses.orx
++   ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/CommandClasses.orx
+    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/PlatformObjects.orx)
+ 
+ # On Windows, the ole support is also included in the image
+Index: interpreter/RexxClasses/CommandClasses.orx
+===================================================================
+diff --git a/interpreter/RexxClasses/CommandClasses.orx b/interpreter/RexxClasses/CommandClasses.orx
+new file mode 100644
+--- a/interpreter/RexxClasses/CommandClasses.orx	(nonexistent)
++++ b/interpreter/RexxClasses/CommandClasses.orx	(working copy)
+@@ -0,0 +1,404 @@
++/*----------------------------------------------------------------------------*/
++/*                                                                            */
++/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
++/*                                                                            */
++/* This program and the accompanying materials are made available under       */
++/* the terms of the Common Public License v1.0 which accompanies this         */
++/* distribution. A copy is also available at the following address:           */
++/* https://www.oorexx.org/license.html                                        */
++/*                                                                            */
++/* Redistribution and use in source and binary forms, with or                 */
++/* without modification, are permitted provided that the following            */
++/* conditions are met:                                                        */
++/*                                                                            */
++/* Redistributions of source code must retain the above copyright             */
++/* notice, this list of conditions and the following disclaimer.              */
++/* Redistributions in binary form must reproduce the above copyright          */
++/* notice, this list of conditions and the following disclaimer in            */
++/* the documentation and/or other materials provided with the distribution.   */
++/*                                                                            */
++/* Neither the name of Rexx Language Association nor the names                */
++/* of its contributors may be used to endorse or promote products             */
++/* derived from this software without specific prior written permission.      */
++/*                                                                            */
++/* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS        */
++/* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT          */
++/* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS          */
++/* FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT   */
++/* OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,      */
++/* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED   */
++/* TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,        */
++/* OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY     */
++/* OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING    */
++/* NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS         */
++/* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.               */
++/*                                                                            */
++/*----------------------------------------------------------------------------*/
++
++use arg rexxPackage
++
++-- Command environments written in Rexx: .CommandHandler and its context.
++-- Loaded by CoreClasses.orx after StreamClasses.orx, since the context's
++-- streams inherit .InputStream and .OutputStream.
++
++-- add all of the public classes to .environment and to the
++-- REXX package
++publicClasses = .context~package~publicClasses
++
++do name over publicClasses
++   class = publicClasses[name]
++   .environment~put(class, name)
++   rexxPackage~addPublicClass(name, class)
++end
++
++
++/******************************************************************************/
++/* Command environments written in Rexx                                       */
++/*                                                                            */
++/* .CommandHandler~register(name, handler) makes an object whose class        */
++/* inherits .CommandHandler the command environment name of this interpreter  */
++/* instance: every command sent to it (ADDRESS name ...) becomes              */
++/*                                                                            */
++/*     handler~command(command, caller)                                       */
++/*                                                                            */
++/* on the thread that issued it, with no native code in between.  caller is   */
++/* a .CommandContext, valid while that command runs: the ADDRESS ... WITH     */
++/* redirection as streams, the variables of the code that issued the         */
++/* command, and the condition the command raises.  What COMMAND returns is    */
++/* RC.                                                                        */
++/******************************************************************************/
++
++::class 'CommandHandler' public mixinclass Object
++
++-- the handler of ADDRESS name: an object whose class inherits .CommandHandler.
++-- Registrations stack: the new handler covers the one in use (written in
++-- Rexx or native), which deregister uncovers.  Returns the object of the
++-- covered handler, or .nil; its COMMAND method can be used to forward to it.
++::method register class
++  use strict arg name, handler
++  name = name~request("String")
++  if name == .nil | name == "" then
++    raise syntax 93.900 array("register: the environment name must be a non-empty string")
++  if handler == .nil then
++    raise syntax 93.900 array("register: the handler is .nil (to remove a handler, use .CommandHandler~deregister(name))")
++  if \handler~isA(.CommandHandler) then
++    raise syntax 93.900 array("register: the handler's class must inherit .CommandHandler")
++  return self~!register(name, handler)
++
++-- remove the handler in use for ADDRESS name, written in Rexx or native,
++-- uncovering the one it covered; with nothing left the name is an unknown
++-- environment (FAILURE, RC 30).  Returns the object removed.
++::method deregister class
++  use strict arg name
++  name = name~request("String")
++  if name == .nil | name == "" then
++    raise syntax 93.900 array("deregister: the environment name must be a non-empty string")
++  removed = self~!deregister(name)
++  if removed == .nil then
++    raise syntax 93.900 array("deregister: there is no command environment named" name)
++  return removed
++
++-- the command environments known to this instance: name -> the object of
++-- the handler in use (written in Rexx, or a .NativeCommandHandler)
++::method environments class external 'LIBRARY REXX cmdhandler_environments'
++
++-- the object of the handler in use for ADDRESS name, or .nil
++::method handler class external 'LIBRARY REXX cmdhandler_handler'
++
++-- the handlers of ADDRESS name: the one in use, then the ones it covers
++::method handlers class external 'LIBRARY REXX cmdhandler_handlers'
++
++::method !register class private external 'LIBRARY REXX cmdhandler_register'
++::method !deregister class private external 'LIBRARY REXX cmdhandler_deregister'
++
++-- classes that inherit it implement it: use arg command, caller; return RC
++::method command abstract
++
++
++::class 'CommandContext' public
++
++::attribute environment get
++-- the condition asked for with ~raise, or .nil
++::attribute pending get
++
++::method init
++  expose cself environment pending input output error
++  use strict arg cself, environment
++  pending = .nil; input = .nil; output = .nil; error = .nil
++
++::method isRedirected unguarded external 'LIBRARY REXX cmdcontext_isRedirected'
++::method isValid unguarded external 'LIBRARY REXX cmdcontext_isValid'
++::method !check private unguarded external 'LIBRARY REXX cmdcontext_check'
++::method !getVar private unguarded external 'LIBRARY REXX cmdcontext_getVar'
++::method !hasVar private unguarded external 'LIBRARY REXX cmdcontext_hasVar'
++::method !setVar private unguarded external 'LIBRARY REXX cmdcontext_setVar'
++::method !dropVar private unguarded external 'LIBRARY REXX cmdcontext_dropVar'
++::method variables unguarded external 'LIBRARY REXX cmdcontext_variables'
++-- used by .NativeCommandHandler~command
++::method !forward unguarded external 'LIBRARY REXX cmdcontext_forward'
++
++-- WITH INPUT / OUTPUT / ERROR as streams; only with that redirection
++::method input
++  expose cself input
++  if input == .nil then do
++    if \self~isRedirected("Input") then
++      raise syntax 98.900 array("the command was not given WITH INPUT; check isRedirected(""Input"") first")
++    input = .CommandInput~new(cself)
++  end
++  return input
++
++::method output
++  expose cself output
++  if output == .nil then do
++    if \self~isRedirected("Output") then
++      raise syntax 98.900 array("the command was not given WITH OUTPUT; check isRedirected(""Output"") first")
++    output = .CommandOutput~new(cself, "O")
++  end
++  return output
++
++::method error
++  expose cself error
++  if error == .nil then do
++    if \self~isRedirected("Error") then
++      raise syntax 98.900 array("the command was not given WITH ERROR; check isRedirected(""Error"") first")
++    error = .CommandOutput~new(cself, "E")
++  end
++  return error
++
++-- when COMMAND returns: write what charout left
++::method finish
++  expose output error
++  if output \== .nil then output~flush
++  if error \== .nil then error~flush
++
++-- the caller's variables: caller[name], caller[name] = value
++::method "[]"
++  use strict arg name
++  name = self~!varName(name)
++  value = self~!getVar(name)
++  if value \== .nil then return value
++  if self~!hasVar(name) then return value  -- its value is .nil
++  return self~!derivedName(name)          -- no value: its name, as in Rexx
++
++::method "[]="
++  use strict arg value, name
++  self~!setVar(self~!varName(name), value)
++
++-- exact synonyms of [] and []=
++::method getVar
++  use strict arg name
++  return self[name]
++
++::method setVar
++  use strict arg name, value
++  self[name] = value
++
++::method hasVar
++  use strict arg name
++  return self~!hasVar(self~!varName(name))
++
++::method dropVar
++  use strict arg name
++  self~!dropVar(self~!varName(name))
++
++-- the name of a variable with no value, as Rexx gives it: the stem in upper
++-- case and each tail symbol replaced by its value in the caller (constant
++-- symbols, and variables with no value, in upper case): a.i is "A.x y" when
++-- i = "x y"
++::method !derivedName private
++  use strict arg name
++  p = name~pos(".")
++  if p == 0 then return name~upper
++  derived = name~left(p)~upper
++  rest = name~substr(p + 1)
++  do forever
++    p = rest~pos(".")
++    if p == 0 then elem = rest
++    else elem = rest~left(p - 1)
++    if elem == "" then nop
++    else if elem~left(1)~dataType("W") then derived ||= elem~upper
++    else do
++      if self~!hasVar(elem) then derived ||= self~!getVar(elem)~string
++      else derived ||= elem~upper
++    end
++    if p == 0 then leave
++    derived ||= "."
++    rest = rest~substr(p + 1)
++  end
++  return derived
++
++-- a variable name (simple, stem or compound), or a SYNTAX error
++::method !varName private
++  use strict arg name
++  name = name~request("String")
++  if name \== .nil then do
++    first = name~left(1)
++    if name~dataType("V") & first \== "." & \first~dataType("W") then return name
++  end
++  raise syntax 93.900 array("not a Rexx variable name:" name)
++
++-- the condition the command raises when COMMAND returns; only one per
++-- command: a second call is an error
++::method raise
++  expose pending
++  use strict arg condition, rc, description = .nil, additional = .nil
++  self~!check                          -- ended, or another thread: 98.900
++  if pending \== .nil then
++    raise syntax 93.900 array("raise: a condition was already raised for this command")
++  condition = condition~request("String")
++  if condition == .nil then
++    raise syntax 93.900 array("raise: the condition must be a string")
++  parse upper value condition~space with name rest
++  if name == "SYNTAX" then do
++    -- raise("SYNTAX", code [, additional]): the third argument is additional
++    if rest \== "" | arg(4, "E") then
++      raise syntax 93.900 array("raise: SYNTAX takes an error code and an optional array of substitutions")
++    additional = description
++    if \rc~dataType("N") | rc~pos(".") == 0 then
++      raise syntax 93.900 array("raise: the SYNTAX error code must be major.minor, as 98.900; found" rc)
++    parse var rc major "." minor
++    if \major~dataType("W") | \minor~dataType("W") | major < 1 | major > 99 | minor < 1 | minor > 999 then
++      raise syntax 93.900 array("raise: the SYNTAX error code must be major.minor, as 98.900; found" rc)
++    if additional == .nil then additional = .array~new
++    else if \additional~isA(.Array) then additional = .array~of(additional)
++    pending = .array~of("SYNTAX", major * 1000 + minor, .nil, additional)
++    return rc
++  end
++  if name == "USER" then do
++    if rest == "" | rest~words > 1 then
++      raise syntax 93.900 array("raise: USER needs a condition name, as ""USER NAME""")
++    name = name rest
++  end
++  else if rest \== "" | wordpos(name, "ERROR FAILURE HALT LOSTDIGITS NOMETHOD NOSTRING NOTREADY NOVALUE") == 0 then
++    raise syntax 93.900 array("raise: not a condition RAISE accepts:" condition)
++  pending = .array~of(name, rc, description, additional)
++  return rc
++
++::method raiseError
++  use strict arg rc
++  return self~raise("ERROR", rc)
++
++::method raiseFailure
++  use strict arg rc
++  return self~raise("FAILURE", rc)
++
++
++-- WITH INPUT as an .InputStream (one per command; see .CommandContext~input)
++::class 'CommandInput' public inherit InputStream
++
++::method init
++  expose cself buffer more
++  use strict arg cself
++  buffer = ""        -- characters read but not given yet (charin)
++  more = .nil        -- a line read ahead (lines), or .nil
++
++::method !readLine private external 'LIBRARY REXX cmdcontext_lineIn'
++
++-- the next line, read ahead if needed; .nil at the end
++::method !nextLine private
++  expose more
++  if more \== .nil then do
++    line = more; more = .nil
++    return line
++  end
++  return self~!readLine
++
++::method linein
++  expose buffer
++  use strict arg start = .nil, count = 1
++  if arg(1, "E") then raise syntax 93.963      -- no positioning
++  if count == 0 then return ""
++  if count \== 1 then raise syntax 93.963
++  if buffer \== "" then do                      -- the rest of what charin read
++    parse var buffer line (.endOfLine) buffer
++    return line
++  end
++  line = self~!nextLine
++  if line == .nil then raise notready return ""
++  return line
++
++::method lines
++  expose buffer more
++  if buffer \== "" then return 1
++  if more == .nil then more = self~!readLine
++  return more \== .nil
++
++::method charin
++  expose buffer
++  use strict arg start = .nil, count = 1
++  if arg(1, "E") then raise syntax 93.963      -- no positioning
++  do while buffer~length < count
++    line = self~!nextLine
++    if line == .nil then leave
++    buffer ||= line || .endOfLine
++  end
++  chars = buffer~left(min(count, buffer~length))
++  buffer = buffer~substr(chars~length + 1)
++  if chars~length < count then raise notready return (chars)
++  return chars
++
++::method chars
++  expose buffer more
++  if buffer \== "" then return buffer~length
++  if more == .nil then more = self~!readLine
++  if more == .nil then return 0
++  return more~length + .endOfLine~length
++
++
++-- WITH OUTPUT or WITH ERROR as an .OutputStream (see .CommandContext~output)
++::class 'CommandOutput' public inherit OutputStream
++
++::method init
++  expose cself which partial
++  use strict arg cself, which
++  partial = ""       -- charout without a line end yet
++
++::method !write private external 'LIBRARY REXX cmdcontext_write'
++
++::method lineout
++  expose which partial
++  use strict arg line = .nil
++  if arg(1, "O") then do                         -- lineout(): flush, as a close
++    self~flush
++    return 0
++  end
++  self~!write(which, partial || line~string)
++  partial = ""
++  return 0
++
++::method charout
++  expose which partial
++  use strict arg string = "", start = .nil
++  if arg(2, "E") then raise syntax 93.963        -- no positioning
++  partial ||= string~string
++  -- whole lines go out now; the rest waits for lineout or the command's end
++  do while partial~pos(.endOfLine) > 0
++    parse var partial line (.endOfLine) partial
++    self~!write(which, line)
++  end
++  return 0
++
++-- write what charout left (when COMMAND returns)
++::method flush
++  expose which partial
++  if partial \== "" then self~!write(which, partial)
++  partial = ""
++
++::method close
++  self~flush
++
++
++-- a native command environment as an object, made only by the interpreter
++-- (.CommandHandler~handler, ~handlers, ~environments); its COMMAND forwards
++-- the command to it, as the code that issued it, under its own name
++::class 'NativeCommandHandler' public inherit CommandHandler
++-- only the interpreter makes them
++::method new class private
++  forward class (super)
++::method kind external 'LIBRARY REXX cmdnative_kind'
++::method name
++  expose name
++  return name
++::method command unguarded
++  use strict arg command, caller
++  return caller~!forward(self, command)
+Index: interpreter/RexxClasses/CoreClasses.orx
+===================================================================
+diff --git a/interpreter/RexxClasses/CoreClasses.orx b/interpreter/RexxClasses/CoreClasses.orx
+--- a/interpreter/RexxClasses/CoreClasses.orx	(revision 13287)
++++ b/interpreter/RexxClasses/CoreClasses.orx	(working copy)
+@@ -121,6 +121,8 @@
+ 
+ call 'StreamClasses.orx' rexxPackage
+ 
++call 'CommandClasses.orx' rexxPackage      -- command environments written in Rexx
++
+ call 'PlatformObjects.orx' rexxPackage       -- now load platform-specific builtin classes
+ 
+ exit
+Index: interpreter/concurrency/Activity.cpp
+===================================================================
+diff --git a/interpreter/concurrency/Activity.cpp b/interpreter/concurrency/Activity.cpp
+--- a/interpreter/concurrency/Activity.cpp	(revision 13287)
++++ b/interpreter/concurrency/Activity.cpp	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2025 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -3461,8 +3461,11 @@
+ void Activity::run(CallbackDispatcher &target)
+ {
+     // create new activation frame using the current Rexx frame (which can be null, but
+-    // is not likely to be).
+-    NativeActivation *new_activation = ActivityManager::newNativeActivation(this, currentRexxFrame);
++    // is not likely to be).  A command forwarded by a handler written in Rexx
++    // runs as if called from the code that issued it (its variables).
++    RexxActivation *parent = callbackParent != OREF_NULL ? callbackParent : currentRexxFrame;
++    callbackParent = OREF_NULL;
++    NativeActivation *new_activation = ActivityManager::newNativeActivation(this, parent);
+     // this becomes the new top activation.  We also turn on the variable pool for
+     // this situation.
+     pushStackFrame(new_activation);
+Index: interpreter/concurrency/Activity.hpp
+===================================================================
+diff --git a/interpreter/concurrency/Activity.hpp b/interpreter/concurrency/Activity.hpp
+--- a/interpreter/concurrency/Activity.hpp	(revision 13287)
++++ b/interpreter/concurrency/Activity.hpp	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2024 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -302,6 +302,7 @@
+            void        waitForKernel();
+ 
+     inline RexxActivation *getCurrentRexxFrame() {return currentRexxFrame;}
++    inline void setCallbackParent(RexxActivation *a) {callbackParent = a;}
+     inline ActivationBase *getTopStackFrame() { return topStackFrame; }
+     inline size_t getActivationDepth() { return stackFrameDepth; }
+     inline const NumericSettings *getNumericSettings () {return numericSettings;}
+@@ -392,6 +393,7 @@
+     // Rexx context, then the topStackFrame will be the NativeActivation that
+     // made the callout and the currentRexxFrame will be the predecessor frame.
+     RexxActivation     *currentRexxFrame;
++    RexxActivation     *callbackParent;     // the parent frame for the next callback, if not currentRexxFrame
+     ActivationBase     *topStackFrame;  // top-most activation frame (can be either native or Rexx).
+     RexxString         *currentExit;    // current executing system exit
+     RexxInternalObject *waitingObject;  // object activity is waiting on
+Index: interpreter/concurrency/CommandHandler.cpp
+===================================================================
+diff --git a/interpreter/concurrency/CommandHandler.cpp b/interpreter/concurrency/CommandHandler.cpp
+--- a/interpreter/concurrency/CommandHandler.cpp	(revision 13287)
++++ b/interpreter/concurrency/CommandHandler.cpp	(working copy)
+@@ -50,6 +50,16 @@
+ #include "DirectoryClass.hpp"
+ #include "ActivityManager.hpp"
+ #include "CommandIOContext.hpp"
++#include "MethodClass.hpp"
++#include "RexxActivation.hpp"
++#include "Interpreter.hpp"
++#include "InterpreterInstance.hpp"
++#include "BufferClass.hpp"
++#include "ArrayClass.hpp"
++#include "StringTableClass.hpp"
++#include "VariableDictionary.hpp"
++#include "ExpressionBaseVariable.hpp"
++#include "../api/ContextApi.hpp"
+ 
+ 
+ /**
+@@ -66,6 +76,32 @@
+ 
+ 
+ /**
++ * Normal garbage collection live marking
++ *
++ * @param liveMark The current live mark.
++ */
++void CommandHandler::live(size_t liveMark)
++{
++    memory_mark(handlerObject);
++    memory_mark(wrapper);
++    memory_mark(previous);
++}
++
++
++/**
++ * Generalized object marking.
++ *
++ * @param reason The reason for this live marking operation.
++ */
++void CommandHandler::liveGeneral(MarkReason reason)
++{
++    memory_mark_general(handlerObject);
++    memory_mark_general(wrapper);
++    memory_mark_general(previous);
++}
++
++
++/**
+  * Look up a classic subcommand handler registered (RexxRegisterSubcom...)
+  * under a name.  The lookup goes to the RexxAPI with the kernel lock
+  * released, so it fills a local variable: an object written to meanwhile
+@@ -131,6 +167,12 @@
+         // run this and give back the return code
+         activity->run(dispatcher);
+     }
++    // a command environment written in Rexx: the command goes straight to
++    // the handler object, on this activity, with no native code in between
++    else if (type == HandlerType::REXX_OBJECT)
++    {
++        callRexxObject(activity, activation, address, command, result, condition, ioContext);
++    }
+     // a command handler that supports I/O redirection. This is
+     // the only one that uses the I/O context.
+     else if (type == HandlerType::REDIRECTING)
+@@ -297,3 +339,610 @@
+ 
+     result = (RexxObject *)(*handler_address)(&context.threadContext, (RexxStringObject)address, (RexxStringObject)command, &redirectorContext.redirectorContext);
+ }
++
++
++
++/******************************************************************************/
++/* Command environments written in Rexx (.CommandHandler~register)            */
++/*                                                                            */
++/* The handler object gets, for every command,                                */
++/*                                                                            */
++/*     handler~command(command, caller)                                       */
++/*                                                                            */
++/* where caller is a .CommandContext (CoreClasses.orx), valid while that      */
++/* command runs and only on its activity.  The context's native methods       */
++/* below reach the activation that issued the command (its variables) and    */
++/* its ADDRESS ... WITH redirection through a CommandState, kept in a Buffer  */
++/* the context holds (its CSELF).                                             */
++/******************************************************************************/
++
++namespace
++{
++    const uint32_t CommandStateMagic = 0x434d4448;   // "CMDH"
++
++    struct CommandState
++    {
++        uint32_t          magic;       // CommandStateMagic: a buffer we made
++        bool              valid;       // only while the command runs
++        Activity         *activity;    // the activity that runs the command
++        RexxActivation   *activation;  // the code that issued the command
++        CommandIOContext *io;          // its ADDRESS ... WITH, or OREF_NULL
++    };
++}
++
++
++/**
++ * Call a command handler written in Rexx.
++ *
++ * @param activity   The current activity.
++ * @param activation The activation that issued the command.
++ * @param address    The address name.
++ * @param command    The command string.
++ * @param result     The returned RC value.
++ * @param condition  A potential returned condition object.
++ * @param ioContext  The ADDRESS ... WITH redirection, or OREF_NULL.
++ */
++void CommandHandler::callRexxObject(Activity *activity, RexxActivation *activation, RexxString *address, RexxString *command, ProtectedObject &result, ProtectedObject &condition, CommandIOContext *ioContext)
++{
++    Protected<BufferClass> buffer = new_buffer(sizeof(CommandState));
++    CommandState *state = (CommandState *)buffer->getData();
++    state->magic = CommandStateMagic;
++    state->valid = true;
++    state->activity = activity;
++    state->activation = activation;
++    state->io = ioContext;
++
++    // the context object, a .CommandContext from the REXX package
++    RexxClass *contextClass = Interpreter::findClass(new_string("COMMANDCONTEXT"));
++    ProtectedObject contextObject;
++    contextClass->sendMessage(GlobalNames::NEW, buffer, address, contextObject);
++
++    if (ioContext != OREF_NULL)
++    {
++        ioContext->init();
++    }
++
++    ProtectedObject commandResult;
++    try
++    {
++        handlerObject->sendMessage(GlobalNames::COMMAND, command, (RexxObject *)contextObject, commandResult);
++        // write what the output streams' charout left, while still valid
++        ProtectedObject dummy;
++        ((RexxObject *)contextObject)->sendMessage(new_string("FINISH"), dummy);
++    }
++    catch (...)
++    {
++        // an error in the handler (SYNTAX) reaches the caller as it is
++        state->valid = false;
++        throw;
++    }
++    state->valid = false;               // the context is dead from now on
++
++    if (ioContext != OREF_NULL)
++    {
++        ioContext->cleanup();
++    }
++
++    // did the handler ask for a condition (caller~raise)?
++    ProtectedObject pendingObject;
++    ((RexxObject *)contextObject)->sendMessage(new_string("PENDING"), pendingObject);
++    RexxObject *pending = pendingObject;
++    if (pending != OREF_NULL && pending != TheNilObject && isArray(pending))
++    {
++        ArrayClass *request = (ArrayClass *)pending;
++        RexxString *name = ((RexxObject *)request->get(1))->requestString();
++        RexxObject *rc = (RexxObject *)request->get(2);
++        RexxObject *description = (RexxObject *)request->get(3);
++        RexxObject *additional = (RexxObject *)request->get(4);
++        if (name->strCompare("SYNTAX"))
++        {
++            // raised here, at the caller's ADDRESS clause, without the
++            // handler's frames; rc is the error number (major * 1000 + minor)
++            wholenumber_t code = 0;
++            rc->numberValue(code);
++            reportException((RexxErrorCodes)code, (ArrayClass *)additional);
++        }
++        RexxString *text = (description == OREF_NULL || description == TheNilObject) ? command : description->requestString();
++        if (additional == TheNilObject)
++        {
++            additional = OREF_NULL;
++        }
++        result = rc;
++        if (name->strCompare("HALT"))
++        {
++            // a HALT is given back as a HALT: as a Ctrl-C, it is seen at the
++            // end of the clause (SIGNAL ON HALT, CALL ON HALT), and untrapped
++            // it is SYNTAX 4.1, as in plain Rexx
++            activation->halt(text);
++            return;
++        }
++        condition = activity->createConditionObject(name, rc, text, additional, OREF_NULL);
++        return;
++    }
++    result = (RexxObject *)commandResult;
++}
++
++
++/**
++ * The CommandState of a .CommandContext, or a SYNTAX error once its command
++ * ended or when it is used from another activity.
++ */
++static CommandState *liveState(RexxMethodContext *context, void *self, Activity *activity)
++{
++    CommandState *state = (CommandState *)self;
++    if (state == NULL || state->magic != CommandStateMagic || !state->valid)
++    {
++        reportException(Error_Execution_user_defined, "this CommandContext belongs to a command that has ended");
++    }
++    if (state->activity != activity)
++    {
++        reportException(Error_Execution_user_defined, "this CommandContext can only be used on the thread of its command");
++    }
++    return state;
++}
++
++
++/**
++ * A variable retriever for a name, or a SYNTAX error if it is not a variable.
++ */
++static RexxVariableBase *variableRetriever(const char *name)
++{
++    RexxVariableBase *retriever = VariableDictionary::getVariableRetriever(new_string(name));
++    if (retriever == OREF_NULL || isString(retriever))
++    {
++        reportException(Error_Incorrect_method_user_defined, new_string("not a Rexx variable name: ")->concatWithCstring(name));
++    }
++    return retriever;
++}
++
++
++/**
++ * .CommandHandler~register's native part: makes handler the environment name.
++ */
++RexxMethod2(RexxObjectPtr, cmdhandler_register, RexxStringObject, name, RexxObjectPtr, handler)
++{
++    ApiContext ctx(context);
++    try
++    {
++        RexxObject *covered = ctx.activity->getInstance()->addCommandHandler((RexxString *)name, (RexxObject *)handler);
++        return covered == OREF_NULL ? context->Nil() : ctx.ret(covered);
++    }
++    catch (NativeActivation *)
++    {
++    }
++    return NULLOBJECT;
++}
++
++
++/**
++ * .CommandHandler~deregister's native part: whether there was a handler
++ * written in Rexx under this name (and it is gone now).
++ */
++RexxMethod1(RexxObjectPtr, cmdhandler_deregister, RexxStringObject, name)
++{
++    ApiContext ctx(context);
++    try
++    {
++        RexxObject *removed = ctx.activity->getInstance()->removeCommandHandler((RexxString *)name);
++        return removed == OREF_NULL ? context->Nil() : ctx.ret(removed);
++    }
++    catch (NativeActivation *)
++    {
++    }
++    return NULLOBJECT;
++}
++
++
++/**
++ * .CommandHandler~handlers(name): the handlers of name, the one in use
++ * first and then the ones it covers (an empty array if there is none).
++ */
++RexxMethod1(RexxObjectPtr, cmdhandler_handlers, RexxStringObject, name)
++{
++    ApiContext ctx(context);
++    try
++    {
++        return ctx.ret(ctx.activity->getInstance()->listCommandHandlerStack((RexxString *)name));
++    }
++    catch (NativeActivation *)
++    {
++    }
++    return NULLOBJECT;
++}
++
++
++/**
++ * .CommandHandler~environments: a StringTable of the command environments
++ * known to this interpreter instance, the handler object for those written
++ * in Rexx and "NATIVE" for the others.
++ */
++RexxMethod0(RexxObjectPtr, cmdhandler_environments)
++{
++    ApiContext ctx(context);
++    try
++    {
++        return ctx.ret(ctx.activity->getInstance()->listCommandHandlers());
++    }
++    catch (NativeActivation *)
++    {
++    }
++    return NULLOBJECT;
++}
++
++
++/**
++ * The next line of the redirected input, .nil at its end.
++ */
++RexxMethod1(RexxObjectPtr, cmdcontext_lineIn, CSELF, self)
++{
++    ApiContext ctx(context);
++    try
++    {
++        CommandState *state = liveState(context, self, ctx.activity);
++        if (state->io == OREF_NULL)
++        {
++            return context->Nil();
++        }
++        RexxString *line = state->io->readInput(ctx.context);
++        if (line == OREF_NULL)
++        {
++            return context->Nil();
++        }
++        return ctx.ret(line);
++    }
++    catch (NativeActivation *)
++    {
++    }
++    return NULLOBJECT;
++}
++
++
++/**
++ * write(stream, line): one line to the redirected output ("O") or error ("E").
++ */
++RexxMethod3(RexxObjectPtr, cmdcontext_write, CSTRING, stream, RexxStringObject, line, CSELF, self)
++{
++    ApiContext ctx(context);
++    try
++    {
++        CommandState *state = liveState(context, self, ctx.activity);
++        if (state->io != OREF_NULL)
++        {
++            RexxString *text = (RexxString *)line;
++            if (stream[0] == 'E' || stream[0] == 'e')
++            {
++                state->io->writeError(ctx.context, text->getStringData(), text->getLength());
++            }
++            else
++            {
++                state->io->writeOutput(ctx.context, text->getStringData(), text->getLength());
++            }
++        }
++    }
++    catch (NativeActivation *)
++    {
++    }
++    return NULLOBJECT;
++}
++
++
++/**
++ * ~isRedirected(which): "Input", "Output", "Error" (first letter), or "Same".
++ */
++RexxMethod2(logical_t, cmdcontext_isRedirected, CSTRING, which, CSELF, self)
++{
++    ApiContext ctx(context);
++    try
++    {
++        CommandState *state = liveState(context, self, ctx.activity);
++        CommandIOContext *io = state->io;
++        switch (which[0])
++        {
++            case 'I': case 'i': return io != OREF_NULL && io->isInputRedirected();
++            case 'O': case 'o': return io != OREF_NULL && io->isOutputRedirected();
++            case 'E': case 'e': return io != OREF_NULL && io->isErrorRedirected();
++            case 'S': case 's': return io != OREF_NULL && io->areOutputAndErrorSameTarget();
++        }
++        reportException(Error_Incorrect_method_user_defined, "isRedirected: the argument must be Input, Output, Error or Same");
++    }
++    catch (NativeActivation *)
++    {
++    }
++    return false;
++}
++
++
++/**
++ * caller[name]: the caller's variable, or .nil when it has no value.
++ */
++RexxMethod2(RexxObjectPtr, cmdcontext_getVar, CSTRING, name, CSELF, self)
++{
++    ApiContext ctx(context);
++    try
++    {
++        CommandState *state = liveState(context, self, ctx.activity);
++        RexxObject *value = variableRetriever(name)->getRealValue(state->activation);
++        return value == OREF_NULL ? context->Nil() : ctx.ret(value);
++    }
++    catch (NativeActivation *)
++    {
++    }
++    return NULLOBJECT;
++}
++
++
++/**
++ * ~hasVar(name): whether the caller's variable has a value.
++ */
++RexxMethod2(logical_t, cmdcontext_hasVar, CSTRING, name, CSELF, self)
++{
++    ApiContext ctx(context);
++    try
++    {
++        CommandState *state = liveState(context, self, ctx.activity);
++        return variableRetriever(name)->getRealValue(state->activation) != OREF_NULL;
++    }
++    catch (NativeActivation *)
++    {
++    }
++    return false;
++}
++
++
++/**
++ * caller[name] = value: assigns the caller's variable (simple, stem or
++ * compound; a compound's tail is resolved in the caller, as Rexx does).
++ */
++RexxMethod3(RexxObjectPtr, cmdcontext_setVar, CSTRING, name, RexxObjectPtr, value, CSELF, self)
++{
++    ApiContext ctx(context);
++    try
++    {
++        CommandState *state = liveState(context, self, ctx.activity);
++        variableRetriever(name)->set(state->activation, (RexxObject *)value);
++    }
++    catch (NativeActivation *)
++    {
++    }
++    return NULLOBJECT;
++}
++
++
++/**
++ * ~dropVar(name): drops the caller's variable.
++ */
++RexxMethod2(RexxObjectPtr, cmdcontext_dropVar, CSTRING, name, CSELF, self)
++{
++    ApiContext ctx(context);
++    try
++    {
++        CommandState *state = liveState(context, self, ctx.activity);
++        variableRetriever(name)->drop(state->activation);
++    }
++    catch (NativeActivation *)
++    {
++    }
++    return NULLOBJECT;
++}
++
++
++/**
++ * ~variables: a Directory with all the caller's variables.
++ */
++RexxMethod1(RexxObjectPtr, cmdcontext_variables, CSELF, self)
++{
++    ApiContext ctx(context);
++    try
++    {
++        CommandState *state = liveState(context, self, ctx.activity);
++        return ctx.ret(state->activation->getAllLocalVariables());
++    }
++    catch (NativeActivation *)
++    {
++    }
++    return NULLOBJECT;
++}
++
++
++/**
++ * Nothing, or the SYNTAX error of liveState (for methods written in Rexx).
++ */
++RexxMethod1(int, cmdcontext_check, CSELF, self)
++{
++    ApiContext ctx(context);
++    try
++    {
++        liveState(context, self, ctx.activity);
++    }
++    catch (NativeActivation *)
++    {
++    }
++    return 0;
++}
++
++
++/**
++ * ~isValid: whether the command is still running.
++ */
++RexxMethod1(logical_t, cmdcontext_isValid, CSELF, self)
++{
++    CommandState *state = (CommandState *)self;
++    return state != NULL && state->magic == CommandStateMagic && state->valid;
++}
++
++
++/******************************************************************************/
++/* Every environment as an object (.CommandHandler~handler, ~handlers,        */
++/* ~environments): native handlers are .NativeCommandHandler objects, whose   */
++/* COMMAND forwards to them, so that a handler written in Rexx can forward a  */
++/* command to the handler it covers.                                          */
++/******************************************************************************/
++
++/**
++ * The Rexx object of this handler: the handler object itself, or for a
++ * native handler a .NativeCommandHandler made once and kept (so the same
++ * native handler is always the same object).
++ */
++RexxObject *CommandHandler::getRexxObject(RexxString *name)
++{
++    if (type == HandlerType::REXX_OBJECT)
++    {
++        return handlerObject;
++    }
++    if (wrapper == OREF_NULL)
++    {
++        RexxClass *nativeClass = Interpreter::findClass(new_string("NATIVECOMMANDHANDLER"));
++        // NEW is private (only the interpreter makes them): run it directly
++        ProtectedObject made;
++        MethodClass *newMethod = nativeClass->methodLookup(GlobalNames::NEW);
++        newMethod->run(ActivityManager::currentActivity, nativeClass, GlobalNames::NEW, OREF_NULL, 0, made);
++        RexxObject *object = made;
++        object->getObjectVariables(nativeClass)->set(new_string("HANDLER"), (RexxObject *)this);
++        // the name it was registered under: a native handler may depend on it
++        // (the Unix one runs the shell of that name)
++        object->getObjectVariables(nativeClass)->set(new_string("NAME"), name->upper());
++        setField(wrapper, object);
++    }
++    return wrapper;
++}
++
++
++/**
++ * Call a native handler for a command forwarded by a handler written in
++ * Rexx: as call(), but the redirection is already set up (and will be
++ * cleaned up) by the handler written in Rexx that got the command first.
++ */
++void CommandHandler::callForwarded(Activity *activity, RexxActivation *activation, RexxString *address, RexxString *command, ProtectedObject &result, ProtectedObject &condition, CommandIOContext *ioContext)
++{
++    if (type == HandlerType::REDIRECTING)
++    {
++        RedirectingCommandHandlerDispatcher dispatcher(entryPoint, address, command, result, condition, ioContext);
++        activity->run(dispatcher);
++        return;
++    }
++    call(activity, activation, address, command, result, condition, ioContext);
++}
++
++
++const char *CommandHandler::kindName()
++{
++    switch (type)
++    {
++        case HandlerType::REGISTERED_NAME: return "SUBCOM";
++        case HandlerType::DIRECT:          return "DIRECT";
++        case HandlerType::REDIRECTING:     return "REDIRECTING";
++        case HandlerType::REXX_OBJECT:     return "REXX";
++        default:                           return "UNRESOLVED";
++    }
++}
++
++
++/**
++ * The CommandHandler kept in a .NativeCommandHandler, or a SYNTAX error.
++ */
++static CommandHandler *nativeHandlerOf(RexxObject *object)
++{
++    RexxClass *nativeClass = Interpreter::findClass(new_string("NATIVECOMMANDHANDLER"));
++    RexxInternalObject *handler = object->isInstanceOf(nativeClass) ? object->getObjectVariable(new_string("HANDLER"), nativeClass) : OREF_NULL;
++    if (handler == OREF_NULL || !isOfClass(CommandHandler, handler))
++    {
++        reportException(Error_Incorrect_method_user_defined, new_string("not a native command handler made by the interpreter"));
++    }
++    return (CommandHandler *)handler;
++}
++
++
++/**
++ * .CommandHandler~handler(name): the object of the environment name, or
++ * .nil if there is none.
++ */
++RexxMethod1(RexxObjectPtr, cmdhandler_handler, RexxStringObject, name)
++{
++    ApiContext ctx(context);
++    try
++    {
++        CommandHandler *handler = ctx.activity->getInstance()->resolveCommandHandler((RexxString *)name);
++        if (handler == OREF_NULL)
++        {
++            return context->Nil();
++        }
++        return ctx.ret(handler->getRexxObject((RexxString *)name));
++    }
++    catch (NativeActivation *)
++    {
++    }
++    return NULLOBJECT;
++}
++
++
++/**
++ * .NativeCommandHandler~kind: SUBCOM, DIRECT or REDIRECTING.
++ */
++RexxMethod1(RexxObjectPtr, cmdnative_kind, OSELF, self)
++{
++    ApiContext ctx(context);
++    try
++    {
++        return ctx.ret(new_string(nativeHandlerOf((RexxObject *)self)->kindName()));
++    }
++    catch (NativeActivation *)
++    {
++    }
++    return NULLOBJECT;
++}
++
++
++/**
++ * caller~!forward(nativeHandler, command): sends the command to a native
++ * handler as if the code that issued it had (its variables, its ADDRESS ...
++ * WITH redirection); its condition, if any, becomes this command's.
++ * Returns the RC.  The native handler gets the code that issued the command
++ * as its caller (callbackParent): otherwise it would see the variables of
++ * the COMMAND method on top of the stack.  It also gets the name it was
++ * registered under, not the one the command came through.
++ */
++RexxMethod3(RexxObjectPtr, cmdcontext_forward, RexxObjectPtr, target, RexxStringObject, command, OSELF, self)
++{
++    ApiContext ctx(context);
++    try
++    {
++        RexxObject *contextObject = (RexxObject *)self;
++        RexxClass *contextClass = Interpreter::findClass(new_string("COMMANDCONTEXT"));
++        RexxObject *cself = contextObject->getObjectVariable(new_string("CSELF"), contextClass);
++        CommandState *state = liveState(context, cself == OREF_NULL ? NULL : ((BufferClass *)cself)->getData(), ctx.activity);
++        CommandHandler *handler = nativeHandlerOf((RexxObject *)target);
++        RexxClass *nativeClass = Interpreter::findClass(new_string("NATIVECOMMANDHANDLER"));
++        RexxString *address = (RexxString *)((RexxObject *)target)->getObjectVariable(new_string("NAME"), nativeClass);
++
++        ProtectedObject result;
++        ProtectedObject condition;
++        ctx.activity->setCallbackParent(state->activation);
++        handler->callForwarded(ctx.activity, state->activation, address, (RexxString *)command, result, condition, state->io);
++        ctx.activity->setCallbackParent(OREF_NULL);
++
++        if ((RexxObject *)condition != OREF_NULL)
++        {
++            DirectoryClass *c = (DirectoryClass *)(RexxObject *)condition;
++            // a handler that raises its condition gives its RC there
++            // (as RexxActivation::command: RC, or else RESULT)
++            RexxObject *conditionRC = (RexxObject *)c->get(GlobalNames::RC);
++            if (conditionRC == OREF_NULL)
++            {
++                conditionRC = (RexxObject *)c->get(GlobalNames::RESULT);
++            }
++            if (conditionRC != OREF_NULL)
++            {
++                result = conditionRC;
++            }
++            ArrayClass *pending = new_array((RexxObject *)c->get(GlobalNames::CONDITION), (RexxObject *)result,
++                (RexxObject *)c->get(GlobalNames::DESCRIPTION), TheNilObject);
++            contextObject->getObjectVariables(contextClass)->set(new_string("PENDING"), pending);
++        }
++        RexxObject *rc = result;
++        return rc == OREF_NULL ? context->Nil() : ctx.ret(rc);
++    }
++    catch (NativeActivation *)
++    {
++    }
++    return NULLOBJECT;
++}
+Index: interpreter/concurrency/CommandHandler.hpp
+===================================================================
+diff --git a/interpreter/concurrency/CommandHandler.hpp b/interpreter/concurrency/CommandHandler.hpp
+--- a/interpreter/concurrency/CommandHandler.hpp	(revision 13287)
++++ b/interpreter/concurrency/CommandHandler.hpp	(working copy)
+@@ -55,7 +55,8 @@
+         UNRESOLVED,           // UNRESOLVED -- a handler that we cannot resolve from the registry
+         REGISTERED_NAME,      // a registered named environment
+         DIRECT,               // a direct, exit based call
+-        REDIRECTING           // a handler that supports I/O redirection.
++        REDIRECTING,          // a handler that supports I/O redirection.
++        REXX_OBJECT           // a Rexx object (.CommandHandler~register): no native code
+     };
+ };
+ 
+@@ -70,16 +71,33 @@
+     inline void  operator delete(void *) { ; }
+ 
+     inline CommandHandler(RESTORETYPE restoreType) { ; };
+-    inline CommandHandler(REXXPFN e, HandlerType::Enum t) : entryPoint(e), type(t) { ; }
++    inline CommandHandler(REXXPFN e, HandlerType::Enum t) : entryPoint(e), type(t), handlerObject(OREF_NULL), wrapper(OREF_NULL), previous(OREF_NULL) { ; }
++    inline CommandHandler(RexxObject *h) : entryPoint(NULL), type(HandlerType::REXX_OBJECT), handlerObject(h), wrapper(OREF_NULL), previous(OREF_NULL) { ; }
+ 
++    void live(size_t) override;
++    void liveGeneral(MarkReason reason) override;
++
+     void call(Activity *activity, RexxActivation *activation, RexxString *address, RexxString *command, ProtectedObject &rc, ProtectedObject &condition, CommandIOContext *io);
+     static REXXPFN resolveRegisteredName(const char *name);
+     inline bool isResolved() { return type != HandlerType::UNRESOLVED; }
++    inline bool isRexxObject() { return type == HandlerType::REXX_OBJECT; }
++    inline RexxObject *getHandlerObject() { return handlerObject; }
++    RexxObject *getRexxObject(RexxString *name);
++    inline CommandHandler *getPrevious() { return previous; }
++    inline void setPrevious(CommandHandler *p) { setField(previous, p); }
++    inline bool isRegisteredName() { return type == HandlerType::REGISTERED_NAME; }
++    void callForwarded(Activity *activity, RexxActivation *activation, RexxString *address, RexxString *command, ProtectedObject &rc, ProtectedObject &condition, CommandIOContext *io);
++    const char *kindName();
+ 
+ protected:
+ 
++    void callRexxObject(Activity *activity, RexxActivation *activation, RexxString *address, RexxString *command, ProtectedObject &rc, ProtectedObject &condition, CommandIOContext *io);
++
+     REXXPFN    entryPoint;             // resolved exit entry point
+     HandlerType::Enum   type;          // the type of call
++    RexxObject *handlerObject;         // the Rexx object of a REXX_OBJECT handler
++    RexxObject *wrapper;               // the .NativeCommandHandler of a native one
++    CommandHandler *previous;          // the handler this one covers (register stacks)
+ };
+ 
+ 
+Index: interpreter/runtime/InterpreterInstance.cpp
+===================================================================
+diff --git a/interpreter/runtime/InterpreterInstance.cpp b/interpreter/runtime/InterpreterInstance.cpp
+--- a/interpreter/runtime/InterpreterInstance.cpp	(revision 13287)
++++ b/interpreter/runtime/InterpreterInstance.cpp	(working copy)
+@@ -939,6 +939,108 @@
+ 
+ 
+ /**
++ * Add a command environment written in Rexx (.CommandHandler~register).
++ * Registrations stack: the new handler covers the one in use under that
++ * name (written in Rexx or native, including a classic subcommand handler
++ * registered through rxapi), and deregister uncovers it.
++ *
++ * @param name    The environment name (not case-sensitive).
++ * @param handler The handler object.
++ *
++ * @return The object of the handler it covers, or OREF_NULL.
++ */
++RexxObject *InterpreterInstance::addCommandHandler(RexxString *name, RexxObject *handler)
++{
++    Protected<RexxString> handlerName = name->upper();
++    // resolving first puts a classic subcommand handler not yet used below
++    Protected<CommandHandler> covered = resolveCommandHandler(handlerName);
++    Protected<CommandHandler> entry = new CommandHandler(handler);
++    entry->setPrevious(covered);
++    commandHandlers->put(entry, handlerName);
++    return covered == OREF_NULL ? OREF_NULL : covered->getRexxObject(handlerName);
++}
++
++
++/**
++ * Remove the command handler in use under a name (.CommandHandler~deregister),
++ * written in Rexx or native, uncovering the one it covered.  When nothing is
++ * left, the name is an unknown environment from then on; for a classic
++ * subcommand handler a marker keeps rxapi from bringing it back in this
++ * instance (rxapi itself is untouched: that is RXSUBCOM DROP's job).
++ *
++ * @param name   The environment name.
++ *
++ * @return The object of the handler removed, or OREF_NULL if there was none.
++ */
++RexxObject *InterpreterInstance::removeCommandHandler(RexxString *name)
++{
++    Protected<RexxString> handlerName = name->upper();
++    Protected<CommandHandler> handler = resolveCommandHandler(handlerName);
++    if (handler == OREF_NULL)
++    {
++        return OREF_NULL;
++    }
++    Protected<RexxObject> removed = handler->getRexxObject(handlerName);
++    CommandHandler *uncovered = handler->getPrevious();
++    if (uncovered != OREF_NULL)
++    {
++        commandHandlers->put(uncovered, handlerName);
++    }
++    else if (handler->isRegisteredName())
++    {
++        commandHandlers->put(new CommandHandler(NULL, HandlerType::UNRESOLVED), handlerName);
++    }
++    else
++    {
++        commandHandlers->remove(handlerName);
++    }
++    return removed;
++}
++
++
++/**
++ * The command environments known to this instance: a StringTable from the
++ * name to the object of the handler in use (written in Rexx, or a
++ * .NativeCommandHandler).
++ *
++ * @return A new StringTable.
++ */
++StringTable *InterpreterInstance::listCommandHandlers()
++{
++    Protected<StringTable> list = new_string_table();
++    for (HashContents::TableIterator iterator = commandHandlers->iterator(); iterator.isAvailable(); iterator.next())
++    {
++        CommandHandler *handler = (CommandHandler *)iterator.value();
++        if (handler->isResolved())
++        {
++            RexxString *handlerName = (RexxString *)iterator.index();
++            list->put(handler->getRexxObject(handlerName), handlerName);
++        }
++    }
++    return list;
++}
++
++
++/**
++ * The handlers stacked under a name, the one in use first.
++ *
++ * @param name   The environment name.
++ *
++ * @return A new Array (empty if there is no such environment).
++ */
++ArrayClass *InterpreterInstance::listCommandHandlerStack(RexxString *name)
++{
++    Protected<RexxString> handlerName = name->upper();
++    Protected<ArrayClass> list = new_array();
++    for (CommandHandler *handler = resolveCommandHandler(handlerName); handler != OREF_NULL; handler = handler->getPrevious())
++    {
++        list->append(handler->getRexxObject(handlerName));
++    }
++    return list;
++}
++
++
++/**
+  * Resolve a command handler for invoking a command.
+  *
+  * @param name   The name of the target address environment.
+@@ -950,6 +1052,11 @@
+     // all names in the cache are in upper case
+     Protected<RexxString> upperName = name->upper();
+     CommandHandler *handler = (CommandHandler *)commandHandlers->get(upperName);
++    // removed in this instance (deregister of a classic subcommand handler)
++    if (handler != OREF_NULL && !handler->isResolved())
++    {
++        return OREF_NULL;
++    }
+     if (handler == OREF_NULL)
+     {
+         // a classic subcommand handler registered under this name?  The
+Index: interpreter/runtime/InterpreterInstance.hpp
+===================================================================
+diff --git a/interpreter/runtime/InterpreterInstance.hpp b/interpreter/runtime/InterpreterInstance.hpp
+--- a/interpreter/runtime/InterpreterInstance.hpp	(revision 13287)
++++ b/interpreter/runtime/InterpreterInstance.hpp	(working copy)
+@@ -1,6 +1,6 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2005-2024 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -121,6 +121,10 @@
+     void addCommandHandler(const char *name, const char *registeredName);
+     void addCommandHandler(const char *name, REXXPFN entryPoint, HandlerType::Enum type);
+     CommandHandler *resolveCommandHandler(RexxString *name);
++    RexxObject *addCommandHandler(RexxString *name, RexxObject *handler);
++    RexxObject *removeCommandHandler(RexxString *name);
++    StringTable *listCommandHandlers();
++    ArrayClass *listCommandHandlerStack(RexxString *name);
+     PackageClass *getRequiresFile(Activity *activity, RexxString *name);
+     PackageClass *loadRequires(Activity *activity, RexxString *shortName, ArrayClass *source);
+     PackageClass *loadRequires(Activity *activity, RexxString *shortName, RexxString *fullName);
+Index: interpreter/runtime/NativeMethods.h
+===================================================================
+diff --git a/interpreter/runtime/NativeMethods.h b/interpreter/runtime/NativeMethods.h
+--- a/interpreter/runtime/NativeMethods.h	(revision 13287)
++++ b/interpreter/runtime/NativeMethods.h	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2019 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -49,6 +49,23 @@
+ INTERNAL_METHOD(ticker_createTimer)
+ INTERNAL_METHOD(ticker_waitTimer)
+ INTERNAL_METHOD(ticker_stopTimer)
++INTERNAL_METHOD(cmdhandler_register)
++INTERNAL_METHOD(cmdhandler_deregister)
++INTERNAL_METHOD(cmdhandler_environments)
++INTERNAL_METHOD(cmdcontext_lineIn)
++INTERNAL_METHOD(cmdcontext_write)
++INTERNAL_METHOD(cmdcontext_isRedirected)
++INTERNAL_METHOD(cmdcontext_getVar)
++INTERNAL_METHOD(cmdcontext_hasVar)
++INTERNAL_METHOD(cmdcontext_setVar)
++INTERNAL_METHOD(cmdcontext_dropVar)
++INTERNAL_METHOD(cmdcontext_variables)
++INTERNAL_METHOD(cmdcontext_check)
++INTERNAL_METHOD(cmdcontext_isValid)
++INTERNAL_METHOD(cmdhandler_handler)
++INTERNAL_METHOD(cmdhandler_handlers)
++INTERNAL_METHOD(cmdnative_kind)
++INTERNAL_METHOD(cmdcontext_forward)
+ INTERNAL_METHOD(stream_init)
+ INTERNAL_METHOD(stream_chars)
+ INTERNAL_METHOD(stream_lines)

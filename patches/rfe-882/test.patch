@@ -1,0 +1,924 @@
+Index: ooRexx/base/class/CommandHandler.testGroup
+===================================================================
+diff --git a/ooRexx/base/class/CommandHandler.testGroup b/ooRexx/base/class/CommandHandler.testGroup
+new file mode 100644
+--- a/ooRexx/base/class/CommandHandler.testGroup	(nonexistent)
++++ b/ooRexx/base/class/CommandHandler.testGroup	(working copy)
+@@ -0,0 +1,894 @@
++#!/usr/bin/env rexx
++/*----------------------------------------------------------------------------*/
++/*                                                                            */
++/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
++/*                                                                            */
++/* This program and the accompanying materials are made available under       */
++/* the terms of the Common Public License v1.0 which accompanies this         */
++/* distribution. A copy is also available at the following address:           */
++/* https://www.oorexx.org/license.html                                        */
++/*                                                                            */
++/* Redistribution and use in source and binary forms, with or                 */
++/* without modification, are permitted provided that the following            */
++/* conditions are met:                                                        */
++/*                                                                            */
++/* Redistributions of source code must retain the above copyright             */
++/* notice, this list of conditions and the following disclaimer.              */
++/* Redistributions in binary form must reproduce the above copyright          */
++/* notice, this list of conditions and the following disclaimer in            */
++/* the documentation and/or other materials provided with the distribution.   */
++/*                                                                            */
++/* Neither the name of Rexx Language Association nor the names                */
++/* of its contributors may be used to endorse or promote products             */
++/* derived from this software without specific prior written permission.      */
++/*                                                                            */
++/* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS        */
++/* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT          */
++/* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS          */
++/* FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT   */
++/* OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,      */
++/* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED   */
++/* TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,        */
++/* OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY     */
++/* OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING    */
++/* NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS         */
++/* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.               */
++/*                                                                            */
++/*----------------------------------------------------------------------------*/
++/* Command environments written in Rexx: .CommandHandler, .CommandContext,    */
++/* and the context's streams (.CommandInput, .CommandOutput).                 */
++/*----------------------------------------------------------------------------*/
++parse source . . fileSpec
++group = .TestGroup~new(fileSpec)
++group~add(.CommandHandler.testGroup)
++if group~isAutomatedTest then
++  return group
++else
++  return group~suite~execute~~print
++
++::requires "ooTest.frm"
++
++
++::class CommandHandler.testGroup subclass ooTestCase public
++
++::method setUp
++  .CommandHandler~register("t", .CHT~new)        -- lower case on purpose
++  .CommandHandler~register("u", .CHU~new)
++
++::method tearDown
++  -- registrations stack: remove every handler written in Rexx a test left
++  do name over "T", "U", "R", "V"
++    do forever
++      handler = .CommandHandler~handler(name)
++      if handler == .nil | handler~isA(.NativeCommandHandler) then leave
++      .CommandHandler~deregister(name)
++    end
++  end
++
++
++-- results and RC -------------------------------------------------------------
++
++::method test_rc_is_the_result
++  address t "RETURN 7"
++  self~assertSame(7, rc)
++
++::method test_rc_any_string
++  address t "RETURN hello"
++  self~assertSame("hello", rc)
++
++::method test_no_result_rc_0
++  address t "NOTHING"
++  self~assertSame(0, rc)
++
++::method test_environment_name
++  address t "ENV"
++  self~assertSame("T", rc)
++
++
++-- the caller's variables -----------------------------------------------------
++
++::method test_set_variable
++  address t "SET greeting hola mundo"
++  self~assertSame("hola mundo", greeting)
++
++::method test_set_compound_tail_resolved_in_caller
++  i = 3
++  address t "SET a.i tres"
++  self~assertSame("tres", a.3)
++
++::method test_set_stem_default
++  address t "SET s. 0"
++  self~assertSame(0, s.xyz)
++
++::method test_hasVar
++  greeting = "x"
++  drop nope
++  address t "HAS nope"
++  self~assertSame(0, rc)
++  address t "HAS greeting"
++  self~assertSame(1, rc)
++
++::method test_get_variable
++  greeting = "hola mundo"
++  address t "GET greeting"
++  self~assertSame("hola mundo", rc)
++  address t "GET GrEeTiNg"                         -- not case-sensitive
++  self~assertSame("hola mundo", rc)
++
++::method test_get_without_value_gives_its_name
++  drop nope
++  address t "GET nope"
++  self~assertSame("NOPE", rc)
++  k = "x y"
++  address t "GET nope.k.1"
++  self~assertSame("NOPE.x y.1", rc)
++
++::method test_get_nil_value
++  nilvar = .nil; t = .nil
++  drop nope
++  address t "GET nilvar"
++  self~assertSame("The NIL object", rc)
++  address t "GET nope.t"
++  self~assertSame("NOPE.The NIL object", rc)
++
++::method test_getVar_setVar_synonyms
++  k = "x"
++  address t "SYNONYMS"
++  self~assertSame("1 NOPE2", rc)
++  self~assertSame(7, syn.k)
++
++::method test_dropVar
++  greeting = "x"
++  address t "DROP greeting"
++  self~assertSame("LIT", symbol("greeting"))
++
++::method test_variables_are_the_callers
++  mine = "x"
++  address t "VARS"
++  self~assertSame("1 0", rc)
++
++::method test_bad_variable_name
++  address t "BADNAME"
++  self~assertSame("93.900", rc)
++
++::method test_variables_inside_a_procedure
++  self~assertSame("local", inProcedure())
++
++
++-- redirection ----------------------------------------------------------------
++
++::method test_with_input_output_stems
++  in.1 = "uno"; in.2 = "dos"; in.0 = 2
++  address t "UPPER" with input stem in. output stem out.
++  self~assertSame(2, out.0)
++  self~assertSame("UNO", out.1)
++  self~assertSame("DOS", out.2)
++
++::method test_arrayIn_arrayOut
++  arr = .array~of("a", "b", "c")
++  address t "LINES" with input using (arr) output stem out.
++  self~assertSame(2, out.0)
++  self~assertSame(3, out.1)
++  self~assertSame("a b c", out.2)
++
++::method test_charin_chars_charout
++  in.1 = "uno"; in.2 = "dos"; in.0 = 2
++  address t "CHARS" with input stem in. output stem out.
++  self~assertSame(2, out.0)
++  self~assertSame("u|no", out.1)
++  self~assertSame("4 dos", out.2)
++
++::method test_charout_without_line_end_written_at_return
++  address t "CHAROUT" with output stem out.
++  self~assertSame(2, out.0)
++  self~assertSame("ab", out.1)
++  self~assertSame("cd", out.2)
++
++::method test_linein_at_end_notready
++  in.1 = "uno"; in.2 = "dos"; in.0 = 2
++  address t "EOF" with input stem in. output stem out.
++  self~assertSame(1, out.0)
++  self~assertSame("NOTREADY ''", out.1)
++
++::method test_streams_are_input_output_streams
++  in.1 = "uno"; in.0 = 1
++  address t "STREAMS" with input stem in. output stem out.
++  self~assertSame("1 1", out.1)
++
++::method test_with_error
++  address t "ERR oops" with error stem err.
++  self~assertSame(1, err.0)
++  self~assertSame("oops", err.1)
++
++::method test_isRedirected
++  in.0 = 0
++  address t "REDIR" with input stem in. output stem out.
++  self~assertSame("1 1 0 0", rc)
++  address t "REDIR" with output stem both. error stem both.
++  self~assertSame("0 1 1 1", rc)
++
++::method test_no_with_streams_are_syntax
++  in.0 = 0
++  address t "NOWITH input"
++  self~assertSame("98.900", rc)
++  address t "NOWITH output" with input stem in.
++  self~assertSame("98.900", rc)
++  address t "NOWITH error" with output stem out.
++  self~assertSame("98.900", rc)
++
++
++-- conditions -----------------------------------------------------------------
++
++::method test_raise_error
++  signal on error name got
++  address t "RAISE ERROR 5"
++  self~fail("no ERROR")
++got:
++  self~assertSame("ERROR", condition("C"))
++  self~assertSame(5, rc)
++
++::method test_raise_failure_call_on
++  trace off
++  failed = "none"
++  call on failure name got
++  address t "RAISE FAILURE -2"
++  self~assertSame(-2, failed)
++  self~assertSame(-2, rc)
++  return
++got:
++  failed = rc
++  return
++
++::method test_untrapped_error_sets_rc
++  address t "RAISE ERROR 9"
++  self~assertSame(9, rc)
++
++::method test_raise_notready
++  signal on notready name got
++  address t "RAISE NOTREADY 4"
++  self~fail("no NOTREADY")
++got:
++  self~assertSame("NOTREADY", condition("C"))
++  self~assertSame(4, rc)
++  self~assertSame("no line", condition("D"))
++
++::method test_raise_user
++  signal on user boom name got
++  address t "RAISE USER BOOM 1"
++  self~fail("no USER BOOM")
++got:
++  self~assertSame("USER BOOM", condition("C"))
++  self~assertSame(1, rc)
++  self~assertSame("RAISE USER BOOM 1", condition("D"))
++  self~assertSame("extra", condition("A"))
++
++::method test_untrapped_user_sets_rc
++  address t "RAISE USER BOOM 2"
++  self~assertSame(2, rc)
++
++::method test_second_raise_is_syntax_first_stands
++  trace off
++  second = "none"
++  call on failure name got
++  address t "TWICE"
++  self~assertSame("FAILURE 5", second)
++  self~assertSame("93.900", twice)
++  return
++got:
++  second = condition("C") rc
++  return
++
++::method test_bad_raise
++  address t "BADRAISE"
++  self~assertSame("93.900 93.900 93.900", rc)
++
++::method test_raise_syntax_at_the_address_clause
++  signal on syntax name got
++  address t "SYNTAXRAISE"
++  self~fail("no SYNTAX")
++got:
++  c = condition("O")
++  self~assertSame("98.900", c~code)
++  self~assertSame("the command is wrong.", c~message)
++  -- no frames of the handler: the same traceback as an error raised at that
++  -- point, shorter than that of an error inside the handler
++  self~assertSame(tracebackItems("DIRECT"), tracebackItems("SYNTAXRAISE"))
++  self~assertTrue(tracebackItems("DIVIDE") > tracebackItems("SYNTAXRAISE"))
++
++::method test_syntax_in_handler_reaches_caller_with_frames
++  signal on syntax name got
++  address t "SYNTAXINSIDE"
++  self~fail("no SYNTAX")
++got:
++  c = condition("O")
++  self~assertSame("88.900", c~code)
++  self~assertTrue(c~traceback~items > 1)
++
++::method test_error_in_handler_reaches_caller
++  signal on syntax name got
++  address t "DIVIDE"
++  self~fail("no SYNTAX")
++got:
++  self~assertSame("42.3", condition("O")~code)
++
++::method test_error_after_using_the_context
++  do verb over "SETDIVIDE", "GETDIVIDE", "VARSDIVIDE", "INDIVIDE", "OUTDIVIDE"
++    self~assertSame("42.3", syntaxAfter(verb), verb)
++  end
++
++::method test_untrapped_error_after_set_in_child_process
++  exe = .RexxInfo~executable
++  if exe == .nil then return
++  child = .File~temporaryPath || .File~separator || "cmdhandler-untrapped-" || time("S") || ".rex"
++  s = .stream~new(child); s~open("write replace")
++  s~lineout('.CommandHandler~register("T", .T~new)')
++  s~lineout('address t "X"')
++  s~lineout('::class T subclass CommandHandler')
++  s~lineout('::method command')
++  s~lineout('  use arg command, caller')
++  s~lineout('  caller["x"] = 1')
++  s~lineout('  return 1 / 0')
++  s~close
++  address system '"'exe'" "'child'"' with output stem co. error stem ce.
++  all = ""
++  do k = 1 to ce.0; all ||= ce.k" "; end
++  do k = 1 to co.0; all ||= co.k" "; end
++  call SysFileDelete child
++  self~assertTrue(all~pos("Error 42") > 0, all)
++
++
++-- HALT: given back as a HALT, as in plain Rexx --------------------------------
++
++::method test_halt_signal_on
++  do how over "ROUTINE", "RAISE", "INCOMMAND"
++    self~assertSame("HALT", haltSignalOn(how), how)
++  end
++
++::method test_halt_call_on
++  self~assertSame("HALT 0", haltCallOn("ROUTINE"))
++  self~assertSame("HALT 5", haltCallOn("RAISE"))
++  self~assertSame("HALT 0", haltCallOn("INCOMMAND"))
++
++::method test_halt_untrapped_is_syntax_4_1
++  do how over "ROUTINE", "RAISE", "INCOMMAND"
++    self~assertSame("4.1", haltUntrapped(how), how)
++  end
++
++
++-- the context's lifetime ------------------------------------------------------
++
++::method test_context_invalid_after_its_command
++  in.0 = 0
++  address t "KEEP" with input stem in.
++  self~assertSame(0, .local~kept~isValid)
++
++::method test_stale_context_is_syntax
++  in.0 = 0
++  address t "KEEP" with input stem in.
++  self~assertSame("98.900", staleCode(.message~new(.local~keptIn, "LINEIN")))
++  self~assertSame("98.900", staleCode(.message~new(.local~kept, "[]", "I", "x")))
++  self~assertSame("98.900", staleCode(.message~new(.local~kept, "RAISE", "I", "ERROR", 1)))
++
++::method test_context_refused_on_another_thread
++  .local~replied = .nil
++  address t "REPLY"
++  do 100 while .local~replied == .nil; call SysSleep 0.02; end
++  self~assertSame("98.900", .local~replied)
++
++
++-- nesting, recursion, threads -------------------------------------------------
++
++::method test_command_to_another_handler
++  address t "NESTED"
++  self~assertSame("U:inner T:after", rc)
++
++::method test_recursion_each_level_its_callers_variables
++  .CommandHandler~register("r", .CHRec~new)
++  depth = 0
++  address r "SELF 5"
++  self~assertSame(0, rc)
++  self~assertSame(5, depth)
++
++::method test_nested_redirection
++  .CommandHandler~register("r", .CHRec~new)
++  address r "REDIR" with output stem out.
++  self~assertSame(1, out.0)
++  self~assertSame("outer got inner", out.1)
++
++::method test_outer_context_valid_after_inner_command
++  .CommandHandler~register("r", .CHRec~new)
++  address r "AFTER"
++  self~assertSame("1", after)
++
++::method test_conditions_across_levels
++  trace off
++  failed = "none"
++  .CommandHandler~register("r", .CHRec~new)
++  call on failure name got
++  address r "CHAIN"
++  self~assertSame("9 inner ERROR rc 3", failed)
++  return
++got:
++  failed = rc condition("D")
++  return
++
++::method test_unbounded_recursion_is_syntax_11_1
++  .CommandHandler~register("r", .CHRec~new)
++  signal on syntax name got
++  address r "LOOP"
++  self~fail("no SYNTAX")
++got:
++  self~assertSame("11.1", condition("O")~code)
++  address t "RETURN 7"                           -- and everything still works
++  self~assertSame(7, rc)
++
++::method test_deregister_itself_while_running
++  .CommandHandler~register("r", .CHRec~new)
++  address r "DEREG"
++  self~assertSame(42, rc)
++  self~assertFalse(.CommandHandler~environments~hasIndex("R"))
++
++::method test_command_from_another_thread
++  self~assertSame("thread ok", .CHThreaded~new~start("run")~result)
++
++::method test_concurrent_nested_commands
++  .CommandHandler~register("r", .CHRec~new)
++  workers = .array~new
++  do i = 1 to 4
++    workers~append(.CHThreaded~new~start("nested", 50))
++  end
++  do w over workers
++    self~assertSame(500, w~result)
++  end
++
++
++-- registration, introspection --------------------------------------------------
++
++::method test_register_again_covers
++  .CommandHandler~register("t", .CHT2~new)
++  address t "ANYTHING"
++  self~assertSame("T2", rc)
++  .CommandHandler~deregister("t")              -- uncovers the first one
++  address t "RETURN 7"
++  self~assertSame(7, rc)
++
++::method test_register_returns_covered
++  first = .CommandHandler~handler("t")
++  self~assertTrue(first~isA(.CHT))
++  self~assertSame(first, .CommandHandler~register("t", .CHT2~new))
++  self~assertSame(.nil, .CommandHandler~register("v", .CHT2~new))
++
++::method test_deregister_returns_removed
++  second = .CHT2~new
++  .CommandHandler~register("t", second)
++  self~assertSame(second, .CommandHandler~deregister("t"))
++  self~assertTrue(.CommandHandler~deregister("t")~isA(.CHT))
++  self~assertSame(.nil, .CommandHandler~handler("t"))
++
++::method test_handlers_stack
++  second = .CHT2~new
++  .CommandHandler~register("t", second)
++  list = .CommandHandler~handlers("t")
++  self~assertSame(2, list~items)
++  self~assertSame(second, list[1])
++  self~assertTrue(list[2]~isA(.CHT))
++  self~assertSame(0, .CommandHandler~handlers("nosuchname")~items)
++
++::method test_forward_to_covered
++  .CommandHandler~register("t", .CHForward~new("t"))
++  address t "RETURN 7"
++  self~assertSame("forwarded 7", rc)
++
++::method test_forward_to_native
++  trace off
++  env = address()
++  native = .CommandHandler~handler(env)
++  self~assertTrue(native~isA(.NativeCommandHandler))
++  self~assertSame(env~upper, native~name)
++  .CommandHandler~register(env, .CHForward~new(env))
++  rcSeen = "none"
++  call on error name got
++  "exit 3"
++  .CommandHandler~deregister(env)
++  self~assertSame(3, rcSeen)
++  self~assertSame(native, .CommandHandler~handler(env))
++  return
++got:
++  rcSeen = rc
++  return
++
++::method test_native_new_is_private
++  self~assertSame("97.2", syntaxCode(.message~new(.NativeCommandHandler, "NEW")))
++
++::method test_native_identity
++  env = address()
++  self~assertSame(.CommandHandler~handler(env), .CommandHandler~handler(env))
++  self~assertSame(.CommandHandler~handler(env), .CommandHandler~environments[env~upper])
++
++::method test_register_nil_refused
++  self~assertSame("93.900", syntaxCode(.message~new(.CommandHandler, "REGISTER", "I", "t", .nil)))
++  address t "RETURN 1"                           -- still registered
++  self~assertSame(1, rc)
++
++::method test_register_needs_commandhandler
++  self~assertSame("93.900", syntaxCode(.message~new(.CommandHandler, "REGISTER", "I", "v", .object~new)))
++  self~assertSame("93.900", syntaxCode(.message~new(.CommandHandler, "REGISTER", "I", "v", .CHDuck~new)))
++
++::method test_deregistered_is_failure_30
++  trace off
++  failed = "none"
++  .CommandHandler~deregister("t")
++  call on failure name got
++  address t "ANYTHING"
++  self~assertSame(30, failed)
++  return
++got:
++  failed = rc
++  return
++
++::method test_deregister_unknown_name
++  self~assertSame("93.900", syntaxCode(.message~new(.CommandHandler, "DEREGISTER", "I", "nosuchname")))
++
++::method test_deregister_native
++  -- a native environment other than the default one
++  name = .nil
++  envs = .CommandHandler~environments
++  do index over envs~allIndexes
++    if index \== "", index \== address()~upper, envs[index]~isA(.NativeCommandHandler) then do; name = index; leave; end
++  end
++  if name == .nil then return
++  native = envs[name]
++  self~assertSame(native, .CommandHandler~deregister(name))
++  self~assertFalse(.CommandHandler~environments~hasIndex(name))
++  .CommandHandler~register(name, native)        -- put it back
++  self~assertSame(native, .CommandHandler~handler(name))
++  .CommandHandler~deregister(name)
++  .CommandHandler~register(name, native)        -- as it was: no Rexx handler covering nothing
++  self~assertSame(1, .CommandHandler~handlers(name)~items)
++
++::method test_register_after_deregister
++  .CommandHandler~deregister("t")
++  .CommandHandler~register("t", .CHT2~new)
++  address t "ANYTHING"
++  self~assertSame("T2", rc)
++
++::method test_environments
++  envs = .CommandHandler~environments
++  self~assertTrue(envs~isA(.StringTable))
++  self~assertTrue(envs["T"]~isA(.CHT))
++  self~assertTrue(envs["U"]~isA(.CHU))
++  .CommandHandler~deregister("u")
++  self~assertFalse(.CommandHandler~environments~hasIndex("U"))
++  do name over envs~allIndexes
++    self~assertTrue(envs[name]~isA(.CommandHandler))     -- natives too: no strings
++  end
++
++
++-- helpers -----------------------------------------------------------------------
++
++::routine inProcedure
++  local = "x"
++  address t "SET local local"
++  return local
++
++::routine syntaxAfter
++  use arg verb
++  signal on syntax name got
++  i.0 = 1; i.1 = "a"
++  address t verb with input stem i. output stem o.
++  return "none"
++got:
++  return condition("O")~code
++
++::routine tracebackItems
++  use arg what
++  signal on syntax name got
++  if what == "DIRECT" then x = 1 / 0
++  address t what
++  return 0
++got:
++  return condition("O")~traceback~items
++
++::routine syntaxCode
++  use arg msg
++  signal on syntax name got
++  msg~send
++  return "none"
++got:
++  return condition("O")~code
++
++::routine staleCode
++  use arg msg
++  signal on syntax name got
++  msg~send
++  return "none"
++got:
++  return condition("O")~code
++
++::routine haltSignalOn
++  use arg how
++  signal on halt name got
++  signal on syntax name syn
++  address t "HALT" how
++  nop
++  return "went on, rc" rc
++got:
++  return "HALT"
++syn:
++  return "SYNTAX" condition("O")~code
++
++::routine haltCallOn
++  use arg how
++  r = "none"
++  call on halt name got
++  signal on syntax name syn
++  address t "HALT" how
++  nop
++  nop
++  if r == "none" then r = "went on, rc" rc
++  return r
++got:
++  r = "HALT" rc
++  return
++syn:
++  return "SYNTAX" condition("O")~code
++
++::routine haltUntrapped
++  use arg how
++  signal on syntax name syn
++  address t "HALT" how
++  nop
++  return "went on, rc" rc
++syn:
++  return condition("O")~code
++
++
++-- the handlers ----------------------------------------------------------------
++
++::class CHT subclass CommandHandler
++::method command
++  use arg cmd, ctx
++  parse var cmd verb rest
++  select
++    when verb = "RETURN"  then return rest
++    when verb = "NOTHING" then return
++    when verb = "ENV"     then return ctx~environment
++    when verb = "SET"     then do
++      parse var rest name value
++      ctx[name] = value
++    end
++    when verb = "SYNONYMS" then do
++      ctx~setVar("syn.k", 7)
++      return (ctx~getVar("syn.k") == ctx["syn.k"]) ctx~getVar("nope2")
++    end
++    when verb = "HAS"     then return ctx~hasVar(rest)
++    when verb = "GET"     then return ctx[rest]~string
++    when verb = "DROP"    then ctx~dropVar(rest)
++    when verb = "VARS"    then do
++      handlerLocal = 1
++      v = ctx~variables
++      return v~hasIndex("MINE") v~hasIndex("HANDLERLOCAL")
++    end
++    when verb = "BADNAME" then return self~badName(ctx)
++    when verb = "UPPER"   then do
++      in = ctx~input; out = ctx~output
++      do while in~lines > 0
++        out~lineout(in~linein~upper)
++      end
++    end
++    when verb = "LINES"   then do
++      lines = ctx~input~arrayIn
++      ctx~output~arrayOut(.array~of(lines~items, lines~makeString("L", " ")))
++    end
++    when verb = "CHARS"   then do
++      in = ctx~input; out = ctx~output
++      out~charout(in~charin)               -- "u"
++      out~charout("|")
++      out~lineout(in~linein)               -- the rest of line 1: "no"
++      n = in~chars                         -- "dos" and a line end
++      out~lineout(n - .endOfLine~length + 1 in~linein)
++    end
++    when verb = "CHAROUT" then do
++      out = ctx~output
++      out~charout("ab" || .endOfLine || "c")
++      out~charout("d")                     -- no line end: flushed at the end
++    end
++    when verb = "EOF"     then return self~eof(ctx)
++    when verb = "STREAMS" then
++      ctx~output~lineout(ctx~input~isA(.InputStream) ctx~output~isA(.OutputStream))
++    when verb = "NOWITH"  then return self~noWith(ctx, rest)
++    when verb = "ERR"     then ctx~error~lineout(rest)
++    when verb = "REDIR"   then
++      return ctx~isRedirected("Input") ctx~isRedirected("Output"),
++             ctx~isRedirected("Error") ctx~isRedirected("Same")
++    when verb = "RAISE"   then do
++      parse var rest kind code
++      if kind = "ERROR" then return ctx~raiseError(code)
++      if kind = "FAILURE" then return ctx~raiseFailure(code)
++      if kind = "NOTREADY" then return ctx~raise("notready", code, "no line")
++      parse var code name code
++      return ctx~raise("user" name, code, , "extra")
++    end
++    when verb = "TWICE"   then do
++      x = ctx~raise("FAILURE", 5)
++      ctx["twice"] = self~oneRaise(ctx, .array~of("ERROR", 6))
++      return x
++    end
++    when verb = "BADRAISE"    then return self~badRaise(ctx)
++    when verb = "SYNTAXRAISE" then return ctx~raise("SYNTAX", 98.900, .array~of("the command is wrong"))
++    when verb = "SYNTAXINSIDE" then raise syntax 88.900 array("the handler failed")
++    when verb = "DIVIDE"  then return 1 / 0
++    when verb = "SETDIVIDE"  then do; ctx["x"] = 1; return 1 / 0; end
++    when verb = "GETDIVIDE"  then do; x = ctx["x"]; return 1 / 0; end
++    when verb = "VARSDIVIDE" then do; x = ctx~variables; return 1 / 0; end
++    when verb = "INDIVIDE"   then do; x = ctx~input~linein; return 1 / 0; end
++    when verb = "OUTDIVIDE"  then do; ctx~output~lineout("o"); return 1 / 0; end
++    when verb = "KEEP"    then do; .local~kept = ctx; .local~keptIn = ctx~input; end
++    when verb = "REPLY"   then do
++      reply 0
++      .local~replied = self~afterReply(ctx)
++      return
++    end
++    when verb = "NESTED"  then do
++      address u "INNER"
++      return rc "T:after"
++    end
++    when verb = "HALT"    then do
++      if rest = "ROUTINE" then call halts
++      if rest = "RAISE" then return ctx~raise("HALT", 5)
++      raise halt
++    end
++    otherwise return ctx~raiseFailure(-1)
++  end
++  return 0
++halts:
++  raise halt
++
++::method afterReply
++  use arg ctx
++  signal on syntax name refused
++  x = ctx["x"]
++  return "no error"
++refused:
++  return condition("O")~code
++
++::method badName
++  use arg ctx
++  signal on syntax name bad
++  ctx["1abc"] = 1
++  return "no error"
++bad:
++  return condition("O")~code
++
++::method eof
++  use arg ctx
++  in = ctx~input
++  do while in~lines > 0; x = in~linein; end
++  x = "unset"; seen = "no NOTREADY"
++  call on notready name eof               -- CALL ON: linein still returns
++  x = in~linein
++  ctx~output~lineout(seen "'" || x || "'")
++  return 0
++eof:
++  seen = condition("C")
++  return
++
++::method noWith
++  use arg ctx, which
++  signal on syntax name refused
++  x = ctx~send(which)
++  return "no error"
++refused:
++  return condition("O")~code
++
++-- three wrong raises, each caught: an unknown condition, a SYNTAX code that
++-- is not major.minor, and USER without a name
++::method badRaise
++  use arg ctx
++  codes = ""
++  do try over .array~of(.array~of("FOO", 1), .array~of("SYNTAX", 98), .array~of("USER", 1))
++    codes = codes self~oneRaise(ctx, try)
++  end
++  return codes~strip
++
++::method oneRaise
++  use arg ctx, try
++  signal on syntax name bad
++  x = ctx~raise(try[1], try[2])
++  return "no error"
++bad:
++  return condition("O")~code
++
++
++::class CHU subclass CommandHandler
++::method command
++  return "U:inner"
++
++
++::class CHBase                                   -- CHT2 has another superclass:
++::class CHT2 subclass CHBase inherit CommandHandler   -- the mixin is inherited
++::method command
++  return "T2"
++
++
++::class CHDuck                                   -- has COMMAND, but no .CommandHandler
++::method command
++  return "quack"
++
++
++-- recursion: R sends commands to itself and to T
++::class CHRec subclass CommandHandler
++::method command
++  use arg command, caller
++  parse var command verb n
++  select case verb
++    when "SELF" then do
++      caller["depth"] = caller["depth"] + 1
++      if n > 1 then do
++        depth = 0                                -- the inner command's caller is this method
++        address r "SELF" (n - 1)
++        caller["depth"] = caller["depth"] + depth
++      end
++      return 0
++    end
++    when "REDIR" then do
++      address t "RETURN x" with output stem mine.  -- an inner command with its own WITH
++      in.1 = "inner"; in.0 = 1
++      address t "UPPER" with input stem in. output stem mine.
++      caller~output~lineout("outer got" mine.1~lower)
++      return 0
++    end
++    when "AFTER" then do
++      address t "RETURN x"
++      caller["after"] = caller~isValid
++      return 0
++    end
++    when "CHAIN" then return self~chain(caller)
++    when "LOOP" then do
++      address r "LOOP"
++      return rc
++    end
++    when "DEREG" then do
++      .CommandHandler~deregister("r")
++      return 42
++    end
++    otherwise return -1
++  end
++
++::method chain
++  use arg caller
++  signal on error name e
++  address t "RAISE ERROR 3"
++  return caller~raise("FAILURE", 7, "no error came")
++e:
++  return caller~raise("FAILURE", 9, "inner ERROR rc" rc)
++
++
++::class CHThreaded
++::method run
++  address t "RETURN thread ok"
++  return rc
++
++::method nested
++  use arg times
++  total = 0
++  do times
++    depth = 0
++    address r "SELF 10"
++    total += depth
++  end
++  return total
++
++
++-- forwards every command to the handler it covered when it was registered
++::class CHForward inherit CommandHandler
++::method init
++  expose below
++  use arg name
++  below = .CommandHandler~handler(name)
++::method command
++  expose below
++  use arg command, caller
++  result = below~command(command, caller)
++  if command~word(1) == "RETURN" then return "forwarded" result
++  return result
+Index: ooRexx/base/class/MethodArgs.testGroup
+===================================================================
+diff --git a/ooRexx/base/class/MethodArgs.testGroup b/ooRexx/base/class/MethodArgs.testGroup
+--- a/ooRexx/base/class/MethodArgs.testGroup	(revision 13287)
++++ b/ooRexx/base/class/MethodArgs.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2016-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2016-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -73,7 +73,7 @@
+       when .CaselessColumnComparator, .ColumnComparator, .Method, .Routine then args = (1, 1)
+       when .CircularQueue, .Class, .File, .InvertingComparator, .Stream, .String, .TimeSpan, .WeakReference then args = .Array~of(1)
+       -- StackFrame is handled as a special case below; we ignore other listed classes
+-      when .ArgUtil, .Buffer, .Pointer, .RexxContext, .Singleton, .StackFrame, .Validate, .VariableReference then iterate
++      when .ArgUtil, .Buffer, .CommandContext, .CommandInput, .CommandOutput, .NativeCommandHandler, .Pointer, .RexxContext, .Singleton, .StackFrame, .Validate, .VariableReference then iterate
+       otherwise args = .Array~new
+     end
+     -- create instance and add to table

@@ -7,18 +7,18 @@ on:
     inputs:
       rev:
         description: ooRexx SVN revision
-        default: "13286"
+        default: "13287"
       patchset:
         description: directory under patches/
-        default: halt-request
+        default: rfe-882
       group:
         description: test group to run first (path under test/trunk)
-        default: ooRexx/API/oo/INVOCATION.testGroup
+        default: ooRexx/base/class/CommandHandler.testGroup
 
 env:
-  REV: ${{ inputs.rev || '13286' }}
-  PATCHSET: ${{ inputs.patchset || 'halt-request' }}
-  GROUP: ${{ inputs.group || 'ooRexx/API/oo/INVOCATION.testGroup' }}
+  REV: ${{ inputs.rev || '13287' }}
+  PATCHSET: ${{ inputs.patchset || 'rfe-882' }}
+  GROUP: ${{ inputs.group || 'ooRexx/base/class/CommandHandler.testGroup' }}
 
 jobs:
   source:
