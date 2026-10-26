@@ -1,0 +1,280 @@
+Index: ooRexx/API/oo/METHOD.testGroup
+===================================================================
+--- a/ooRexx/API/oo/METHOD.testGroup	(revision 13305)
++++ b/ooRexx/API/oo/METHOD.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2008-2025 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2008-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -3182,6 +3182,146 @@
+ 
+ 
+ 
++-- RaiseConditionObject (THREAD_INTERFACE_VERSION_5_3_0)
++::method testRaiseConditionObjectSyntax
++  tester = .METHODTester~new
++  c0 = rco_syntaxCondition()
++  c = tester~TestRaiseConditionObjectX(c0)
++  self~assertSame("SYNTAX", c~condition)
++  self~assertSame(40, c~rc)
++  self~assertSame(40.1, c~code)
++  self~assertSame("the description", c~description)
++  self~assertSame(1, c~additional~size)
++  self~assertSame("XYZ", c~additional[1])
++  self~assertTrue(c~message~pos("XYZ") > 0)
++  -- native code must have continued after the RaiseConditionObject call
++  self~assertSame(.true, tester~TestGetObjectVariableOrNil("CONTINUE"))
++  -- a copy was raised: the original object is not changed
++  self~assertTrue(c~identityHash \== c0~identityHash)
++  self~assertSame(rco_syntaxCondition()~position, c0~position)
++
++::method testRaiseConditionObjectSyntaxFromCallee
++  -- what a bridge does: native code calls Rexx code, gets the condition it
++  -- raised, and raises it again in its caller, DESCRIPTION included
++  tester = .METHODTester~new
++  r = .routine~new("callee", 'raise syntax 40.1 array ("ABC") description "kept"')
++  c = tester~TestCallRoutineAndReraiseX(r)
++  self~assertSame("SYNTAX", c~condition)
++  self~assertSame(40.1, c~code)
++  self~assertSame("kept", c~description)
++  self~assertSame("ABC", c~additional[1])
++
++::method testRaiseConditionObjectErrorRC
++  tester = .METHODTester~new
++  c0 = rco_errorCondition()
++  c = tester~TestRaiseConditionObjectX(c0)
++  self~assertSame("ERROR", c~condition)
++  self~assertSame(127, c~rc)
++  self~assertSame("a command", c~description)
++  self~assertSame(.true, tester~TestGetObjectVariableOrNil("CONTINUE"))
++  -- RaiseCondition cannot give an RC
++  c = tester~TestRaiseConditionX("ERROR", "a command")
++  self~assertSame("ERROR", c~condition)
++  self~assertSame(.nil, c~rc)
++
++::method testRaiseConditionObjectUser
++  tester = .METHODTester~new
++  c0 = rco_userCondition()
++  c0~result = "user result"     -- as RaiseCondition's result argument
++  c = tester~TestRaiseConditionObjectX(c0)
++  self~assertSame("USER MINE", c~condition)
++  self~assertSame("user description", c~description)
++  self~assertSame("user additional", c~additional)
++  self~assertSame("user result", c~result)
++  -- not trapped: the method returns, its result the condition's RESULT
++  self~assertSame("user result", tester~TestRaiseConditionObject(c0))
++
++::method testRaiseConditionObjectHandMade
++  tester = .METHODTester~new
++  d = .directory~new
++  d~condition = "user mine"
++  d~description = "hand made"
++  c = tester~TestRaiseConditionObjectX(d)
++  self~assertSame("USER MINE", c~condition)
++  self~assertSame("hand made", c~description)
++  self~assertTrue(c~traceback~isA(.list))
++
++  d = .directory~new
++  d~condition = "SYNTAX"
++  d~code = "40.1"
++  d~additional = .array~of("HAND")
++  c = tester~TestRaiseConditionObjectX(d)
++  self~assertSame("SYNTAX", c~condition)
++  self~assertSame(40, c~rc)
++  self~assertSame(40.1, c~code)
++  self~assertSame("", c~description)
++  self~assertTrue(c~errortext \== "")
++  self~assertTrue(c~message~pos("HAND") > 0)
++
++::method testRaiseConditionObjectHaltNomethod
++  -- as with RAISE, an untrapped HALT or NOMETHOD is an error
++  tester = .METHODTester~new
++  c0 = rco_haltCondition()
++  c = tester~TestRaiseConditionObjectX(c0)
++  self~assertSame("HALT", c~condition)
++  self~assertSame("halt description", c~description)
++  c = tester~TestRaiseConditionObjectSyntaxX(c0)
++  self~assertSame(4.1, c~code)
++
++  c0 = rco_nomethodCondition()
++  c = tester~TestRaiseConditionObjectX(c0)
++  self~assertSame("NOMETHOD", c~condition)
++  c = tester~TestRaiseConditionObjectSyntaxX(c0)
++  self~assertSame(97.1, c~code)
++
++  -- RaiseCondition too
++  c = tester~TestRaiseConditionSyntaxX("HALT")
++  self~assertSame(4.1, c~code)
++  c = tester~TestRaiseConditionSyntaxX("NOMETHOD")
++  self~assertSame(97.5, c~code)
++
++::method testRaiseConditionObjectOptionsSyntax
++  -- ::OPTIONS ERROR SYNTAX applies in the caller, as for RaiseCondition
++  tester = .METHODTester~new
++  src = .array~of("use arg tester, c",                              -
++                  "signal on syntax",                               -
++                  "tester~TestRaiseConditionObject(c)",             -
++                  "return .nil",                                    -
++                  "syntax: return condition('o')",                  -
++                  "::options error syntax")
++  r = .routine~new("optionsErrorSyntax", src)
++  c = r~call(tester, rco_errorCondition())
++  self~assertSame("SYNTAX", c~condition)
++  self~assertSame(98.970, c~code)
++  -- other conditions are not affected
++  c = r~call(tester, rco_userCondition())
++  self~assertSame(.nil, c)
++
++::method testRaiseConditionObjectErrors
++  tester = .METHODTester~new
++  c = tester~TestRaiseConditionObjectX()
++  self~assertSame(93.911, c~code)
++  c = tester~TestRaiseConditionObjectX("not a directory")
++  self~assertSame(93.948, c~code)
++  c = tester~TestRaiseConditionObjectX(.directory~new)
++  self~assertSame(93.900, c~code)
++  d = .directory~new
++  d~condition = "SYNTAX"
++  c = tester~TestRaiseConditionObjectX(d)
++  self~assertSame(93.900, c~code)
++  d~code = "100.1"
++  c = tester~TestRaiseConditionObjectX(d)
++  self~assertSame(93.900, c~code)
++  d~code = "40.1"
++  d~additional = "not an array"
++  c = tester~TestRaiseConditionObjectX(d)
++  self~assertSame(93.900, c~code)
++  -- RaiseCondition cannot raise SYNTAX (it has no error number)
++  c = tester~TestRaiseConditionX("SYNTAX", "no number")
++  self~assertSame(93.900, c~code)
++
++
++
+ ::method testSendMessageScoped
+   tester = .METHODTester~new
+   o = .Scoped3~new
+@@ -3224,4 +3364,46 @@
+   return "makeString"
+ 
+ 
++-- condition objects for the RaiseConditionObject tests (RAISE presents
++-- the condition to the caller, so a routine raises it and its caller traps it)
++::routine rco_syntaxCondition
++  signal on syntax
++  call rco_raise "SYNTAX"
++  syntax:
++  return condition('o')
++
++::routine rco_errorCondition
++  signal on error
++  call rco_raise "ERROR"
++  error:
++  return condition('o')
++
++::routine rco_userCondition
++  signal on user mine
++  call rco_raise "USER"
++  mine:
++  return condition('o')
++
++::routine rco_haltCondition
++  signal on halt
++  call rco_raise "HALT"
++  halt:
++  return condition('o')
++
++::routine rco_nomethodCondition
++  signal on nomethod
++  .object~new~noSuchMethod
++  nomethod:
++  return condition('o')
++
++::routine rco_raise
++  use arg which
++  select
++    when which = "SYNTAX" then raise syntax 40.1 array ("XYZ") description "the description"
++    when which = "ERROR"  then raise error 127 description "a command"
++    when which = "USER"   then raise user mine description "user description" additional "user additional"
++    when which = "HALT"   then raise halt description "halt description"
++  end
++
++
+ ::options novalue syntax
+Index: ooRexx/API/oo/METHODPackage.cls
+===================================================================
+--- a/ooRexx/API/oo/METHODPackage.cls	(revision 13305)
++++ b/ooRexx/API/oo/METHODPackage.cls	(working copy)
+@@ -1,6 +1,6 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2008-2024 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2008-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -206,6 +206,8 @@
+ ::method TestRaiseException2 EXTERNAL "LIBRARY orxmethod TestRaiseException2"
+ ::method TestRaiseException EXTERNAL "LIBRARY orxmethod TestRaiseException"
+ ::method TestRaiseCondition EXTERNAL "LIBRARY orxmethod TestRaiseCondition"
++::method TestRaiseConditionObject EXTERNAL "LIBRARY orxmethod TestRaiseConditionObject"
++::method TestCallRoutineAndReraise EXTERNAL "LIBRARY orxmethod TestCallRoutineAndReraise"
+ ::method TestInterpreterVersion EXTERNAL "LIBRARY orxmethod TestInterpreterVersion"
+ ::method TestLanguageLevel EXTERNAL "LIBRARY orxmethod TestLanguageLevel"
+ ::method TestNewStringFromAsciiz EXTERNAL "LIBRARY orxmethod TestNewStringFromAsciiz"
+@@ -299,6 +301,51 @@
+   syntax:
+      return condition('o')
+ 
++-- these return the condition object of whatever the call raised, or .nil
++::method TestRaiseConditionObjectX
++  signal on syntax name trapped
++  signal on any name trapped
++  forward message("TestRaiseConditionObject") continue
++  return .nil
++
++  trapped:
++     return condition('o')
++
++::method TestRaiseConditionX
++  signal on syntax name trapped
++  signal on any name trapped
++  forward message("TestRaiseCondition") continue
++  return .nil
++
++  trapped:
++     return condition('o')
++
++::method TestCallRoutineAndReraiseX
++  signal on syntax name trapped
++  signal on any name trapped
++  forward message("TestCallRoutineAndReraise") continue
++  return .nil
++
++  trapped:
++     return condition('o')
++
++-- these trap SYNTAX only
++::method TestRaiseConditionObjectSyntaxX
++  signal on syntax
++  forward message("TestRaiseConditionObject") continue
++  return .nil
++
++  syntax:
++     return condition('o')
++
++::method TestRaiseConditionSyntaxX
++  signal on syntax
++  forward message("TestRaiseCondition") continue
++  return .nil
++
++  syntax:
++     return condition('o')
++
+ ::method TestRaiseException0X
+   signal on syntax
+   forward message(TestRaiseException0) continue
