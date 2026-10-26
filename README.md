@@ -31,3 +31,11 @@ the ooRexx test suite, next to an unpatched build of the same revision.
   they were split), Windows (MSVC): `METHOD.testGroup` 328/328; full suite 24,525 tests with the same 7 failures as the
   unpatched build (whose suite has 24,197: without the patched test
   library, `METHOD.testGroup` does not load). No new warnings.
+- `raisecondition` on r13305, Windows (MSVC): `METHOD.testGroup` 322/322;
+  full suite 24,519 tests with the same 7 failures as before. The unpatched
+  build cannot run the new tests: the process dies in them (the crash the
+  patch fixes, and the old test library passing a C string as an object).
+- `raise-condition-object` (both concatenated) on r13305, Windows (MSVC):
+  `METHOD.testGroup` 330/330; full suite 24,527 tests, the usual 7 failures
+  plus `TEST_DRIVES` (free disk space compared with WMI, a test that says it
+  may fail now and then). No new warnings.
