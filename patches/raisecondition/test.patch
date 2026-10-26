@@ -1,0 +1,91 @@
+Index: ooRexx/API/oo/METHOD.testGroup
+===================================================================
+--- a/ooRexx/API/oo/METHOD.testGroup	(revision 13305)
++++ b/ooRexx/API/oo/METHOD.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2008-2025 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2008-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -3182,6 +3182,39 @@
+ 
+ 
+ 
++-- RaiseCondition: as with the RAISE instruction, an untrapped HALT or
++-- NOMETHOD condition is an error
++::method testRaiseConditionHaltNomethod
++  tester = .METHODTester~new
++  -- trapped: as before
++  c = tester~TestRaiseConditionX("HALT", "halt description")
++  self~assertSame("HALT", c~condition)
++  self~assertSame("halt description", c~description)
++  c = tester~TestRaiseConditionX("NOMETHOD")
++  self~assertSame("NOMETHOD", c~condition)
++  -- not trapped
++  c = tester~TestRaiseConditionSyntaxX("HALT")
++  self~assertNotNil(c, "an untrapped HALT was lost")
++  self~assertSame(4.1, c~code)
++  c = tester~TestRaiseConditionSyntaxX("NOMETHOD")
++  self~assertNotNil(c, "an untrapped NOMETHOD was lost")
++  self~assertSame(97.5, c~code)
++  c = tester~TestRaiseConditionSyntaxX("NOMETHOD", "FOO", .array~of("receiver"))
++  self~assertNotNil(c, "an untrapped NOMETHOD was lost")
++  self~assertSame(97.1, c~code)
++  -- other conditions are not affected: the method returns
++  c = tester~TestRaiseConditionSyntaxX("USER MINE")
++  self~assertSame(.nil, c)
++  self~assertSame(.true, tester~TestGetObjectVariableOrNil("CONTINUE"))
++
++-- RaiseCondition cannot raise SYNTAX (it has no error number); it crashed
++::method testRaiseConditionSyntax
++  tester = .METHODTester~new
++  c = tester~TestRaiseConditionX("SYNTAX", "no number")
++  self~assertSame(93.900, c~code)
++
++
++
+ ::method testSendMessageScoped
+   tester = .METHODTester~new
+   o = .Scoped3~new
+Index: ooRexx/API/oo/METHODPackage.cls
+===================================================================
+--- a/ooRexx/API/oo/METHODPackage.cls	(revision 13305)
++++ b/ooRexx/API/oo/METHODPackage.cls	(working copy)
+@@ -1,6 +1,6 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2008-2024 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2008-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -299,6 +299,25 @@
+   syntax:
+      return condition('o')
+ 
++-- returns the condition object of whatever the call raised, or .nil
++::method TestRaiseConditionX
++  signal on syntax name trapped
++  signal on any name trapped
++  forward message("TestRaiseCondition") continue
++  return .nil
++
++  trapped:
++     return condition('o')
++
++-- traps SYNTAX only
++::method TestRaiseConditionSyntaxX
++  signal on syntax
++  forward message("TestRaiseCondition") continue
++  return .nil
++
++  syntax:
++     return condition('o')
++
+ ::method TestRaiseException0X
+   signal on syntax
+   forward message(TestRaiseException0) continue

@@ -9,7 +9,8 @@ the ooRexx test suite, next to an unpatched build of the same revision.
 |---|---|---|
 | `rfe-881` | `RexxCallBack`, Regina-compatible: an external function calls a label of the running program | [RFE #881](https://sourceforge.net/p/oorexx/feature-requests/881/) |
 | `nonsyntax` | A non-SYNTAX condition raised by Rexx code called through the API is lost; `DecodeConditionInfo` on such a condition (series v2, five patches concatenated) | [#2123](https://sourceforge.net/p/oorexx/bugs/2123/) |
-| `raise-condition-object` | `RaiseConditionObject`: native code raises a condition object as it is (RC, DESCRIPTION...); `RaiseCondition("SYNTAX")` no longer crashes; an untrapped HALT or NOMETHOD raised through the API gives Error 4.1 / 97, as RAISE does | feature request (to be filed) |
+| `raisecondition` | `RaiseCondition("SYNTAX")` crashes the process; an untrapped HALT or NOMETHOD raised with `RaiseCondition` is lost (RAISE gives Error 4.1 / 97) | bug (to be filed) |
+| `raise-condition-object` | `RaiseConditionObject`: native code raises a condition object as it is (RC, DESCRIPTION...); on top of `raisecondition` (the two concatenated) | feature request (to be filed) |
 
 ## Results
 
@@ -26,7 +27,7 @@ the ooRexx test suite, next to an unpatched build of the same revision.
 - `halt-request` (#2124) on r13286, Windows (MSVC): `INVOCATION.testGroup`
   55/55; full suite 24,412 tests with the same 7 failures as the unpatched
   build. No new warnings.
-- `raise-condition-object` on r13305, Windows (MSVC): `METHOD.testGroup`
-  328/328; full suite 24,525 tests with the same 7 failures as the
+- `raise-condition-object` on r13305 (bug fix and RFE in one patch, before
+  they were split), Windows (MSVC): `METHOD.testGroup` 328/328; full suite 24,525 tests with the same 7 failures as the
   unpatched build (whose suite has 24,197: without the patched test
   library, `METHOD.testGroup` does not load). No new warnings.

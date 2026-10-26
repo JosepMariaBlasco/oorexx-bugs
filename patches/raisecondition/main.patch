@@ -1,0 +1,83 @@
+Index: interpreter/api/ThreadContextStubs.cpp
+===================================================================
+--- a/interpreter/api/ThreadContextStubs.cpp	(revision 13305)
++++ b/interpreter/api/ThreadContextStubs.cpp	(working copy)
+@@ -1917,6 +1917,11 @@
+     try
+     {
+         Protected<RexxString> name = new_upper_string(n);
++        // a SYNTAX condition needs an error number: RaiseException raises one
++        if (name->strCompare(GlobalNames::SYNTAX))
++        {
++            reportException(Error_Incorrect_method_user_defined, new_string("RaiseCondition cannot raise a SYNTAX condition; use RaiseException"));
++        }
+         context.context->enableConditionTrap();
+         context.activity->raiseCondition(name, OREF_NULL, (RexxString *)desc, (RexxObject *)add, (RexxObject *)result);
+     }
+Index: interpreter/execution/NativeActivation.cpp
+===================================================================
+--- a/interpreter/execution/NativeActivation.cpp	(revision 13305)
++++ b/interpreter/execution/NativeActivation.cpp	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2025 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -1808,10 +1808,30 @@
+                 // find a predecessor Rexx activation
+                 ActivationBase *_sender = getPreviousStackFrame();
+                 // raise this in our caller's context.
++                bool trapped = false;
+                 if (_sender != OREF_NULL)
+                 {
+-                    _sender->trap(conditionName, conditionObj);
++                    trapped = _sender->trap(conditionName, conditionObj);
+                 }
++                // as with the RAISE instruction, an untrapped HALT or NOMETHOD
++                // condition is an error
++                if (!trapped)
++                {
++                    if (conditionName->strCompare(GlobalNames::HALT))
++                    {
++                        reportException(Error_Program_interrupted_condition, GlobalNames::HALT);
++                    }
++                    else if (conditionName->strCompare(GlobalNames::NOMETHOD))
++                    {
++                        RexxObject *additional = (RexxObject *)conditionObj->get(GlobalNames::ADDITIONAL);
++                        RexxObject *description = (RexxObject *)conditionObj->get(GlobalNames::DESCRIPTION);
++                        if (additional != OREF_NULL && description != OREF_NULL)
++                        {
++                            reportException(Error_No_method_name, additional, description);
++                        }
++                        reportException(Error_No_method_unhandled);
++                    }
++                }
+                 // if the trap is not handled, then we return directly.  The return
+                 // value (if any) is stored in the condition object
+                 result = (RexxObject *)conditionObj->get(GlobalNames::RESULT);
+Index: testbinaries/orxmethod.cpp
+===================================================================
+--- a/testbinaries/orxmethod.cpp	(revision 13305)
++++ b/testbinaries/orxmethod.cpp	(working copy)
+@@ -1,6 +1,6 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2008-2024 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2008-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -2113,7 +2113,8 @@
+             OPTIONAL_RexxArrayObject, add,
+             OPTIONAL_RexxObjectPtr, result)
+ {
+-    context->RaiseCondition(name, (RexxStringObject)desc, add, result);
++    // desc is a C string: it must be passed as a String object
++    context->RaiseCondition(name, desc == NULL ? NULLOBJECT : context->String(desc), add, result);
+     // this should still get executed
+     context->SetObjectVariable("CONTINUE", context->True());
+     return 0;
