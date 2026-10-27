@@ -11,7 +11,7 @@ the ooRexx test suite, next to an unpatched build of the same revision.
 | `nonsyntax` | A non-SYNTAX condition raised by Rexx code called through the API is lost; `DecodeConditionInfo` on such a condition (series v2, five patches concatenated) | [#2123](https://sourceforge.net/p/oorexx/bugs/2123/) |
 | `raisecondition` | `RaiseCondition("SYNTAX")` crashes the process; an untrapped HALT or NOMETHOD raised with `RaiseCondition` is lost (RAISE gives Error 4.1 / 97) | [#2126](https://sourceforge.net/p/oorexx/bugs/2126/) |
 | `raise-condition-object` | `RaiseConditionObject`: native code raises a condition object as it is (RC, DESCRIPTION...); on top of `raisecondition` (the two concatenated) | [RFE #883](https://sourceforge.net/p/oorexx/feature-requests/883/) |
-| `rexxinfo-date` | The build date from `__DATE__` in one place only, so that `.RexxInfo~name`, `.RexxInfo~date` and `rexx -v` agree | [#2051](https://sourceforge.net/p/oorexx/bugs/2051/) (and #1813) |
+| `rexxinfo-date` | The build date from `__DATE__` in one place only, so that `.RexxInfo~name`, `.RexxInfo~date` and `rexx -v` agree | [#2051](https://sourceforge.net/p/oorexx/bugs/2051/) (and #1813), committed r13312 |
 
 ## Results
 
