@@ -1,7 +1,16 @@
 Index: api/rexx.h
 ===================================================================
---- a/api/rexx.h	(revision 13285)
+--- a/api/rexx.h	(revision 13306)
 +++ b/api/rexx.h	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2018 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
 @@ -409,6 +409,28 @@
  /***    External Function Interface                                           */
  /*----------------------------------------------------------------------------*/
@@ -33,8 +42,17 @@ Index: api/rexx.h
  typedef size_t REXXENTRY RexxRoutineHandler(CONSTANT_STRING,
 Index: interpreter/api/InterpreterAPI.cpp
 ===================================================================
---- a/interpreter/api/InterpreterAPI.cpp	(revision 13285)
+--- a/interpreter/api/InterpreterAPI.cpp	(revision 13306)
 +++ b/interpreter/api/InterpreterAPI.cpp	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2025 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
 @@ -413,6 +413,48 @@
  }
  
@@ -86,8 +104,17 @@ Index: interpreter/api/InterpreterAPI.cpp
   * @param stemname The name of the stem.
 Index: interpreter/execution/NativeActivation.cpp
 ===================================================================
---- a/interpreter/execution/NativeActivation.cpp	(revision 13285)
+--- a/interpreter/execution/NativeActivation.cpp	(revision 13306)
 +++ b/interpreter/execution/NativeActivation.cpp	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2025 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
 @@ -1534,6 +1534,8 @@
  
      size_t activityLevel = activity->getActivationLevel();
@@ -209,8 +236,17 @@ Index: interpreter/execution/NativeActivation.cpp
   * the method context args.
 Index: interpreter/execution/NativeActivation.hpp
 ===================================================================
---- a/interpreter/execution/NativeActivation.hpp	(revision 13285)
+--- a/interpreter/execution/NativeActivation.hpp	(revision 13306)
 +++ b/interpreter/execution/NativeActivation.hpp	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2019 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
 @@ -192,6 +192,7 @@
      void variablePoolRequest(PSHVBLOCK pshvblock);
      RexxReturnCode copyValue(RexxObject * value, RXSTRING *rxstring, size_t *length);
@@ -221,8 +257,17 @@ Index: interpreter/execution/NativeActivation.hpp
      inline void enableConditionCapture() { trapConditions = true; captureConditions = true; }
 Index: interpreter/platform/windows/rexx.def
 ===================================================================
---- a/interpreter/platform/windows/rexx.def	(revision 13285)
+--- a/interpreter/platform/windows/rexx.def	(revision 13306)
 +++ b/interpreter/platform/windows/rexx.def	(working copy)
+@@ -1,7 +1,7 @@
+ ;----------------------------------------------------------------------------
+ ;
+ ; Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.
+-; Copyright (c) 2005-2006 Rexx Language Association. All rights reserved.
++; Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.
+ ;
+ ; This program and the accompanying materials are made available under
+ ; the terms of the Common Public License v1.0 which accompanies this
 @@ -64,4 +64,5 @@
  RexxSetProcessMessages        @110  ; not documented, but used by some IBM apps prior to 4.0
  RexxGetVersionInformation     @114
@@ -231,8 +276,16 @@ Index: interpreter/platform/windows/rexx.def
  
 Index: testbinaries/CMakeLists.txt
 ===================================================================
---- a/testbinaries/CMakeLists.txt	(revision 13285)
+--- a/testbinaries/CMakeLists.txt	(revision 13306)
 +++ b/testbinaries/CMakeLists.txt	(working copy)
+@@ -1,6 +1,6 @@
+ #/*----------------------------------------------------------------------------*/
+ #/*                                                                            */
+-#/* Copyright (c) 2014-2025 Rexx Language Association. All rights reserved.    */
++#/* Copyright (c) 2014-2026 Rexx Language Association. All rights reserved.    */
+ #/*                                                                            */
+ #/* This program and the accompanying materials are made available under       */
+ #/* the terms of the Common Public License v1.0 which accompanies this         */
 @@ -65,6 +65,11 @@
  generate_test_library(orxmethod cpp)
  generate_test_library(orxclassic cpp)
@@ -247,8 +300,16 @@ Index: testbinaries/CMakeLists.txt
  # this library is linked to other test libraries
 Index: testbinaries/orxclassic1.c
 ===================================================================
---- a/testbinaries/orxclassic1.c	(revision 13285)
+--- a/testbinaries/orxclassic1.c	(revision 13306)
 +++ b/testbinaries/orxclassic1.c	(working copy)
+@@ -1,6 +1,6 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2008-2024 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2008-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
 @@ -38,6 +38,11 @@
  #include <rexx.h>
  #include <string.h>
@@ -384,8 +445,17 @@ Index: testbinaries/orxclassic1.c
      int retc = 0;
 Index: testbinaries/orxclassic1.def
 ===================================================================
---- a/testbinaries/orxclassic1.def	(revision 13285)
+--- a/testbinaries/orxclassic1.def	(revision 13306)
 +++ b/testbinaries/orxclassic1.def	(working copy)
+@@ -1,7 +1,7 @@
+ ;/*----------------------------------------------------------------------------*/
+ ;/*                                                                            */
+ ;/* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-;/* Copyright (c) 2005-2006 Rexx Language Association. All rights reserved.    */
++;/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ ;/*                                                                            */
+ ;/* This program and the accompanying materials are made available under       */
+ ;/* the terms of the Common Public License v1.0 which accompanies this         */
 @@ -40,6 +40,10 @@
  
  EXPORTS
