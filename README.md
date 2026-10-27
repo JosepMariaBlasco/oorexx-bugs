@@ -39,3 +39,6 @@ the ooRexx test suite, next to an unpatched build of the same revision.
   `METHOD.testGroup` 330/330; full suite 24,527 tests, the usual 7 failures
   plus `TEST_DRIVES` (free disk space compared with WMI, a test that says it
   may fail now and then). No new warnings.
+- `rfe-881` on r13306 (the same code; copyright years only), Windows
+  (MSVC): the RexxCallBack test group 19/19; full suite 24,536 tests with
+  the same 7 failures as the unpatched build.
