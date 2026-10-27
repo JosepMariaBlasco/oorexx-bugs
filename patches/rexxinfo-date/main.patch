@@ -1,0 +1,107 @@
+Index: interpreter/api/InterpreterAPI.cpp
+===================================================================
+--- a/interpreter/api/InterpreterAPI.cpp	(revision 13311)
++++ b/interpreter/api/InterpreterAPI.cpp	(working copy)
+@@ -267,12 +267,13 @@
+     char copy3[] = "\nThis program and the accompanying materials are made available under the terms";
+     char copy4[] = "\nof the Common Public License v1.0 which accompanies this distribution or at";
+     char copy5[] = "\nhttps://www.oorexx.org/license.html";
+-    size_t length = strlen(header) + strlen(ver) + strlen(build) + strlen(__DATE__) +
++    const char *date = Interpreter::getBuildDate();
++    size_t length = strlen(header) + strlen(ver) + strlen(build) + strlen(date) +
+         strlen(mode) + strlen(copy1) + strlen(copy2) + strlen(copy3) + strlen(copy4) + strlen(copy5) + 1;
+     char *ptr = (char *)SystemInterpreter::allocateResultMemory(length);
+     if (ptr != NULL)
+     {
+-        snprintf(ptr, length, "%s%s%s%s%s%s%s%s%s%s", header, ver, build, __DATE__, mode, copy1, copy2, copy3, copy4, copy5);
++        snprintf(ptr, length, "%s%s%s%s%s%s%s%s%s%s", header, ver, build, date, mode, copy1, copy2, copy3, copy4, copy5);
+     }
+     return ptr;
+ }
+Index: interpreter/classes/RexxInfoClass.cpp
+===================================================================
+--- a/interpreter/classes/RexxInfoClass.cpp	(revision 13311)
++++ b/interpreter/classes/RexxInfoClass.cpp	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2025 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -179,7 +179,7 @@
+     char     buffer[100];                // buffer for building the string
+     char     work[20];                   // working buffer for the date
+ 
+-    strcpy(work, __DATE__);              // copy the build date
++    strcpy(work, Interpreter::getBuildDate()); // copy the build date
+     char *month = strtok(work, " ");     // now we need to tokenize the different bits
+     char *day = strtok(NULL, " ");
+     char *year = strtok(NULL, " ");
+Index: interpreter/runtime/Interpreter.hpp
+===================================================================
+--- a/interpreter/runtime/Interpreter.hpp	(revision 13311)
++++ b/interpreter/runtime/Interpreter.hpp	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2025 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -127,6 +127,7 @@
+     static RexxString* qualifyFileSystemName(RexxString *name);
+ 
+     static const char *getLanguageLevelString();
++    static const char *getBuildDate();
+ 
+ protected:
+ 
+Index: interpreter/runtime/Version.cpp
+===================================================================
+--- a/interpreter/runtime/Version.cpp	(revision 13311)
++++ b/interpreter/runtime/Version.cpp	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2025 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -61,7 +61,7 @@
+         char     buffer[100];                /* buffer for building the string    */
+         char     work[20];                   /* working buffer                    */
+ 
+-        strcpy(work, __DATE__);              /* copy the build date               */
++        strcpy(work, getBuildDate());        /* copy the build date               */
+         char *month = strtok(work, " ");     /* get the month                     */
+         char *day = strtok(NULL, " ");       /* get the build day                 */
+         char *year = strtok(NULL, " ");      /* and the year                      */
+@@ -84,6 +84,21 @@
+ 
+ 
+ /**
++ * Return the date the interpreter was built, as the compiler gives it
++ * ("Mmm dd yyyy").  This is the only place where __DATE__ is used, so that
++ * everything that reports the build date (the version string, .RexxInfo~date
++ * and RexxGetVersionInformation) agrees, even when the build spans midnight
++ * (bugs #1813 and #2051).
++ *
++ * @return The build date.
++ */
++const char *Interpreter::getBuildDate()
++{
++    return __DATE__;
++}
++
++
++/**
+  * Get the interpreter version level as a binary number
+  * to be returned in the APIs.
+  *

@@ -7,18 +7,18 @@ on:
     inputs:
       rev:
         description: ooRexx SVN revision
-        default: "13306"
+        default: "13311"
       patchset:
         description: directory under patches/
-        default: rfe-881
+        default: rexxinfo-date
       group:
         description: test group to run first (path under test/trunk)
-        default: ooRexx/API/classic/RexxCallBack.testGroup
+        default: ooRexx/base/class/RexxInfo.testGroup
 
 env:
-  REV: ${{ inputs.rev || '13306' }}
-  PATCHSET: ${{ inputs.patchset || 'rfe-881' }}
-  GROUP: ${{ inputs.group || 'ooRexx/API/classic/RexxCallBack.testGroup' }}
+  REV: ${{ inputs.rev || '13311' }}
+  PATCHSET: ${{ inputs.patchset || 'rexxinfo-date' }}
+  GROUP: ${{ inputs.group || 'ooRexx/base/class/RexxInfo.testGroup' }}
 
 jobs:
   source:
