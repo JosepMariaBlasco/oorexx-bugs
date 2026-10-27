@@ -43,3 +43,6 @@ the ooRexx test suite, next to an unpatched build of the same revision.
 - `rfe-881` on r13306 (the same code; copyright years only), Windows
   (MSVC): the RexxCallBack test group 19/19; full suite 24,536 tests with
   the same 7 failures as the unpatched build.
+- `rexxinfo-date` (#2051) on r13311, Windows (MSVC): `RexxInfo.testGroup`
+  21/21; full suite 24,540 tests with the same 7 failures as the unpatched
+  build. No new warnings.
