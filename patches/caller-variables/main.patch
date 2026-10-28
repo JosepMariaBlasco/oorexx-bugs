@@ -1,0 +1,151 @@
+--- a/interpreter/execution/NativeActivation.cpp
++++ b/interpreter/execution/NativeActivation.cpp
+@@ -2931,6 +2931,12 @@
+     {
+         return OREF_NULL;
+     }
++    // a routine called by native code (through CallRoutine) has no caller's
++    // context, so there is no stem to resolve
++    if (activation == OREF_NULL)
++    {
++        return OREF_NULL;
++    }
+     // get the variable value
+     return retriever->getValue(activation);
+ }
+@@ -2961,6 +2967,11 @@
+         // the value is the retriever
+         return (RexxObject *)retriever;
+     }
++    // no caller's context (a routine called through CallRoutine): no variables
++    else if (activation == OREF_NULL)
++    {
++        return OREF_NULL;
++    }
+     else
+     {
+         // get the variable value
+@@ -2989,6 +3000,12 @@
+     // all next operations must be reset
+     resetNext();
+ 
++    // no caller's context (a routine called through CallRoutine): no variables
++    if (activation == OREF_NULL)
++    {
++        return OREF_NULL;
++    }
++
+     // get the reference. This will return NULL for all non-referencable
+     // retriever types
+     return retriever->getVariableReference(activation);
+@@ -3013,6 +3030,12 @@
+     }
+     resetNext();               // all next operations must be reset
+ 
++    // no caller's context (a routine called through CallRoutine): nothing to set
++    if (activation == OREF_NULL)
++    {
++        return;
++    }
++
+     // do the assignment
+     retriever->set(activation, value);
+ }
+@@ -3034,6 +3057,12 @@
+     }
+     resetNext();               // all next operations must be reset
+ 
++    // no caller's context (a routine called through CallRoutine): nothing to drop
++    if (activation == OREF_NULL)
++    {
++        return;
++    }
++
+     // perform the drop
+     retriever->drop(activation);
+ }
+@@ -3047,6 +3076,11 @@
+ DirectoryClass *NativeActivation::getAllContextVariables()
+ {
+     resetNext();               // all next operations must be reset
++    // no caller's context (a routine called through CallRoutine): no variables
++    if (activation == OREF_NULL)
++    {
++        return new_directory();
++    }
+     return activation->getAllLocalVariables();
+ }
+ 
+@@ -3253,8 +3287,9 @@
+  */
+ RexxReturnCode NativeActivation::variablePoolInterface(PSHVBLOCK pshvblock)
+ {
+-    // this is not allowed asynchronously
+-    if (!isVariablePoolEnabled())
++    // this is not allowed asynchronously, nor without a caller's context (a
++    // routine called through CallRoutine has none)
++    if (!isVariablePoolEnabled() || activation == OREF_NULL)
+     {
+         return RXSHV_NOAVL;
+     }
+--- a/testbinaries/orxfunction.cpp
++++ b/testbinaries/orxfunction.cpp
+@@ -513,6 +513,50 @@
+     return value;
+ }
+ 
++// use the services on the caller's variables and report what each one saw, as
++// an array: the value of the caller's variable named by the argument (.nil if
++// none), its value after setting it to "set" (.nil if none), the value after
++// dropping it (.nil if none), the number of variables GetAllContextVariables()
++// returns, whether ResolveStemVariable() of "STEM." found a stem, whether
++// GetContextVariableReference() gave a reference, and the return code of a
++// RexxVariablePool() symbolic fetch of the variable
++RexxRoutine1(RexxObjectPtr,
++            TestCallerVariables,
++            CSTRING, name)
++{
++    RexxArrayObject report = context->NewArray(7);
++    RexxObjectPtr value = context->GetContextVariable(name);
++    context->ArrayPut(report, value != NULLOBJECT ? value : context->Nil(), 1);
++    context->SetContextVariable(name, context->String("set"));
++    value = context->GetContextVariable(name);
++    context->ArrayPut(report, value != NULLOBJECT ? value : context->Nil(), 2);
++    context->DropContextVariable(name);
++    value = context->GetContextVariable(name);
++    context->ArrayPut(report, value != NULLOBJECT ? value : context->Nil(), 3);
++    RexxDirectoryObject all = context->GetAllContextVariables();
++    context->ArrayPut(report, all != NULLOBJECT ? context->SendMessage0(all, "ITEMS") : context->Nil(), 4);
++    context->ArrayPut(report, context->Logical(context->ResolveStemVariable(context->String("STEM.")) != NULLOBJECT), 5);
++    context->ArrayPut(report, context->Logical(context->GetContextVariableReference(name) != NULLOBJECT), 6);
++
++    SHVBLOCK block;
++    block.shvnext = NULL;
++    block.shvname.strptr = name;
++    block.shvname.strlength = strlen(name);
++    block.shvnamelen = block.shvname.strlength;
++    block.shvvalue.strptr = NULL;
++    block.shvvalue.strlength = 0;
++    block.shvvaluelen = 0;
++    block.shvcode = RXSHV_SYFET;
++    block.shvret = 0;
++    RexxReturnCode rc = RexxVariablePool(&block);
++    if (block.shvvalue.strptr != NULL)
++    {
++        RexxFreeMemory(block.shvvalue.strptr);
++    }
++    context->ArrayPut(report, context->WholeNumber(rc), 7);
++    return report;
++}
++
+ RexxRoutine1(RexxClassObject,
+             TestFindContextClass,
+             CSTRING, name)
+@@ -985,6 +1029,7 @@
+     REXX_TYPED_ROUTINE(TestGetContextForm,    TestGetContextForm),
+     REXX_TYPED_ROUTINE(TestGetContextDigits,  TestGetContextDigits),
+     REXX_TYPED_ROUTINE(TestResolveStemVariable, TestResolveStemVariable),
++    REXX_TYPED_ROUTINE(TestCallerVariables,     TestCallerVariables),
+     REXX_TYPED_ROUTINE(TestFindContextClass,  TestFindContextClass),
+     REXX_TYPED_ROUTINE(TestAddCommandEnvironment, TestAddCommandEnvironment),
+     REXX_TYPED_ROUTINE(TestStackCommandEnvironment, TestStackCommandEnvironment),

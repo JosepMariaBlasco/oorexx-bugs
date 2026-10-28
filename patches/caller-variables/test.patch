@@ -1,0 +1,48 @@
+--- a/ooRexx/API/oo/METHOD.testGroup
++++ b/ooRexx/API/oo/METHOD.testGroup
+@@ -1724,6 +1724,35 @@
+   self~assertSame("ROUTINE", frame~type)
+   self~assertSame(.context, frame~context)
+ 
++-- a native routine called by native code through CallRoutine has no caller's
++-- context: its caller's variables do not exist, setting or dropping one does
++-- nothing and the variable pool is not available (all of them crashed)
++::method TestCallRoutineCallerVariables
++  tester = .METHODTester~new
++  r = .context~package~findRoutine("CALLERVARIABLES")
++  report = tester~TestCallRoutine(r, .array~of("X"))
++  self~assertSame(.nil, report[1])         -- GetContextVariable
++  self~assertSame(.nil, report[2])         -- after SetContextVariable
++  self~assertSame(.nil, report[3])         -- after DropContextVariable
++  self~assertEquals(0, report[4])          -- GetAllContextVariables~items
++  self~assertEquals(0, report[5])          -- ResolveStemVariable found a stem
++  self~assertEquals(0, report[6])          -- GetContextVariableReference
++  self~assertEquals(144, report[7])        -- RexxVariablePool: RXSHV_NOAVL
++
++-- unchanged: the same routine called from Rexx works on the caller's variables
++::method TestRexxCallCallerVariables
++  x = "rexx"
++  y = "another"
++  report = callerVariables("X")
++  self~assertSame("rexx", report[1])
++  self~assertSame("set", report[2])
++  self~assertSame(.nil, report[3])
++  self~assertTrue(report[4] > 0)           -- Y at least
++  self~assertEquals(1, report[5])
++  self~assertEquals(1, report[6])
++  self~assertEquals(1, report[7])          -- RexxVariablePool: RXSHV_NEWV (dropped)
++  self~assertFalse(var("X"))               -- dropped by the routine
++
+ -- unchanged: through SendMessage from native code called by Rexx, the condition
+ -- still reaches the Rexx caller below the native code
+ ::method TestSendMessageCondition01
+@@ -3488,5 +3517,9 @@
+ -- a native routine with an int argument, for TestCallRoutineNativeStackFrame
+ ::routine oneIntArg EXTERNAL "LIBRARY orxfunction TestOneIntArg"
+ 
++-- a native routine that uses its caller's variables, for
++-- TestCallRoutineCallerVariables and TestRexxCallCallerVariables
++::routine callerVariables EXTERNAL "LIBRARY orxfunction TestCallerVariables"
++
+ 
+ ::options novalue syntax
