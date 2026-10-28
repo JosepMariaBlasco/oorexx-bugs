@@ -1,0 +1,56 @@
+Index: ooRexx/API/oo/METHOD.testGroup
+===================================================================
+--- a/ooRexx/API/oo/METHOD.testGroup	(revision 13321)
++++ b/ooRexx/API/oo/METHOD.testGroup	(working copy)
+@@ -1700,6 +1700,30 @@
+   self~expectSyntax(41.1)
+   report = tester~TestCallRoutineCondition(r, .array~new)
+ 
++-- a native routine called through CallRoutine has no Rexx caller: the stack
++-- frame of an error it raises has no context (it was read from the native
++-- activation below it, as if that were a Rexx activation, and could crash
++-- the next garbage collection)
++::method TestCallRoutineNativeStackFrame
++  tester = .METHODTester~new
++  r = .context~package~findRoutine("ONEINTARG")
++  c = tester~TestCallRoutineConditionObject(r, .array~of("abc"))
++  self~assertSame("SYNTAX", c~condition)
++  frame = c~stackFrames~firstItem
++  self~assertSame("ROUTINE", frame~type)
++  self~assertSame(r, frame~executable)
++  self~assertSame(.nil, frame~context)
++
++-- unchanged: called from Rexx, the stack frame's context is the caller's
++::method TestRexxCallNativeStackFrame
++  signal on syntax name caught
++  call oneIntArg "abc"
++  self~fail("no error from oneIntArg")
++caught:
++  frame = condition("O")~stackFrames~firstItem
++  self~assertSame("ROUTINE", frame~type)
++  self~assertSame(.context, frame~context)
++
+ -- unchanged: through SendMessage from native code called by Rexx, the condition
+ -- still reaches the Rexx caller below the native code
+ ::method TestSendMessageCondition01
+@@ -3422,5 +3446,8 @@
+   -- RAISE in INTERPRET offers the condition to this routine's caller
+   interpret arg(1)
+ 
++-- a native routine with an int argument, for TestCallRoutineNativeStackFrame
++::routine oneIntArg EXTERNAL "LIBRARY orxfunction TestOneIntArg"
+ 
++
+ ::options novalue syntax
+Index: ooRexx/API/oo/METHODPackage.cls
+===================================================================
+--- a/ooRexx/API/oo/METHODPackage.cls	(revision 13321)
++++ b/ooRexx/API/oo/METHODPackage.cls	(working copy)
+@@ -188,6 +188,7 @@
+ ::method TestGetPackageMethods EXTERNAL "LIBRARY orxmethod TestGetPackageMethods"
+ ::method TestCallRoutine EXTERNAL "LIBRARY orxmethod TestCallRoutine"
+ ::method TestCallRoutineCondition EXTERNAL "LIBRARY orxmethod TestCallRoutineCondition"
++::method TestCallRoutineConditionObject EXTERNAL "LIBRARY orxmethod TestCallRoutineConditionObject"
+ ::method TestDecodeCondition EXTERNAL "LIBRARY orxmethod TestDecodeCondition"
+ ::method TestCallProgram EXTERNAL "LIBRARY orxmethod TestCallProgram"
+ ::method TestNewRoutine EXTERNAL "LIBRARY orxmethod TestNewRoutine"
