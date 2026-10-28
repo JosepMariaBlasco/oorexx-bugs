@@ -1,0 +1,372 @@
+--- a/api/oorexxapi.h
++++ b/api/oorexxapi.h
+@@ -499,7 +499,8 @@
+ #define THREAD_INTERFACE_VERSION_4_1_1 101
+ #define THREAD_INTERFACE_VERSION_4_2_0 102
+ #define THREAD_INTERFACE_VERSION_5_0_0 103
+-#define THREAD_INTERFACE_VERSION 103
++#define THREAD_INTERFACE_VERSION_5_3_0 104
++#define THREAD_INTERFACE_VERSION 104
+ 
+ BEGIN_EXTERN_C()
+ 
+@@ -673,6 +674,8 @@
+      logical_t(RexxEntry *IsStringTable)(RexxThreadContext *, RexxObjectPtr);
+      RexxObjectPtr(RexxEntry *SendMessageScoped)(RexxThreadContext *, RexxObjectPtr, CSTRING, RexxClassObject, RexxArrayObject);
+      RexxInstance *(RexxEntry *GetInterpreterInstance)(RexxThreadContext *);
++     // added in THREAD_INTERFACE_VERSION_5_3_0
++     void             (RexxEntry *RaiseConditionObject)(RexxThreadContext *, RexxDirectoryObject);
+ 
+ } RexxThreadInterface;
+ 
+@@ -1629,6 +1632,10 @@
+      {
+          functions->RaiseCondition(this, s1, s2, ao, o);
+      }
++     void RaiseConditionObject(RexxDirectoryObject d)
++     {
++         functions->RaiseConditionObject(this, d);
++     }
+      logical_t CheckCondition()
+      {
+          return functions->CheckCondition(this);
+@@ -2380,6 +2387,10 @@
+      {
+          threadContext->RaiseCondition(s1, s2, ao, o);
+      }
++     void RaiseConditionObject(RexxDirectoryObject d)
++     {
++         threadContext->RaiseConditionObject(d);
++     }
+      logical_t CheckCondition()
+      {
+          return threadContext->CheckCondition();
+@@ -3234,6 +3245,10 @@
+      {
+          threadContext->RaiseCondition(s1, s2, ao, o);
+      }
++     void RaiseConditionObject(RexxDirectoryObject d)
++     {
++         threadContext->RaiseConditionObject(d);
++     }
+      logical_t CheckCondition()
+      {
+          return threadContext->CheckCondition();
+@@ -4068,6 +4083,10 @@
+      {
+          threadContext->RaiseCondition(s1, s2, ao, o);
+      }
++     void RaiseConditionObject(RexxDirectoryObject d)
++     {
++         threadContext->RaiseConditionObject(d);
++     }
+      logical_t CheckCondition()
+      {
+          return threadContext->CheckCondition();
+--- a/interpreter/api/ThreadContextStubs.cpp
++++ b/interpreter/api/ThreadContextStubs.cpp
+@@ -1917,10 +1917,11 @@
+     try
+     {
+         Protected<RexxString> name = new_upper_string(n);
+-        // a SYNTAX condition needs an error number: RaiseException raises one
++        // a SYNTAX condition needs an error number: RaiseException or
++        // RaiseConditionObject raise one
+         if (name->strCompare(GlobalNames::SYNTAX))
+         {
+-            reportException(Error_Incorrect_method_user_defined, new_string("RaiseCondition cannot raise a SYNTAX condition; use RaiseException"));
++            reportException(Error_Incorrect_method_user_defined, new_string("RaiseCondition cannot raise a SYNTAX condition; use RaiseException or RaiseConditionObject"));
+         }
+         context.context->enableConditionTrap();
+         context.activity->raiseCondition(name, OREF_NULL, (RexxString *)desc, (RexxObject *)add, (RexxObject *)result);
+@@ -1930,6 +1931,27 @@
+     }
+ }
+ 
++void RexxEntry RaiseConditionObject(RexxThreadContext *c, RexxDirectoryObject d)
++{
++    ApiContext context(c);
++    try
++    {
++        if (d == NULLOBJECT)
++        {
++            reportException(Error_Incorrect_method_null, 1);
++        }
++        if (!isOfClass(Directory, (RexxObject *)d))
++        {
++            reportException(Error_Incorrect_method_noclass, 1, new_string("Directory"));
++        }
++        context.context->enableConditionTrap();
++        context.activity->raiseConditionObject((DirectoryClass *)d);
++    }
++    catch (NativeActivation *)
++    {
++    }
++}
++
+ logical_t RexxEntry CheckCondition(RexxThreadContext *c)
+ {
+     ApiContext context(c, false);     // no lock required
+@@ -2270,4 +2292,5 @@
+     IsStringTable,
+     SendMessageScoped,
+     GetInterpreterInstance,
++    RaiseConditionObject,
+ };
+--- a/interpreter/concurrency/Activity.cpp
++++ b/interpreter/concurrency/Activity.cpp
+@@ -580,23 +580,18 @@
+ 
+ 
+ /**
+- * Raise a condition, with potential trapping.
+- * Also checks for potential ::OPTIONS condition overrides.
++ * Check for ::OPTIONS condition SYNTAX overrides for a condition
++ * about to be raised.  If the current Rexx frame's package has
++ * the option for this condition, a SYNTAX error is raised instead
++ * and this does not return.
+  *
+  * @param condition  The condition name.
+- * @param rc         The rc value
+  * @param description
+  *                   The description value.
+- * @param additional the exception additional information.
+  * @param result     The condition result info.
+- *
+- * @return true if this was trapped via CALL ON, false for untrapped
+- *         conditions.
+  */
+-bool Activity::raiseCondition(RexxString *condition, RexxObject *rc, RexxObject *description, RexxObject *additional, RexxObject *result)
++void Activity::checkConditionSyntaxOptions(RexxString *condition, RexxObject *description, RexxObject *result)
+ {
+-    // if we have ::OPTIONS condition SYNTAX set on the package, we
+-    // raise a SYNTAX error instead of raising the condition
+     RexxActivation *activation = getCurrentRexxFrame();
+     if (activation != OREF_NULL)
+     {
+@@ -621,6 +616,28 @@
+             reportException(Error_Execution_notready_syntax, description);
+         }
+     }
++}
++
++
++/**
++ * Raise a condition, with potential trapping.
++ * Also checks for potential ::OPTIONS condition overrides.
++ *
++ * @param condition  The condition name.
++ * @param rc         The rc value
++ * @param description
++ *                   The description value.
++ * @param additional the exception additional information.
++ * @param result     The condition result info.
++ *
++ * @return true if this was trapped via CALL ON, false for untrapped
++ *         conditions.
++ */
++bool Activity::raiseCondition(RexxString *condition, RexxObject *rc, RexxObject *description, RexxObject *additional, RexxObject *result)
++{
++    // if we have ::OPTIONS condition SYNTAX set on the package, we
++    // raise a SYNTAX error instead of raising the condition
++    checkConditionSyntaxOptions(condition, description, result);
+ 
+     // check the context first to see if this will be trapped.  Creating
+     // the condition object is pretty expensive, so we want to avoid
+@@ -708,6 +725,135 @@
+ }
+ 
+ 
++/**
++ * Convert a SYNTAX error code in "nn.nnn" form to an error number
++ * (the same rules as Interpreter::messageNumber(), but without
++ * raising an error).
++ *
++ * @param code   The error code string.
++ * @param number The error number (major * 1000 + minor).
++ *
++ * @return true if the code is valid, false otherwise.
++ */
++static bool validErrorCode(RexxString *code, wholenumber_t &number)
++{
++    const char *data = code->getStringData();
++    size_t length = code->getLength();
++    const char *decimalPoint = (const char *)memchr(data, '.', length);
++    size_t majorLength = decimalPoint == NULL ? length : decimalPoint - data;
++
++    wholenumber_t primary;
++    if (!new_string(data, majorLength)->numberValue(primary) || primary < 1 || primary >= 100)
++    {
++        return false;
++    }
++
++    wholenumber_t secondary = 0;
++    if (decimalPoint != NULL)
++    {
++        if (!new_string(decimalPoint + 1, length - majorLength - 1)->numberValue(secondary) || secondary < 0 || secondary >= 1000)
++        {
++            return false;
++        }
++    }
++    number = primary * 1000 + secondary;
++    return true;
++}
++
++
++/**
++ * Raise a condition described by an existing condition object,
++ * for the RaiseConditionObject() API.  A copy of the object is
++ * raised, with everything it holds (RC, DESCRIPTION, ADDITIONAL,
++ * RESULT...), as the condition it describes: a SYNTAX error is
++ * raised as an error, any other condition as RaiseCondition()
++ * raises it, after the ::OPTIONS condition SYNTAX checks.
++ *
++ * @param source The condition object.
++ */
++void Activity::raiseConditionObject(DirectoryClass *source)
++{
++    RexxInternalObject *name = source->get(GlobalNames::CONDITION);
++    if (name == OREF_NULL || !isString(name))
++    {
++        reportException(Error_Incorrect_method_user_defined, new_string("the condition object has no CONDITION name"));
++    }
++    Protected<RexxString> condition = ((RexxString *)name)->upper();
++
++    // we raise a copy, so the caller's object is left as it is
++    Protected<DirectoryClass> conditionObj = (DirectoryClass *)source->copy();
++    conditionObj->put(condition, GlobalNames::CONDITION);
++
++    RexxObject *description = (RexxObject *)conditionObj->get(GlobalNames::DESCRIPTION);
++    RexxObject *additional = (RexxObject *)conditionObj->get(GlobalNames::ADDITIONAL);
++    RexxObject *result = (RexxObject *)conditionObj->get(GlobalNames::RESULT);
++    if (description == OREF_NULL)
++    {
++        conditionObj->put(GlobalNames::NULLSTRING, GlobalNames::DESCRIPTION);
++    }
++
++    // a condition object built by hand may not have its location information
++    RexxInternalObject *traceback = conditionObj->get(GlobalNames::TRACEBACK);
++    RexxInternalObject *stackFrames = conditionObj->get(GlobalNames::STACKFRAMES);
++    if (traceback == OREF_NULL || !isOfClass(List, traceback) || stackFrames == OREF_NULL || !isOfClass(List, stackFrames))
++    {
++        generateProgramInformation(conditionObj);
++    }
++
++    if (condition->strCompare(GlobalNames::SYNTAX))
++    {
++        RexxInternalObject *code = conditionObj->get(GlobalNames::CODE);
++        wholenumber_t errcode;
++        if (code == OREF_NULL || !isString(code) || !validErrorCode((RexxString *)code, errcode))
++        {
++            reportException(Error_Incorrect_method_user_defined, new_string("the CODE of a SYNTAX condition object must be a valid error number"));
++        }
++        if (additional == OREF_NULL)
++        {
++            additional = new_array((size_t)0);
++            conditionObj->put(additional, GlobalNames::ADDITIONAL);
++        }
++        else if (!isArray(additional))
++        {
++            reportException(Error_Incorrect_method_user_defined, new_string("the ADDITIONAL of a SYNTAX condition object must be an array"));
++        }
++
++        // RC, ERRORTEXT and MESSAGE follow from CODE and ADDITIONAL, as in
++        // createExceptionObject()
++        wholenumber_t primary = (errcode / 1000) * 1000;
++        RexxString *errortext = Interpreter::getMessageText(primary);
++        if (errortext == OREF_NULL)
++        {
++            reportException(Error_Execution_error_condition, (RexxObject *)code);
++        }
++        conditionObj->put(new_integer(primary / 1000), GlobalNames::RC);
++        conditionObj->put(errortext, GlobalNames::ERRORTEXT);
++        if (primary != errcode)
++        {
++            conditionObj->put(buildMessage(errcode, (ArrayClass *)additional), GlobalNames::MESSAGE);
++        }
++        else
++        {
++            conditionObj->put(TheNilObject, GlobalNames::MESSAGE);
++        }
++        conditionObj->put(TheFalseObject, GlobalNames::PROPAGATED);
++
++        // and raise it as an error raised from native code (see raiseException())
++        if (!raiseCondition(conditionObj))
++        {
++            conditionObj->put(TheTrueObject, GlobalNames::PROPAGATED);
++            raisePropagate(conditionObj);
++        }
++        return;
++    }
++
++    // ::OPTIONS condition SYNTAX applies as for RaiseCondition()
++    checkConditionSyntaxOptions(condition, description, result);
++    conditionObj->put(TheFalseObject, GlobalNames::PROPAGATED);
++    raiseCondition(conditionObj);
++}
++
++
+ /**
+  * Create a condition object from the provided information.
+  *
+--- a/interpreter/concurrency/Activity.hpp
++++ b/interpreter/concurrency/Activity.hpp
+@@ -119,6 +119,8 @@
+     wholenumber_t displayCondition(DirectoryClass *conditionObject);
+     bool        raiseCondition(RexxString *, RexxObject *, RexxObject *, RexxObject *, RexxObject *);
+     bool        raiseCondition(DirectoryClass *);
++    void        checkConditionSyntaxOptions(RexxString *, RexxObject *, RexxObject *);
++    void        raiseConditionObject(DirectoryClass *);
+     bool        checkCondition(RexxString *condition);
+     DirectoryClass *createConditionObject(RexxString *, RexxObject *, RexxObject *, RexxObject *, RexxObject *);
+     void        raiseException(RexxErrorCodes, RexxString *, ArrayClass *, RexxObject *);
+--- a/testbinaries/orxmethod.cpp
++++ b/testbinaries/orxmethod.cpp
+@@ -2198,6 +2198,38 @@
+ }
+ 
+ RexxMethod1(int,
++            TestRaiseConditionObject,
++            OPTIONAL_RexxObjectPtr, condition)
++{
++    context->RaiseConditionObject((RexxDirectoryObject)condition);
++    // this should still get executed
++    context->SetObjectVariable("CONTINUE", context->True());
++    return 0;
++}
++
++// what a bridge does: call Rexx code and raise any condition it raised
++// again in our caller
++RexxMethod2(RexxObjectPtr,
++            TestCallRoutineAndReraise,
++            RexxObjectPtr, routine,
++            OPTIONAL_RexxArrayObject, args)
++{
++    if (args == NULLOBJECT)
++    {
++        args = context->NewArray(0);
++    }
++    RexxObjectPtr result = context->CallRoutine((RexxRoutineObject)routine, args);
++    if (context->CheckCondition())
++    {
++        RexxDirectoryObject condition = context->GetConditionInfo();
++        context->ClearCondition();
++        context->RaiseConditionObject(condition);
++        return NULLOBJECT;
++    }
++    return result;
++}
++
++RexxMethod1(int,
+             TestThrowException0,
+             size_t, errNo)
+ {
+@@ -2763,6 +2795,8 @@
+     REXX_METHOD(TestRaiseException2,         TestRaiseException2),
+     REXX_METHOD(TestRaiseException,          TestRaiseException),
+     REXX_METHOD(TestRaiseCondition,          TestRaiseCondition),
++    REXX_METHOD(TestRaiseConditionObject,    TestRaiseConditionObject),
++    REXX_METHOD(TestCallRoutineAndReraise,   TestCallRoutineAndReraise),
+     REXX_METHOD(TestInterpreterVersion,      TestInterpreterVersion),
+     REXX_METHOD(TestLanguageLevel,           TestLanguageLevel),
+     REXX_METHOD(TestNewStringFromAsciiz,     TestNewStringFromAsciiz),
