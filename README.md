@@ -33,6 +33,11 @@ the ooRexx test suite, next to an unpatched build of the same revision.
   Windows failures, no errors. Unpatched: `METHOD.testGroup` does not load
   (its test library lacks the new method); suite 24,224, the same 7. No new
   warnings.
+- `native-argument-error` (#2116, Tom Dyer's fix with tests) on r13323,
+  Windows (MSVC, run 40706860657): `METHOD.testGroup` 340/340; full suite
+  24,564 tests with the usual 7 Windows failures, no errors. Unpatched:
+  `METHOD.testGroup` does not load (its test library lacks the new method);
+  suite 24,224, the same 7. No new warnings.
 - `nonsyntax-r13319` (#2123, one patch) on r13319, Windows (MSVC, run
   40665738213): `METHOD.testGroup` 335/335; full suite 24,559 tests with the
   usual 7 Windows failures, no errors. Unpatched: `METHOD.testGroup` does
