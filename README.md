@@ -35,6 +35,12 @@ the ooRexx test suite, next to an unpatched build of the same revision.
   Windows failures, no errors. Unpatched: `METHOD.testGroup` does not load
   (its test library lacks the new method); suite 24,224, the same 7. No new
   warnings.
+- `raise-condition-object-r13325` (RFE #883 alone) on r13325, Windows (MSVC,
+  run 40723349153): `METHOD.testGroup` 348/348; full suite 24,572 tests with
+  the usual 7 Windows failures, no errors. Unpatched: `METHOD.testGroup` does
+  not load (its test library lacks the new methods); suite 24,224, the same 7
+  + the four socket samples (`scclient`, `scserver`, `sfclient`,
+  `sfserver`). No new warnings.
 - `caller-variables` (#2129) on r13325, Windows (MSVC, run 40718582409):
   `METHOD.testGroup` 342/342; full suite 24,566 tests with the usual 7
   Windows failures, no errors. Unpatched: `METHOD.testGroup` does not load
