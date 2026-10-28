@@ -27,6 +27,11 @@ the ooRexx test suite, next to an unpatched build of the same revision.
   329/329; full suite 24,421 tests with the same 7 failures as the
   unpatched build (whose suite has 24,092: without the patched test
   library, `METHOD.testGroup` does not load). No new warnings.
+- `callroutine-context` (#2128) on r13321, Windows (MSVC, run 40699207273):
+  `METHOD.testGroup` 337/337; full suite 24,561 tests with the usual 7
+  Windows failures, no errors. Unpatched: `METHOD.testGroup` does not load
+  (its test library lacks the new method); suite 24,224, the same 7. No new
+  warnings.
 - `nonsyntax-r13319` (#2123, one patch) on r13319, Windows (MSVC, run
   40665738213): `METHOD.testGroup` 335/335; full suite 24,559 tests with the
   usual 7 Windows failures, no errors. Unpatched: `METHOD.testGroup` does
