@@ -1,0 +1,58 @@
+--- a/ooRexx/API/oo/METHOD.testGroup
++++ b/ooRexx/API/oo/METHOD.testGroup
+@@ -1735,6 +1735,45 @@
+   self~assertSame("USER BOOM", condition("C"))
+   self~assertSame("m1", condition("D"))
+ 
++-- an argument error raised by a native method is seen by the native code that
++-- sent the message, right after SendMessage (it reached only the Rexx caller,
++-- when the sender returned, and the native method's activation was left on the
++-- stack)
++::method TestSendMessageArgumentError01
++  tester = .METHODTester~new
++  signal on syntax name caught
++  report = tester~TestSendMessageConditionObject(tester, "TESTINTARG", .array~of("abc"))
++  self~assertTrue(report[1])               -- CheckCondition() right after the send
++  c = report[2]
++  self~assertSame("SYNTAX", c~condition)
++  self~assertSame(88.907, c~code)
++  self~assertSame(.nil, report[3])         -- no result
++  return
++caught:
++  self~fail("the argument error reached the Rexx caller:" condition("O")~code)
++
++-- the same with too many arguments
++::method TestSendMessageArgumentError02
++  tester = .METHODTester~new
++  signal on syntax name caught
++  report = tester~TestSendMessageConditionObject(tester, "TESTINTARG", .array~of(1, 2))
++  self~assertTrue(report[1])
++  c = report[2]
++  self~assertSame("SYNTAX", c~condition)
++  self~assertSame(88.922, c~code)
++  self~assertSame(.nil, report[3])
++  return
++caught:
++  self~fail("the argument error reached the Rexx caller:" condition("O")~code)
++
++-- unchanged: a send with good arguments leaves no condition
++::method TestSendMessageArgumentError03
++  tester = .METHODTester~new
++  report = tester~TestSendMessageConditionObject(tester, "TESTINTARG", .array~of(5))
++  self~assertFalse(report[1])
++  self~assertSame(.nil, report[2])
++  self~assertEquals(5, report[3])
++
+ -- DecodeConditionInfo on a condition other than SYNTAX (which has no CODE,
+ -- and an RC only for ERROR and FAILURE, the command's return code)
+ ::method TestDecodeCondition01
+--- a/ooRexx/API/oo/METHODPackage.cls
++++ b/ooRexx/API/oo/METHODPackage.cls
+@@ -189,6 +189,7 @@
+ ::method TestCallRoutine EXTERNAL "LIBRARY orxmethod TestCallRoutine"
+ ::method TestCallRoutineCondition EXTERNAL "LIBRARY orxmethod TestCallRoutineCondition"
+ ::method TestCallRoutineConditionObject EXTERNAL "LIBRARY orxmethod TestCallRoutineConditionObject"
++::method TestSendMessageConditionObject EXTERNAL "LIBRARY orxmethod TestSendMessageConditionObject"
+ ::method TestDecodeCondition EXTERNAL "LIBRARY orxmethod TestDecodeCondition"
+ ::method TestCallProgram EXTERNAL "LIBRARY orxmethod TestCallProgram"
+ ::method TestNewRoutine EXTERNAL "LIBRARY orxmethod TestNewRoutine"

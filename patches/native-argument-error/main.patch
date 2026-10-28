@@ -1,0 +1,78 @@
+--- a/interpreter/execution/NativeActivation.cpp
++++ b/interpreter/execution/NativeActivation.cpp
+@@ -1293,14 +1293,14 @@
+     // get the entry point address of the target method
+     PNATIVEMETHOD methp = _code->getEntry();
+ 
+-    // retrieve the argument signatures and process them
+-    uint16_t *types = (*methp)((RexxMethodContext *)&context, NULL);
+-    processArguments(argCount, argList, types, arguments, MaxNativeArguments);
+-
+     size_t activityLevel = activity->getActivationLevel();
+     trapErrors = true;                       // we trap errors from here
+     try
+     {
++        // retrieve the argument signatures and process them here, so that an argument error is
++        // trapped by this activation, which is then removed from the stack like for any other error
++        uint16_t *types = (*methp)((RexxMethodContext *)&context, NULL);
++        processArguments(argCount, argList, types, arguments, MaxNativeArguments);
+         activity->releaseAccess();           /* force this to "safe" mode         */
+         /* process the method call           */
+         (*methp)((RexxMethodContext *)&context, arguments);
+@@ -1408,14 +1408,14 @@
+     // get the entry point address of the target method
+     PNATIVEROUTINE methp = _code->getEntry();
+ 
+-    // retrieve the argument signatures and process them
+-    uint16_t *types = (*methp)((RexxCallContext *)&context, NULL);
+-    processArguments(argCount, argList, types, arguments, MaxNativeArguments);
+-
+     size_t activityLevel = activity->getActivationLevel();
+     trapErrors = true;                       // we trap error conditions now
+     try
+     {
++        // retrieve the argument signatures and process them here, so that an argument error is
++        // trapped by this activation, which is then removed from the stack like for any other error
++        uint16_t *types = (*methp)((RexxCallContext *)&context, NULL);
++        processArguments(argCount, argList, types, arguments, MaxNativeArguments);
+         enableVariablepool();                // enable the variable pool interface here
+         activity->releaseAccess();           // force this to "safe" mode
+                                              // process the method call
+--- a/testbinaries/orxmethod.cpp
++++ b/testbinaries/orxmethod.cpp
+@@ -1944,6 +1944,27 @@
+     return info != NULLOBJECT ? (RexxObjectPtr)info : context->Nil();
+ }
+ 
++// send a message and report what this method context sees right after it, as
++// an array: whether a condition is pending, the condition object (.nil if
++// none) and the result (.nil if none); the condition is cleared, so that it is
++// not raised again when this method returns
++RexxMethod3(RexxObjectPtr,
++            TestSendMessageConditionObject,
++            RexxObjectPtr, target,
++            CSTRING, name,
++            RexxArrayObject, args)
++{
++    RexxObjectPtr result = context->SendMessage(target, name, args);
++    logical_t pending = context->CheckCondition();
++    RexxDirectoryObject info = context->GetConditionInfo();
++    context->ClearCondition();
++    RexxArrayObject report = context->NewArray(3);
++    context->ArrayPut(report, context->Logical(pending), 1);
++    context->ArrayPut(report, info != NULLOBJECT ? (RexxObjectPtr)info : context->Nil(), 2);
++    context->ArrayPut(report, result != NULLOBJECT ? result : context->Nil(), 3);
++    return report;
++}
++
+ // decode a condition object with DecodeConditionInfo and report it, as an
+ // array: the condition name, code, rc, description and additional (.nil when
+ // not given), and whether decoding left a condition pending
+@@ -2721,6 +2742,7 @@
+     REXX_METHOD(TestCallRoutine,             TestCallRoutine),
+     REXX_METHOD(TestCallRoutineCondition,    TestCallRoutineCondition),
+     REXX_METHOD(TestCallRoutineConditionObject, TestCallRoutineConditionObject),
++    REXX_METHOD(TestSendMessageConditionObject, TestSendMessageConditionObject),
+     REXX_METHOD(TestDecodeCondition,         TestDecodeCondition),
+     REXX_METHOD(TestCallProgram,             TestCallProgram),
+     REXX_METHOD(TestNewMethod,               TestNewMethod),
