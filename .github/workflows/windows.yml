@@ -7,18 +7,18 @@ on:
     inputs:
       rev:
         description: ooRexx SVN revision
-        default: "13311"
+        default: "13319"
       patchset:
         description: directory under patches/
-        default: rexxinfo-date
+        default: nonsyntax-r13319
       group:
         description: test group to run first (path under test/trunk)
-        default: ooRexx/base/class/RexxInfo.testGroup
+        default: ooRexx/API/oo/METHOD.testGroup
 
 env:
-  REV: ${{ inputs.rev || '13311' }}
-  PATCHSET: ${{ inputs.patchset || 'rexxinfo-date' }}
-  GROUP: ${{ inputs.group || 'ooRexx/base/class/RexxInfo.testGroup' }}
+  REV: ${{ inputs.rev || '13319' }}
+  PATCHSET: ${{ inputs.patchset || 'nonsyntax-r13319' }}
+  GROUP: ${{ inputs.group || 'ooRexx/API/oo/METHOD.testGroup' }}
 
 jobs:
   source:
