@@ -10,15 +10,15 @@ on:
         default: "13331"
       patchset:
         description: directory under patches/
-        default: interpret-trap-leak
+        default: reraise-gc-anchor
       group:
         description: test group to run first (path under test/trunk)
-        default: ooRexx/base/keyword/INTERPRET.testGroup
+        default: ooRexx/API/oo/METHOD.testGroup
 
 env:
   REV: ${{ inputs.rev || '13331' }}
-  PATCHSET: ${{ inputs.patchset || 'interpret-trap-leak' }}
-  GROUP: ${{ inputs.group || 'ooRexx/base/keyword/INTERPRET.testGroup' }}
+  PATCHSET: ${{ inputs.patchset || 'reraise-gc-anchor' }}
+  GROUP: ${{ inputs.group || 'ooRexx/API/oo/METHOD.testGroup' }}
 
 jobs:
   source:

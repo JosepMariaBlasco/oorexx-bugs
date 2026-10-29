@@ -18,6 +18,7 @@ the ooRexx test suite, next to an unpatched build of the same revision.
 | `raise-condition-object-r13325` | RFE #883 alone, regenerated on r13325 (the `RaiseCondition` bug fix is in since r13317-r13319 as #2126); applies unchanged on top of `caller-variables` too; **committed** r13329 (code), r13330 (tests), r13331 (rexxapi) | [RFE #883](https://sourceforge.net/p/oorexx/feature-requests/883/) |
 | `raise-return-value` | `RaiseCondition` without a result object: the value the native routine returns is lost (44.1 / 91.999 in the caller); on r13331, with a test and a rexxapi sentence | [#2130](https://sourceforge.net/p/oorexx/bugs/2130/) |
 | `interpret-trap-leak` | An INTERPRETed `SIGNAL ON`, `CALL ON` or `ADDRESS WITH` in an internal routine changes its caller's settings; `ioConfigCopied` never reset; on r13331, with tests (INTERPRET, ADDRESS) | [#2131](https://sourceforge.net/p/oorexx/bugs/2131/) |
+| `reraise-gc-anchor` | A SYNTAX condition raised again from native code (`RaiseConditionObject`, or a callee's SYNTAX left pending after `CallRoutine`) can be collected while it propagates; one line in `Activity::reraiseException`; on r13331, no test (needs a collection in that window) | [#2132](https://sourceforge.net/p/oorexx/bugs/2132/) |
 | `rexxinfo-date` | The build date from `__DATE__` in one place only, so that `.RexxInfo~name`, `.RexxInfo~date` and `rexx -v` agree | [#2051](https://sourceforge.net/p/oorexx/bugs/2051/) (and #1813), committed r13312 |
 
 ## Results
