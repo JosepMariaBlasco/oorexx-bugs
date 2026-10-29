@@ -1,0 +1,29 @@
+--- a/ooRexx/API/oo/METHOD.testGroup
++++ b/ooRexx/API/oo/METHOD.testGroup
+@@ -3450,6 +3450,26 @@
+   c = tester~TestRaiseConditionX("SYNTAX", "no number")
+   self~assertSame(93.900, c~code)
+ 
++-- RaiseCondition without a result object: the method's own return value is
++-- its result, untrapped and under CALL ON, as for Rexx code that RAISEs a
++-- condition and then returns a value; with a result object, that object is
++-- the result
++::method testRaiseConditionReturnValue
++  tester = .METHODTester~new
++  self~assertSame(0, tester~TestRaiseCondition("USER MINE"))
++  self~assertSame(7, tester~TestRaiseCondition("USER MINE", , , 7))
++  ran = 0
++  call on user mine name handler
++  self~assertSame(0, tester~TestRaiseCondition("USER MINE"))
++  self~assertSame(1, ran)
++  self~assertSame(7, tester~TestRaiseCondition("USER MINE", , , 7))
++  self~assertSame(2, ran)
++  call off user mine
++  return
++handler:
++  ran += 1
++  return
++
+ 
+ 
+ -- RaiseConditionObject (THREAD_INTERFACE_VERSION_5_3_0)
