@@ -37,6 +37,11 @@ the ooRexx test suite, next to an unpatched build of the same revision.
   Windows failures, no errors. Unpatched: `METHOD.testGroup` does not load
   (its test library lacks the new method); suite 24,224, the same 7. No new
   warnings.
+- `interpret-trap-leak` (#2131) on r13331, Windows (MSVC, run 40873654427):
+  `INTERPRET.testGroup` 15/15; full suite 24,582 tests with the usual 7
+  Windows failures, no errors. Unpatched: the 7 new tests that show the bug
+  fail (4 INTERPRET, 3 ADDRESS), plus the usual 7 and `TEST_BEEP_DURATION`
+  (timing). No new warnings.
 - `raise-return-value` (#2130) on r13331, Windows (MSVC, run 40871300036):
   `METHOD.testGroup` 351/351; full suite 24,575 tests with the usual 7
   Windows failures, no errors. Unpatched: the new test errors (91.999), the
