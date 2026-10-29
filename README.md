@@ -35,6 +35,11 @@ the ooRexx test suite, next to an unpatched build of the same revision.
   Windows failures, no errors. Unpatched: `METHOD.testGroup` does not load
   (its test library lacks the new method); suite 24,224, the same 7. No new
   warnings.
+- `raise-condition-object-r13325` (RFE #883) on **r13328** (after #2129),
+  Windows (MSVC, run 40851772127): `METHOD.testGroup` 350/350; full suite
+  24,574 tests with the usual 7 Windows failures, no errors. Unpatched: as
+  on r13325 (`METHOD.testGroup` does not load; 24,224, the 7 + the four
+  socket samples). No new warnings.
 - `raise-condition-object-r13325` (RFE #883 alone) on r13325, Windows (MSVC,
   run 40723349153): `METHOD.testGroup` 348/348; full suite 24,572 tests with
   the usual 7 Windows failures, no errors. Unpatched: `METHOD.testGroup` does
