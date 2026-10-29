@@ -1,0 +1,123 @@
+--- a/ooRexx/base/keyword/INTERPRET.testGroup
++++ b/ooRexx/base/keyword/INTERPRET.testGroup
+@@ -119,4 +119,49 @@
+   self~assertSame("ENGINEERING ENGINEERING ENGINEERING ENGINEERING", form form() .context~form)
+ 
+ 
++-- an INTERPRETed SIGNAL ON or CALL ON in an internal routine sets the trap
++-- for that routine only, not for its caller, which already has a trap table
++-- (from a CALL ON or SIGNAL ON turned off); the programs run as routines of
++-- their own, without this package's ::OPTIONS ALL SYNTAX
++::method test_interpret_trap_internal_routine_signal
++  r = .Routine~new("t", self~trapLeakProgram("call", "signal on notready name t"))
++  self~assertSame("trapped NOTREADY | the caller goes on", r~call)
++
++::method test_interpret_trap_internal_routine_call
++  r = .Routine~new("t", self~trapLeakProgram("call", "call on notready name t"))
++  self~assertSame("trapped NOTREADY | the caller goes on", r~call)
++
++::method test_interpret_trap_nested_interpret
++  r = .Routine~new("t", self~trapLeakProgram("call", "interpret 'signal on notready name t'"))
++  self~assertSame("trapped NOTREADY | the caller goes on", r~call)
++
++::method test_interpret_trap_internal_routine_caller_signal
++  r = .Routine~new("t", self~trapLeakProgram("signal", "signal on notready name t"))
++  self~assertSame("trapped NOTREADY | the caller goes on", r~call)
++
++-- a program for the tests above: the routine traps a NOTREADY with the
++-- INTERPRETed trap; then a NOTREADY in the caller, which does not trap it,
++-- must be ignored
++::method trapLeakProgram private
++  use strict arg callerTrap, trap
++  file = "INTERPRET-no-such-file.tmp"
++  return ( -
++    callerTrap 'on halt name h', -
++    callerTrap 'off halt', -
++    'r = sub()', -
++    'x = charin("'file'")', -
++    'if symbol("GOT") == "VAR" then return r "| the routine''s trap ran in the caller"', -
++    'return r "| the caller goes on"', -
++    'h: return', -
++    'sub: procedure', -
++    '  got = ""', -
++    '  interpret "'trap'"', -
++    '  x = charin("'file'")', -
++    '  if got \== "" then return "trapped" got', -
++    '  return "not trapped"', -
++    't: got = condition("C")', -
++    '  return "trapped" got' -
++  )
++
++
+ ::options all syntax
+--- a/ooRexx/base/keyword/ADDRESS.testGroup
++++ b/ooRexx/base/keyword/ADDRESS.testGroup
+@@ -1416,6 +1416,68 @@
+ 
+   call directory original
+ 
++-- the I/O configuration set by ADDRESS ... WITH in an internal routine
++-- (directly or through INTERPRET) is the routine's: it does not change its
++-- caller's, even when the caller has a configuration of its own
++::method test_with_internal_routine_keeps_caller_config
++  address value address() with output stem m.
++  call withA
++  return
++withA:
++  -- an internal routine with its own configuration calls one that sets another
++  address value address() with output stem a.
++  call withB
++  a.0 = 0; b.0 = 0
++  "echo x"
++  self~assertSame(1, a.0, "output must still go to the caller's stem a.")
++  self~assertSame(0, b.0, "output must not go to the callee's stem b.")
++  return
++withB:
++  address value address() with output stem b.
++  return
++
++::method test_with_interpret_internal_routine_keeps_caller_config
++  address value address() with output stem m.
++  call withA
++  return
++withA:
++  address value address() with output stem a.
++  call withB
++  a.0 = 0; b.0 = 0
++  "echo x"
++  self~assertSame(1, a.0, "output must still go to the caller's stem a.")
++  self~assertSame(0, b.0, "output must not go to the callee's stem b.")
++  return
++withB:
++  interpret "address value address() with output stem b."
++  return
++
++::method test_with_interpret_keeps_caller_config
++  address value address() with output stem m.
++  call withB
++  m.0 = 0; b.0 = 0
++  "echo x"
++  self~assertSame(1, m.0, "output must still go to the caller's stem m.")
++  self~assertSame(0, b.0, "output must not go to the routine's stem b.")
++  return
++withB:
++  interpret "address value address() with output stem b."
++  return
++
++::method test_with_interpret_sets_routine_config
++  -- what INTERPRET sets is the routine's
++  address value address() with output stem m.
++  call withB
++  return
++withB:
++  interpret "address value address() with output stem b."
++  m.0 = 0; b.0 = 0
++  "echo x"
++  self~assertSame(1, b.0, "output must go to the stem b. set by INTERPRET")
++  self~assertSame(0, m.0, "output must not go to the caller's stem m.")
++  return
++
++
+ ::class ArrayInputStream public inherit InputStream
+ ::method init
+   expose currentLine lines

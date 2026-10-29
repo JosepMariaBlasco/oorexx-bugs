@@ -17,6 +17,7 @@ the ooRexx test suite, next to an unpatched build of the same revision.
 | `raise-condition-object` | `RaiseConditionObject`: native code raises a condition object as it is (RC, DESCRIPTION...); on top of `raisecondition` (the two concatenated) | [RFE #883](https://sourceforge.net/p/oorexx/feature-requests/883/) |
 | `raise-condition-object-r13325` | RFE #883 alone, regenerated on r13325 (the `RaiseCondition` bug fix is in since r13317-r13319 as #2126); applies unchanged on top of `caller-variables` too; **committed** r13329 (code), r13330 (tests), r13331 (rexxapi) | [RFE #883](https://sourceforge.net/p/oorexx/feature-requests/883/) |
 | `raise-return-value` | `RaiseCondition` without a result object: the value the native routine returns is lost (44.1 / 91.999 in the caller); on r13331, with a test and a rexxapi sentence | [#2130](https://sourceforge.net/p/oorexx/bugs/2130/) |
+| `interpret-trap-leak` | An INTERPRETed `SIGNAL ON`, `CALL ON` or `ADDRESS WITH` in an internal routine changes its caller's settings; `ioConfigCopied` never reset; on r13331, with tests (INTERPRET, ADDRESS) | [#2131](https://sourceforge.net/p/oorexx/bugs/2131/) |
 | `rexxinfo-date` | The build date from `__DATE__` in one place only, so that `.RexxInfo~name`, `.RexxInfo~date` and `rexx -v` agree | [#2051](https://sourceforge.net/p/oorexx/bugs/2051/) (and #1813), committed r13312 |
 
 ## Results
@@ -36,6 +37,10 @@ the ooRexx test suite, next to an unpatched build of the same revision.
   Windows failures, no errors. Unpatched: `METHOD.testGroup` does not load
   (its test library lacks the new method); suite 24,224, the same 7. No new
   warnings.
+- `raise-return-value` (#2130) on r13331, Windows (MSVC, run 40871300036):
+  `METHOD.testGroup` 351/351; full suite 24,575 tests with the usual 7
+  Windows failures, no errors. Unpatched: the new test errors (91.999), the
+  rest the same. No new warnings.
 - `raise-condition-object-r13325` (RFE #883) on **r13328** (after #2129),
   Windows (MSVC, run 40851772127): `METHOD.testGroup` 350/350; full suite
   24,574 tests with the usual 7 Windows failures, no errors. Unpatched: as
