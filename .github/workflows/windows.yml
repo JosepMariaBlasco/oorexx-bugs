@@ -7,7 +7,7 @@ on:
     inputs:
       rev:
         description: ooRexx SVN revision
-        default: "13325"
+        default: "13328"
       patchset:
         description: directory under patches/
         default: raise-condition-object-r13325
@@ -16,7 +16,7 @@ on:
         default: ooRexx/API/oo/METHOD.testGroup
 
 env:
-  REV: ${{ inputs.rev || '13325' }}
+  REV: ${{ inputs.rev || '13328' }}
   PATCHSET: ${{ inputs.patchset || 'raise-condition-object-r13325' }}
   GROUP: ${{ inputs.group || 'ooRexx/API/oo/METHOD.testGroup' }}
 
