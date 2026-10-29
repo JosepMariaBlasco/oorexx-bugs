@@ -38,6 +38,10 @@ the ooRexx test suite, next to an unpatched build of the same revision.
   Windows failures, no errors. Unpatched: `METHOD.testGroup` does not load
   (its test library lacks the new method); suite 24,224, the same 7. No new
   warnings.
+- `reraise-gc-anchor` (#2132) on r13331, Windows (MSVC, run 40924296853):
+  `METHOD.testGroup` 350/350; full suite 24,574 tests with the usual 7
+  Windows failures, no errors; the same as unpatched (no test: the bug needs
+  a collection in a narrow window). No new warnings.
 - `interpret-trap-leak` (#2131) on r13331, Windows (MSVC, run 40873654427):
   `INTERPRET.testGroup` 15/15; full suite 24,582 tests with the usual 7
   Windows failures, no errors. Unpatched: the 7 new tests that show the bug
