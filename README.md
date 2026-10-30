@@ -40,6 +40,14 @@ the ooRexx test suite, next to an unpatched build of the same revision.
   Windows failures, no errors. Unpatched: `METHOD.testGroup` does not load
   (its test library lacks the new method); suite 24,224, the same 7. No new
   warnings.
+- `package-from-data-r13331` (#2108) on r13331, Windows (MSVC, run
+  41017155539): `METHOD.testGroup` 351/351; full suite 24,575 tests with the
+  usual 7 Windows failures, no errors. Unpatched: the new test errors, the
+  rest the same. No new warnings.
+- `halt-request-r13331` (#2124) on r13331, Windows (MSVC, run 41017169984):
+  `INVOCATION.testGroup` 55/55; full suite 24,574 tests with the usual 7
+  Windows failures, no errors, the same as unpatched (the race probes need
+  pthreads and Unix signals). No new warnings.
 - `reraise-gc-anchor` (#2132) on r13331, Windows (MSVC, run 40924296853):
   `METHOD.testGroup` 350/350; full suite 24,574 tests with the usual 7
   Windows failures, no errors; the same as unpatched (no test: the bug needs
