@@ -41,6 +41,11 @@ the ooRexx test suite, next to an unpatched build of the same revision.
   Windows failures, no errors. Unpatched: `METHOD.testGroup` does not load
   (its test library lacks the new method); suite 24,224, the same 7. No new
   warnings.
+- `apicontext-traps` (#2104) on r13334, Windows (MSVC, run 41040725043):
+  `FUNCTION.testGroup` 167/167; full suite 24,576 tests with the usual 7
+  Windows failures, no errors. Unpatched: `FUNCTION.testGroup` does not load
+  (its test library lacks the new routine); suite 24,409, the same 7. No new
+  warnings.
 - `package-from-data-r13331` (#2108) on r13331, Windows (MSVC, run
   41017155539): `METHOD.testGroup` 351/351; full suite 24,575 tests with the
   usual 7 Windows failures, no errors. Unpatched: the new test errors, the
