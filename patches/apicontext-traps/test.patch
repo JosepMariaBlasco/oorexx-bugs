@@ -1,0 +1,47 @@
+--- a/ooRexx/API/oo/FUNCTION.testGroup
++++ b/ooRexx/API/oo/FUNCTION.testGroup
+@@ -1218,6 +1218,21 @@
+   self~assertSame("USER FOO", condition("C"))
+   self~assertSame(7, rc)
+ 
++-- bug #2104: while a command runs, native code reached by its handler's
++-- SendMessage uses the handler's exit context again (here, to set a variable
++-- of the command's issuer); a SYNTAX error that the Rexx code raises after
++-- that must still be trapped by the handler's SendMessage (it crashed the
++-- interpreter: the nested API call turned off the handler's condition traps)
++::method test_AddCommandEnvironment_nested_context
++  call TestAddCommandEnvironment "rc-nested", "nested"
++  .local~bug2104probe = .Bug2104Probe~new
++  x = "unset"
++  address "rc-nested" "BUG2104PROBE"
++  .local~remove("BUG2104PROBE")
++  -- the handler answers the code of the SYNTAX error its SendMessage trapped
++  self~assertSame(42003, rc)
++  self~assertSame("set", x)
++
+ ::method test_AddCommandEnvironment_condition_error_syntax
+   -- ::OPTIONS ERROR SYNTAX applies to ERROR only, not to other conditions a
+   -- handler raises: trapped, they are raised as themselves; untrapped, ignored
+@@ -2094,6 +2109,12 @@
+   use arg command, caller
+   return target~command(command, caller)
+ 
++-- for test_AddCommandEnvironment_nested_context
++::class Bug2104Probe
++::method run
++  call TestNestedSetCallerVariable "X"   -- through the command's exit context
++  x = 1 / 0                              -- a SYNTAX error nobody traps here
++
+ ::class nestTest
+ ::method string
+   return "Bazinga"
+--- a/ooRexx/API/oo/FUNCTIONPackage.cls
++++ b/ooRexx/API/oo/FUNCTIONPackage.cls
+@@ -99,6 +99,7 @@
+ ::routine TestResolveStemVariable PUBLIC EXTERNAL "LIBRARY orxfunction TestResolveStemVariable"
+ ::routine TestFindContextClass PUBLIC EXTERNAL "LIBRARY orxfunction TestFindContextClass"
+ ::routine TestAddCommandEnvironment PUBLIC EXTERNAL "LIBRARY orxfunction"
++::routine TestNestedSetCallerVariable PUBLIC EXTERNAL "LIBRARY orxfunction"
+ 
+ ::routine TestRaiseException0 EXTERNAL "LIBRARY orxfunction TestRaiseException0"
+ ::routine TestRaiseException1 EXTERNAL "LIBRARY orxfunction TestRaiseException1"

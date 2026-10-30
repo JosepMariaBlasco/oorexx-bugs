@@ -1,0 +1,196 @@
+--- a/interpreter/api/ContextApi.hpp
++++ b/interpreter/api/ContextApi.hpp
+@@ -68,6 +68,7 @@
+          clearConditions = false;
+          activity = contextToActivity(c);
+          context = activity->getApiContext();
++         trapsWereEnabled = context->conditionTrapsEnabled();
+          context->enableConditionTraps();
+          // go acquire the kernel lock and take care of nesting
+          activity->enterCurrentThread();
+@@ -97,6 +98,7 @@
+          clearConditions = false;
+          activity = contextToActivity(c);
+          context = activity->getApiContext();
++         trapsWereEnabled = context->conditionTrapsEnabled();
+          context->enableConditionTraps();
+      }
+ 
+@@ -112,6 +114,7 @@
+          clearConditions = false;
+          activity = contextToActivity(c);
+          context = contextToActivation(c);
++         trapsWereEnabled = context->conditionTrapsEnabled();
+          context->enableConditionTraps();
+          // go acquire the kernel lock and take care of nesting
+          activity->enterCurrentThread();
+@@ -140,6 +143,7 @@
+          clearConditions = false;
+          activity = contextToActivity(c);
+          context = activity->getApiContext();
++         trapsWereEnabled = context->conditionTrapsEnabled();
+          context->enableConditionTraps();
+      }
+ 
+@@ -157,6 +161,7 @@
+          clearConditions = false;
+          activity = contextToActivity(c);
+          context = contextToActivation(c);
++         trapsWereEnabled = context->conditionTrapsEnabled();
+          context->enableConditionTraps();
+          // go acquire the kernel lock and take care of nesting
+          activity->enterCurrentThread();
+@@ -177,6 +182,7 @@
+          releaseLock = true;
+          activity = contextToActivity(c);
+          context = contextToActivation(c);
++         trapsWereEnabled = context->conditionTrapsEnabled();
+          context->enableConditionTraps();
+          clearConditions = true;
+          activity->enterCurrentThread();
+@@ -198,6 +204,7 @@
+          clearConditions = false;
+          activity = contextToActivity(c);
+          context = contextToActivation(c);
++         trapsWereEnabled = context->conditionTrapsEnabled();
+          context->enableConditionTraps();
+      }
+ 
+@@ -215,6 +222,7 @@
+          clearConditions = false;
+          activity = contextToActivity(c);
+          context = contextToActivation(c);
++         trapsWereEnabled = context->conditionTrapsEnabled();
+          context->enableConditionTraps();
+          // go acquire the kernel lock and take care of nesting
+          activity->enterCurrentThread();
+@@ -244,6 +252,7 @@
+          clearConditions = false;
+          activity = contextToActivity(c);
+          context = activity->getApiContext();
++         trapsWereEnabled = context->conditionTrapsEnabled();
+          context->enableConditionTraps();
+      }
+ 
+@@ -264,7 +273,13 @@
+         // activity
+         if (releaseLock)
+         {
+-            context->disableConditionTraps();
++            // restore the trap state we found: a nested call through the
++            // context of a call that is still running must not turn off
++            // that call's traps
++            if (!trapsWereEnabled)
++            {
++                context->disableConditionTraps();
++            }
+             activity->exitCurrentThread();
+         }
+     }
+@@ -293,6 +308,11 @@
+      * Indicates whether conditions should be cleared on return.
+      */
+     bool clearConditions;
++
++    /**
++     * Whether the context was already trapping conditions when we started.
++     */
++    bool trapsWereEnabled;
+ };
+ 
+ 
+--- a/interpreter/execution/NativeActivation.hpp
++++ b/interpreter/execution/NativeActivation.hpp
+@@ -203,6 +203,7 @@
+     void forwardMessage(RexxObject *to, RexxString *msg, RexxClass *super, ArrayClass *args, ProtectedObject &result);
+     void enableConditionTraps() { trapErrors = true; }
+     void disableConditionTraps() { trapErrors = false; }
++    bool conditionTrapsEnabled() { return trapErrors; }
+     StackFrameClass *createStackFrame();
+     void *allocateObjectMemory(size_t size);
+     void  freeObjectMemory(void *data);
+--- a/testbinaries/orxfunction.cpp
++++ b/testbinaries/orxfunction.cpp
+@@ -621,6 +621,32 @@
+ }
+ 
+ 
++// the exit context of the "nested" command handler while it runs (bug #2104)
++static RexxExitContext *nestedExitContext = NULL;
++
++// test DIRECT command handler for TestAddCommandEnvironment "nested" (bug
++// #2104): sends RUN to the .local entry named by the command; while RUN runs,
++// native code uses this handler's exit context (TestNestedSetCallerVariable).
++// Answers the code of the SYNTAX error that SendMessage0 trapped, else 0
++RexxObjectPtr RexxEntry nHandler(RexxExitContext *context,
++                                 RexxStringObject address,
++                                 RexxStringObject command)
++{
++    nestedExitContext = context;
++    RexxObjectPtr target = context->DirectoryAt(context->GetLocalEnvironment(), context->CString(command));
++    context->SendMessage0(target, "RUN");
++    nestedExitContext = NULL;
++    if (context->CheckCondition())
++    {
++        RexxCondition info;
++        context->DecodeConditionInfo(context->GetConditionInfo(), &info);
++        context->ClearCondition();
++        return context->WholeNumberToObject(info.code);
++    }
++    return context->WholeNumberToObject(0);
++}
++
++
+ // test command handler for the I/O redirection APIs
+ RexxObjectPtr RexxEntry ioHandler(RexxExitContext *context, RexxStringObject address, RexxStringObject command, RexxIORedirectorContext *ioContext)
+ {
+@@ -807,7 +833,7 @@
+ }
+ 
+ 
+-// install 'ioHandler', 'rHandler', 'cHandler', or 'dHandler'
++// install 'ioHandler', 'rHandler', 'cHandler', 'nHandler', or 'dHandler'
+ RexxRoutine2(RexxObjectPtr,
+              TestAddCommandEnvironment,
+              CSTRING, name,
+@@ -828,6 +854,10 @@
+     {   // direct command handler that raises the condition named by the command
+         context->AddCommandEnvironment(name, (REXXPFN)cHandler, DIRECT_COMMAND_ENVIRONMENT);
+     }
++    else if (type[0] == 'n' || type[0] == 'N')
++    {   // direct command handler whose exit context is used again while it runs
++        context->AddCommandEnvironment(name, (REXXPFN)nHandler, DIRECT_COMMAND_ENVIRONMENT);
++    }
+     else
+     {   // direct command handler
+         context->AddCommandEnvironment(name, (REXXPFN)dHandler, DIRECT_COMMAND_ENVIRONMENT);
+@@ -835,6 +865,21 @@
+     return NULLOBJECT;
+ }
+ 
++// sets the variable named by the argument to "set" in the issuer of the
++// command that the "nested" handler is running, through the handler's exit
++// context; returns 0 if no such command is running (bug #2104)
++RexxRoutine1(int,
++             TestNestedSetCallerVariable,
++             CSTRING, name)
++{
++    if (nestedExitContext == NULL)
++    {
++        return 0;
++    }
++    nestedExitContext->SetContextVariable(name, context->String("set"));
++    return 1;
++}
++
+ // as TestAddCommandEnvironment, with StackCommandEnvironment ('cHandler' or
+ // 'dHandler'); returns what StackCommandEnvironment returns.  The type "bad"
+ // passes an environment type that is neither direct nor redirecting.
+@@ -1032,6 +1077,7 @@
+     REXX_TYPED_ROUTINE(TestCallerVariables,     TestCallerVariables),
+     REXX_TYPED_ROUTINE(TestFindContextClass,  TestFindContextClass),
+     REXX_TYPED_ROUTINE(TestAddCommandEnvironment, TestAddCommandEnvironment),
++    REXX_TYPED_ROUTINE(TestNestedSetCallerVariable, TestNestedSetCallerVariable),
+     REXX_TYPED_ROUTINE(TestStackCommandEnvironment, TestStackCommandEnvironment),
+     REXX_TYPED_ROUTINE(TestRaiseException0,         TestRaiseException0),
+     REXX_TYPED_ROUTINE(TestRaiseException1,         TestRaiseException1),

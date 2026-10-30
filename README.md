@@ -21,6 +21,7 @@ the ooRexx test suite, next to an unpatched build of the same revision.
 | `reraise-gc-anchor` | A SYNTAX condition raised again from native code (`RaiseConditionObject`, or a callee's SYNTAX left pending after `CallRoutine`) can be collected while it propagates; one line in `Activity::reraiseException`; on r13331, no test (needs a collection in that window) | [#2132](https://sourceforge.net/p/oorexx/bugs/2132/) |
 | `package-from-data-r13331` | `LoadPackageFromData`: a later `::REQUIRES` of its name fails after a garbage collection; the ticket's fix and a test, on r13331; **committed** r13332 (code), r13333 (test) | [#2108](https://sourceforge.net/p/oorexx/bugs/2108/) |
 | `halt-request-r13331` | A HALT is sometimes lost when posted to a frame that is ending; `halt-request` regenerated on r13331 (copyright hunks dropped); **committed** r13334 | [#2124](https://sourceforge.net/p/oorexx/bugs/2124/) |
+| `apicontext-traps` | Condition traps of a native activation turned off by a nested API call through its context (an untrapped SYNTAX then crashes); the ticket's fix, plus a test (`FUNCTION.testGroup`, a "nested" handler in orxfunction), on r13334 | [#2104](https://sourceforge.net/p/oorexx/bugs/2104/) |
 | `rexxinfo-date` | The build date from `__DATE__` in one place only, so that `.RexxInfo~name`, `.RexxInfo~date` and `rexx -v` agree | [#2051](https://sourceforge.net/p/oorexx/bugs/2051/) (and #1813), committed r13312 |
 
 ## Results
