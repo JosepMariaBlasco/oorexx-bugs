@@ -1,0 +1,38 @@
+--- a/ooRexx/API/oo/METHOD.testGroup
++++ b/ooRexx/API/oo/METHOD.testGroup
+@@ -3585,6 +3585,35 @@
+ 
+ 
+ 
++-- #2108 "LoadPackageFromData: a later ::REQUIRES of its name fails after a
++-- garbage collection"
++::method test_bug_2108_LoadPackageFromData_requires_after_gc
++  tester = .METHODtester~new
++  name = "bug2108-package-from-data.cls"     -- no such file exists
++  data = "::class Bug2108Thing public" || .endOfLine ||  -
++         "::method hi"                 || .endOfLine ||  -
++         "  return 'hi'"               || .endOfLine
++  p = tester~TestLoadPackageFromData(name, data)
++  self~assertTrue(p~isA(.Package), "LoadPackageFromData did not return a package")
++  drop p                                     -- nobody keeps a reference to it
++
++  code = "return .Bug2108Thing~new~hi", "::requires '"name"'"
++  -- a ::requires of that name finds the package...
++  self~assertSame("hi", .routine~new("before", code)~call)
++
++  -- ...and still finds it after a garbage collection: make garbage until
++  -- a weak reference to an unreferenced object has been cleared
++  sentinel = .WeakReference~new(.object~new)
++  do i = 1 to 1000 until sentinel~value~isNil
++    do 1000
++      x = .array~new(100)~fill(copies("x", 100))
++    end
++  end
++  drop x
++  self~assertTrue(sentinel~value~isNil, "no garbage collection happened")
++  self~assertSame("hi", .routine~new("after", code)~call)
++
++
+ ::method testSendMessageScoped
+   tester = .METHODTester~new
+   o = .Scoped3~new

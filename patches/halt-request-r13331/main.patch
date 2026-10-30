@@ -1,0 +1,120 @@
+--- a/interpreter/concurrency/Activity.cpp
++++ b/interpreter/concurrency/Activity.cpp
+@@ -131,6 +131,7 @@
+     memory_mark(requiresTable);
+     memory_mark(waitingObject);
+     memory_mark(dispatchMessage);
++    memory_mark(haltRequestDescription);
+     memory_mark(heldMutexes);
+     memory_mark(spawnerStackFrameInfo);
+ 
+@@ -165,6 +166,7 @@
+     memory_mark_general(requiresTable);
+     memory_mark_general(waitingObject);
+     memory_mark_general(dispatchMessage);
++    memory_mark_general(haltRequestDescription);
+     memory_mark_general(heldMutexes);
+     memory_mark_general(spawnerStackFrameInfo);
+ 
+@@ -2305,8 +2307,17 @@
+ 
+     if (activation != NULL)
+     {
+-        // please make it stop :-)
+-        return activation->halt(d);
++        // please make it stop :-)  Posted to the activity, not to the frame:
++        // the frame may be ending on its own thread meanwhile (this may run on
++        // another thread), and a flag in an ended frame is never seen.
++        if (haltRequest.load(std::memory_order_acquire))
++        {
++            return false;                   // one still pending
++        }
++        haltRequestDescription = d;
++        haltRequestDepth = stackFrameDepth;
++        haltRequest.store(true, std::memory_order_release);
++        return true;
+     }
+     return true;
+ }
+@@ -3590,6 +3601,9 @@
+     memoryObject.checkUninitQueue();
+     // unwind to the same stack depth as the start, removing all new entries
+     unwindToDepth(startDepth);
++    // a HALT requested of a frame of the code we ran, and never taken, ends with
++    // it: it must not halt the next code run on this activity
++    clearHaltRequest();
+     // if a condition occurred, make sure we inject this into the API-level
+     // native activation so the caller can check to see if an error occurred.
+     if (target.conditionData != OREF_NULL)
+--- a/interpreter/concurrency/Activity.hpp
++++ b/interpreter/concurrency/Activity.hpp
+@@ -58,6 +58,7 @@
+ #include "StringTableClass.hpp"
+ #include "InterpreterInstance.hpp"
+ #include "RexxErrorCodes.h"
++#include <atomic>
+ 
+ 
+ 
+@@ -184,6 +185,24 @@
+     void        joinKernelQueue();
+     void        relinquish();
+     bool        halt(RexxString *);
++    // a HALT requested from any thread, taken at the next clause boundary of
++    // whichever Rexx frame of this activity gets there first
++    // (only by a frame no deeper than the one it was aimed at: a callee pushed
++    // after the request leaves it to its caller, as a HALT posted to a frame did)
++    inline bool haltRequested() { return haltRequest.load(std::memory_order_relaxed) && stackFrameDepth <= haltRequestDepth; }
++    inline bool takeHaltRequest(RexxString *&d)
++    {
++        if (!haltRequested() || !haltRequest.exchange(false, std::memory_order_acquire)) return false;
++        d = haltRequestDescription; haltRequestDescription = OREF_NULL; return true;
++    }
++    inline void clearHaltRequest()
++    {
++        if (haltRequest.load(std::memory_order_acquire) && haltRequestDepth > stackFrameDepth)
++        {
++            haltRequest.store(false, std::memory_order_release);
++            haltRequestDescription = OREF_NULL;
++        }
++    }
+     bool        setTrace(bool);
+     inline void yieldControl() { releaseAccess(); requestAccess(); }
+     void        yield();
+@@ -384,6 +403,9 @@
+     // is the current size of the stack (which is expanded, if necessary).  The
+     // activationStackDepth is the current count of frames in the stack.
+     InternalStack *activations;
++    std::atomic<bool> haltRequest{false};       // see takeHaltRequest()
++    RexxString *haltRequestDescription = OREF_NULL;
++    size_t haltRequestDepth = 0;                // the depth of the frame it was aimed at
+     size_t   activationStackSize;
+     size_t   stackFrameDepth;
+ 
+--- a/interpreter/execution/RexxActivation.cpp
++++ b/interpreter/execution/RexxActivation.cpp
+@@ -648,7 +648,7 @@
+ 
+                 // do we need to check clauseBoundary stuff?  Go do those
+                 // checks.
+-                if (clauseBoundary)
++                if (clauseBoundary || activity->haltRequested())
+                 {
+                     processClauseBoundary();
+                 }
+@@ -4099,6 +4099,15 @@
+         }
+     }
+ 
++    // a HALT requested of the activity
++    {
++        RexxString *d = OREF_NULL;
++        if (activity->takeHaltRequest(d) && !settings.haveHaltCondition())
++        {
++            settings.haltDescription = d;
++            settings.setHaltCondition(true);
++        }
++    }
+     // have a halt condition?
+     if (settings.haveHaltCondition())
+     {
