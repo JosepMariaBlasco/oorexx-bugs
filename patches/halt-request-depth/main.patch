@@ -1,0 +1,106 @@
+diff -ru a/interpreter/concurrency/Activity.cpp b/interpreter/concurrency/Activity.cpp
+--- a/interpreter/concurrency/Activity.cpp	2026-10-31 17:55:10.990937931 +0100
++++ b/interpreter/concurrency/Activity.cpp	2026-10-31 17:55:10.992541640 +0100
+@@ -1753,6 +1753,7 @@
+     // push on to the stack and bump the depth
+     activations->push(new_activation);
+     stackFrameDepth++;
++    new_activation->setStackFrameDepth(stackFrameDepth);
+     // update the frame information.
+     // if we're not creating a new frame set, link up the new frame with its predecessor
+     if (!new_activation->isStackBase())
+@@ -1784,6 +1785,7 @@
+     // create a new root element on the stack and bump the depth indicator
+     activations->push(new_activation);
+     stackFrameDepth++;
++    new_activation->setStackFrameDepth(stackFrameDepth);
+     // update the frame information.
+     updateFrameMarkers();
+ }
+@@ -2319,7 +2321,12 @@
+             return false;                   // one still pending
+         }
+         haltRequestDescription = d;
+-        haltRequestDepth = stackFrameDepth;
++        // aimed at the top Rexx frame, as before the request was posted to
++        // the activity: native frames above it (a native function, or a
++        // COMMAND method that calls HaltThread()) do not count, or a Rexx
++        // frame pushed later at their depth (CommandContext~FINISH, the
++        // code behind SAY) would take a halt meant for its caller
++        haltRequestDepth = activation->getStackFrameDepth();
+         haltRequest.store(true, std::memory_order_release);
+         return true;
+     }
+diff -ru a/interpreter/execution/ActivationBase.hpp b/interpreter/execution/ActivationBase.hpp
+--- a/interpreter/execution/ActivationBase.hpp	2026-10-31 17:55:11.003218556 +0100
++++ b/interpreter/execution/ActivationBase.hpp	2026-10-31 17:55:11.004754054 +0100
+@@ -96,6 +96,8 @@
+ 
+     inline void setPreviousStackFrame(ActivationBase *p) { previous = p; }
+     inline ActivationBase *getPreviousStackFrame() { return previous; }
++    inline void setStackFrameDepth(size_t d) { stackFrameDepth = d; }
++    inline size_t getStackFrameDepth() { return stackFrameDepth; }
+     inline BaseExecutable *getExecutable() { return executable; }
+     BaseExecutable *getExecutableObject() { return executable; }
+ 
+@@ -104,6 +106,7 @@
+     ActivationBase *previous;        // previous activation in the chain
+     BaseExecutable *executable;      // the executable associated with this activation.
+     GuardStatus     objectScope;     // reserve/release state of variables
++    size_t          stackFrameDepth = 0; // its depth on the activity's stack, set when pushed
+ 
+ };
+ 
+diff -ru a/testbinaries/orxfunction.cpp b/testbinaries/orxfunction.cpp
+--- a/testbinaries/orxfunction.cpp	2026-10-31 17:55:11.014003076 +0100
++++ b/testbinaries/orxfunction.cpp	2026-10-31 17:55:11.015691366 +0100
+@@ -1016,6 +1016,14 @@
+ }
+ 
+ 
++RexxRoutine0(int, TestHaltThread)
++{
++    // asks for a halt of the Rexx code that called this routine (bug #2124)
++    context->threadContext->HaltThread();
++    return 0;
++}
++
++
+ RexxRoutineEntry orxtest_funcs[] = {
+     REXX_TYPED_ROUTINE(TestZeroIntArgs,       TestZeroIntArgs),
+     REXX_TYPED_ROUTINE(TestOneIntArg,         TestOneIntArg),
+@@ -1089,6 +1097,7 @@
+     REXX_TYPED_ROUTINE(TestThrowException,          TestThrowException),
+     REXX_TYPED_ROUTINE(TestThrowCondition,          TestThrowCondition),
+     REXX_TYPED_ROUTINE(TestNestedAttach,            TestNestedAttach),
++    REXX_TYPED_ROUTINE(TestHaltThread,              TestHaltThread),
+     REXX_LAST_ROUTINE()
+ };
+ 
+diff -ru a/testbinaries/orxmethod.cpp b/testbinaries/orxmethod.cpp
+--- a/testbinaries/orxmethod.cpp	2026-10-31 17:55:11.024395234 +0100
++++ b/testbinaries/orxmethod.cpp	2026-10-31 17:55:11.025791678 +0100
+@@ -2575,6 +2575,15 @@
+ 
+ 
+ 
++RexxMethod2(int, TestHaltThreadCommand, RexxStringObject, command, RexxObjectPtr, caller)
++{
++    // a COMMAND method of a .CommandHandler that asks for a halt of the
++    // issuer with HaltThread() and returns RC 5 (bug #2124)
++    context->threadContext->HaltThread();
++    return 5;
++}
++
++
+ RexxMethodEntry orxtest_methods[] = {
+     REXX_METHOD(TestIsBuffer,          TestIsBuffer),
+     REXX_METHOD(TestBufferInit,        TestBufferInit),
+@@ -2833,6 +2842,7 @@
+     REXX_METHOD(TestSetGuardOff,             TestSetGuardOff),
+     REXX_METHOD(TestSetGuardOnWhenUpdated,   TestSetGuardOnWhenUpdated),
+     REXX_METHOD(TestSetGuardOffWhenUpdated,  TestSetGuardOffWhenUpdated),
++    REXX_METHOD(TestHaltThreadCommand,       TestHaltThreadCommand),
+     REXX_LAST_METHOD()
+ };
+ 

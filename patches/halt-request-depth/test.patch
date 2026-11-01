@@ -1,0 +1,91 @@
+diff -ru a/ooRexx/API/oo/FUNCTION.testGroup b/ooRexx/API/oo/FUNCTION.testGroup
+--- a/ooRexx/API/oo/FUNCTION.testGroup	2026-10-31 17:55:11.034631041 +0100
++++ b/ooRexx/API/oo/FUNCTION.testGroup	2026-10-31 17:55:11.035993557 +0100
+@@ -1138,6 +1138,52 @@
+   .CommandHandler~deregister("rc-stack")
+   self~assertSame(0, .CommandHandler~handlers("rc-stack")~items)
+ 
++::method test_HaltThread_caller
++  -- a halt that a native routine asks for with HaltThread() is its caller's,
++  -- taken at the end of the clause
++  signal on halt name halted
++  signal on syntax name syntax
++  x = TestHaltThread()
++  nop
++  self~fail("no HALT")
++halted:
++  self~assertSame("HALT", condition("C"))
++  return
++syntax:
++  self~fail("SYNTAX" condition("O")~code "instead of HALT")
++
++::method test_HaltThread_not_a_later_method
++  -- bug #2124 follow-up: nor is it taken by a Rexx method that the same
++  -- clause runs afterwards, at the depth where the native routine was
++  signal on halt name halted
++  signal on syntax name syntax
++  x = TestHaltThread() || .HaltSibling~value
++  nop
++  self~fail("no HALT")
++halted:
++  self~assertSame("HALT", condition("C"))
++  return
++syntax:
++  self~fail("SYNTAX" condition("O")~code "instead of HALT")
++
++::method test_HaltThread_command_handler
++  -- bug #2124 follow-up: a halt that a native COMMAND method asks for is the
++  -- issuer's, not CommandContext~finish's (run after COMMAND returns)
++  .CommandHandler~register("halt-native", .HaltingHandler~new)
++  signal on halt name halted
++  signal on syntax name syntax
++  address "halt-native" "anything"
++  nop
++  .CommandHandler~deregister("halt-native")
++  self~fail("no HALT")
++halted:
++  .CommandHandler~deregister("halt-native")
++  self~assertSame("HALT", condition("C"))
++  return
++syntax:
++  .CommandHandler~deregister("halt-native")
++  self~fail("SYNTAX" condition("O")~code "instead of HALT")
++
+ ::method test_StackCommandEnvironment_new_name
+   -- on a name with no handler it is simply the environment
+   self~assertSame(.true, TestStackCommandEnvironment("rc-stack-new", "direct"))
+@@ -2237,6 +2283,15 @@
+   return "makeString"
+ 
+ 
++-- a Rexx method with no HALT trap (bug #2124 follow-up)
++::class HaltSibling
++::method value class
++  return "x"
++
++-- a native COMMAND that asks for a halt with HaltThread() and returns 5
++::class HaltingHandler inherit CommandHandler
++::method command external "LIBRARY orxmethod TestHaltThreadCommand"
++
+ -- answers RC 42 to every command (RFE #882)
+ ::class ConstantHandler inherit CommandHandler
+ ::method command
+diff -ru a/ooRexx/API/oo/FUNCTIONPackage.cls b/ooRexx/API/oo/FUNCTIONPackage.cls
+--- a/ooRexx/API/oo/FUNCTIONPackage.cls	2026-10-31 17:55:11.044069334 +0100
++++ b/ooRexx/API/oo/FUNCTIONPackage.cls	2026-10-31 17:55:14.741133043 +0100
+@@ -1,6 +1,6 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2008-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2008-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -110,6 +110,7 @@
+ ::routine TestThrowException1            EXTERNAL "LIBRARY orxfunction"
+ ::routine TestThrowException2            EXTERNAL "LIBRARY orxfunction"
+ ::routine TestNestedAttach               EXTERNAL "LIBRARY orxfunction"
++::routine TestHaltThread PUBLIC EXTERNAL "LIBRARY orxfunction TestHaltThread"
+ 
+ 
+ ::class TypeConstants PUBLIC
