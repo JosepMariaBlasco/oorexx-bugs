@@ -1,0 +1,58 @@
+name: exit-hang
+
+# Does the test suite's rexx.exe exit when its output goes to a pipe, as under
+# Jenkins? Plain trunk, no patches. See ci/exit-hang.ps1.
+
+on:
+  workflow_dispatch:
+    inputs:
+      rev:
+        description: ooRexx SVN revision
+        default: "13347"
+      minutes:
+        description: minutes to wait for each run before calling it a hang
+        default: "25"
+
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Export trunk
+        run: |
+          sudo apt-get install -y -qq subversion > /dev/null
+          svn export -q -r ${{ inputs.rev }} https://svn.code.sf.net/p/oorexx/code-0/main/trunk src/main
+          svn export -q -r ${{ inputs.rev }} https://svn.code.sf.net/p/oorexx/code-0/test/trunk src/test
+          tar czf src.tgz src
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exit-hang-source
+          path: src.tgz
+
+  exit-hang:
+    needs: source
+    runs-on: windows-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: exit-hang-source
+      - name: Unpack
+        shell: bash
+        run: tar xzf src.tgz
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Build (with symbols, for the stacks)
+        shell: cmd
+        run: |
+          mkdir build
+          cd build
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo ..\src\main > ..\cmake.log 2>&1 || (type ..\cmake.log & exit /b 1)
+          ninja > ..\ninja.log 2>&1 || (type ..\ninja.log & exit /b 1)
+      - name: Full suite through a pipe, three kinds of stdin
+        shell: pwsh
+        run: ./ci/exit-hang.ps1 -TestDir "$env:GITHUB_WORKSPACE\src\test" -BinDir "$env:GITHUB_WORKSPACE\build\bin" -Minutes ${{ inputs.minutes }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: exit-hang
+          path: exit-hang
