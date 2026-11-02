@@ -1,0 +1,27 @@
+--- a/ooRexx/extensions/platform/windows/ole/OLEObject.testGroup	2026-11-02 14:41:51.222823164 +0100
++++ b/ooRexx/extensions/platform/windows/ole/OLEObject.testGroup	2026-11-02 14:41:51.224146487 +0100
+@@ -135,8 +135,13 @@
+ 
+ 
+ ::routine newWatchedRecordset
+-    -- a client-side Recordset with three records: "one", "two", "three"
+-    rs = .WatchedRecordset~new("ADODB.Recordset", "WITHEVENTS")
++    -- a client-side Recordset with three records: "one", "two", "three".
++    -- The subclass of OLEObject is made here, at run time: a ::CLASS
++    -- directive naming OLEObject as its superclass would stop this file
++    -- from loading where there is no OLEObject (on Unix).
++    watchedRecordset = .OLEObject~subclass("WatchedRecordset")
++    watchedRecordset~inherit(.RecordsetEvents)
++    rs = watchedRecordset~new("ADODB.Recordset", "WITHEVENTS")
+     rs~mode = "none"; rs~got = ""; rs~completes = 0
+     rs~CursorLocation = 3                         -- adUseClient
+     rs~Fields~Append("name", 200, 20)             -- adVarChar
+@@ -148,7 +153,7 @@
+     end
+     return rs
+ 
+-::class 'WatchedRecordset' subclass OLEObject
++::class 'RecordsetEvents' mixinclass Object      -- the event methods
+ ::attribute mode
+ ::attribute got
+ ::attribute completes
