@@ -1,0 +1,105 @@
+--- a/ooRexx/utilities/rxapi.testGroup	2026-11-02 13:57:02.065693135 +0100
++++ b/ooRexx/utilities/rxapi.testGroup	2026-11-02 13:58:14.406501296 +0100
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2023 Rexx Language Association. All rights reserved.         */
++/* Copyright (c) 2023-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -66,4 +66,93 @@
+   self~assertTrue(output[2]~startsWith(expected), output[2] "should start with" expected)
+ 
+ 
++::method test_rxapi_wait_releases_kernel_lock
++  -- bug #2115: while the interpreter waits for rxapi to say whether a name
++  -- is in the macrospace (an external call that is not resolved before the
++  -- macrospace is searched, a ::REQUIRES of a package not yet loaded), the
++  -- other Rexx threads must go on running.  A helper process gets an rxapi
++  -- of its own (a private XDG_RUNTIME_DIR), freezes it for two seconds
++  -- (SIGSTOP) during each of those two calls, and prints how much a second
++  -- thread counted meanwhile, as a percentage of its rate before: about 0
++  -- if the waiting thread held the kernel lock, over 100 if not.
++  rexx = .RexxInfo~executable
++  if rexx == .nil then return -- we don't know which rexx to run
++  dir = SysTempFileName("/tmp/ooRexx-rxapi-wait-????")  -- short: rxapi's socket goes here
++  self~assertSame(0, SysMkDir(dir), "cannot create" dir)
++  do name over "helper.rex", "dummy.cls"
++    .stream~new(dir"/"name)~~open("write replace")~~arrayOut(.resources[name~upper])~~close
++  end
++  output = .array~new
++  address system 'XDG_RUNTIME_DIR="'dir'"' self~q(rexx) self~q(dir"/helper.rex") self~q(dir) -
++    with output using (output) error using (output)
++  -- the helper has ended its rxapi; remove the socket, lock file and helper
++  address system "rm -rf" self~q(dir)
++  self~assertSame(1, output~items, "unexpected output from the helper:" output~toString(, " | "))
++  parse value output[1] with external requires
++  self~assertTrue(external~dataType("W") & requires~dataType("W"), "unexpected output from the helper:" output[1])
++  self~assertTrue(external > 50, "an external call stopped the other threads while rxapi did not answer:" external"%")
++  self~assertTrue(requires > 50, "a ::REQUIRES stopped the other threads while rxapi did not answer:" requires"%")
++
++::method q
++  use strict arg string
++  return '"'string'"'
++
++
++-- the helper for test_rxapi_wait_releases_kernel_lock, run with its own
++-- rxapi; its argument is the directory it is in
++::resource "helper.rex"
++parse arg dir
++.local~go = 1; .local~beats = 0
++pid = SysQueryProcess("PID")            -- an external call: our rxapi is up after it
++out = .array~new
++address system "pgrep -P" pid "-x rxapi" with output using (out)
++if out~items <> 1 then do
++  say "cannot find this process's rxapi (pgrep -P" pid "-x rxapi):" out~toString(, " ")
++  exit 0
++end
++rxapi = out[1]
++.Counter~new~start("count")
++call wait 0.5
++b0 = .beats; t0 = time("E")
++call wait 1
++rate = (.beats - b0) / (time("E") - t0)   -- beats per second
++pcts = ""
++do case over "external", "requires"
++  address system "kill -STOP" rxapi
++  address system "(sleep 2; kill -CONT" rxapi") >/dev/null 2>&1 &"
++  b0 = .beats; t0 = time("E")
++  if case == "external" then call tryExternal
++  else .context~package~loadPackage(dir"/dummy.cls")
++  pcts = pcts format((.beats - b0) / ((time("E") - t0) * rate) * 100, , 0)
++  call wait 0.3                         -- (the CONT has come: rxapi answered)
++end
++.local~go = 0
++address system "kill -CONT" rxapi"; kill" rxapi
++say pcts~strip
++exit 0
++
++tryExternal:                            -- not found: rxapi is asked first
++  signal on syntax name notFound
++  call NoSuchRoutineForBug2115
++notFound:
++  return
++
++wait: procedure                         -- no external calls: a busy wait
++  arg secs
++  t = time("E")
++  do while time("E") - t < secs; nop; end
++  return
++
++::class Counter
++::method count
++  do while .go
++    .local~beats = .beats + 1
++  end
++::END
++
++::resource "dummy.cls"
++return
++::END
++
++
+ ::options all syntax error condition

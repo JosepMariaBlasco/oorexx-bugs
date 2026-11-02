@@ -1,0 +1,80 @@
+--- a/interpreter/parser/LanguageParser.cpp	2026-08-02 21:03:08.535751000 +0200
++++ b/interpreter/parser/LanguageParser.cpp	2026-11-02 13:44:48.918622694 +0100
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2025 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -4334,9 +4334,14 @@
+     if (instore[0].strptr == NULL && instore[1].strptr == NULL)
+     {
+         unsigned short temp;
++        int rc;
++        {
++            UnsafeBlock releaser;   // don't hold the kernel lock while asking rxapi
++            rc = RexxQueryMacro(name->getStringData(), &temp);
++        }
+ 
+         // see if this exists
+-        if (!RexxQueryMacro(name->getStringData(), &temp))
++        if (rc == 0)
+         {
+             return restoreFromMacroSpace(name);
+         }
+@@ -4389,7 +4394,10 @@
+ 
+     MAKERXSTRING(buffer, NULL, 0);
+     // get the image of function
+-    RexxResolveMacroFunction(name->getStringData(), &buffer);
++    {
++        UnsafeBlock releaser;       // don't hold the kernel lock while asking rxapi
++        RexxResolveMacroFunction(name->getStringData(), &buffer);
++    }
+     // unflatten the method now
+     Protected<RoutineClass> routine = RoutineClass::restore(&buffer, name);
+     // release the buffer memory
+--- a/interpreter/execution/RexxActivation.cpp	2026-11-02 11:09:12.911876000 +0100
++++ b/interpreter/execution/RexxActivation.cpp	2026-11-02 13:44:42.093160802 +0100
+@@ -3010,8 +3010,13 @@
+     // the located macro search position
+     unsigned short position;
+     const char *macroName = target->getStringData();
++    int rc;
++    {
++        UnsafeBlock releaser;   // don't hold the kernel lock while asking rxapi
++        rc = RexxQueryMacro(macroName, &position);
++    }
+     // did we find the one we want at the right time?
+-    if (RexxQueryMacro(macroName, &position) == 0)
++    if (rc == 0)
+     {
+         // this was not found if the search order was different
+         if (order != position)
+--- a/interpreter/package/PackageManager.cpp	2026-10-30 10:57:39.646134000 +0100
++++ b/interpreter/package/PackageManager.cpp	2026-11-02 13:44:48.920010571 +0100
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2020 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -744,7 +744,11 @@
+     // we need to look in the macrospace before we try checking for a file-based
+     // requires.  The macrospace version uses the original name for all checks.  Once we
+     // get to the file-based version, we switch to the full resolved name.
+-    bool checkMacroSpace = RexxQueryMacro(shortName->getStringData(), &macroPosition) == 0;
++    bool checkMacroSpace;
++    {
++        UnsafeBlock releaser;   // don't hold the kernel lock while asking rxapi
++        checkMacroSpace = RexxQueryMacro(shortName->getStringData(), &macroPosition) == 0;
++    }
+     if (checkMacroSpace && (macroPosition == RXMACRO_SEARCH_BEFORE))
+     {
+         return getMacroSpaceRequires(activity, shortName, package, securityManager);
