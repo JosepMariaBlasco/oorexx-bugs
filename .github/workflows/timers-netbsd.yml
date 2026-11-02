@@ -27,7 +27,7 @@ jobs:
         with:
           usesh: true
           mem: 6144
-          prepare: /usr/sbin/pkg_add cmake subversion-base
+          prepare: /usr/sbin/pkg_add cmake subversion-base ncurses
           run: sh ci/timers-netbsd.sh ${{ inputs.before }} ${{ inputs.after }} ${{ inputs.runs }}
       - uses: actions/upload-artifact@v4
         if: always()
