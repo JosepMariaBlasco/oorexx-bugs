@@ -1,0 +1,121 @@
+--- a/ooRexx/extensions/platform/windows/ole/OLEObject.testGroup	2026-11-02 13:00:12.304024034 +0100
++++ b/ooRexx/extensions/platform/windows/ole/OLEObject.testGroup	2026-11-02 12:59:49.463558654 +0100
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -69,4 +69,109 @@
+     self~assertFalse(wsh~hasOleMethod("create-Short Cut this can not exist"))
+ 
+ 
++-- Events of an OLEObject created with "WITHEVENTS" (bug #2109), with
++-- ADODB.Recordset, whose events come during the call that raises them.
++-- ADO declares WillMove(adReason, adStatus*, pRecordset) and
++-- MoveComplete(adReason, pError, adStatus*, pRecordset); adStatus is an
++-- [in, out] EventStatusEnum (1 adStatusOK, 4 adStatusCancel,
++-- 5 adStatusUnwantedEvent).
++
++::method 'test_event_arguments_in_order'
++    rs = newWatchedRecordset()
++    rs~mode = "order"
++    rs~MoveFirst                                  -- adReason 12, adRsnMoveFirst
++    self~assertEquals("12 1 OLEObject", rs~got)
++
++::method 'test_event_no_value_returned'
++    rs = newWatchedRecordset()
++    rs~mode = "none"
++    rs~MoveFirst
++    rs~MoveNext
++    self~assertEquals("two", rs~Fields~Item("name")~Value)
++
++::method 'test_event_out_parameter_ok'
++    -- returning a value for the out parameter used to crash (0xC0000005)
++    rs = newWatchedRecordset()
++    rs~MoveFirst
++    rs~mode = "ok"
++    rs~MoveNext
++    self~assertEquals("two", rs~Fields~Item("name")~Value)
++
++::method 'test_event_out_parameter_not_converted'
++    -- a value that cannot be converted leaves the out parameter as it is
++    rs = newWatchedRecordset()
++    rs~MoveFirst
++    rs~mode = "text"
++    rs~MoveNext
++    self~assertEquals("two", rs~Fields~Item("name")~Value)
++
++::method 'test_event_out_parameter_cancel'
++    rs = newWatchedRecordset()
++    rs~MoveFirst
++    rs~mode = "cancel"
++    raised = .false
++    signal on syntax name cancelled
++    rs~MoveNext                                   -- WillMove cancels it: an error
++    signal off syntax
++    signal checkNotMoved
++  cancelled:
++    raised = .true
++  checkNotMoved:
++    rs~mode = "none"
++    self~assertTrue(raised, "MoveNext should fail when WillMove returns adStatusCancel")
++    self~assertEquals("one", rs~Fields~Item("name")~Value)
++
++::method 'test_event_out_parameter_third_of_four'
++    -- MoveComplete's out parameter is the third of four: returning
++    -- adStatusUnwantedEvent stops further MoveComplete events
++    rs = newWatchedRecordset()
++    rs~mode = "unwanted"
++    before = rs~completes
++    rs~MoveFirst
++    rs~mode = "none"
++    rs~MoveNext
++    rs~MoveLast
++    self~assertEquals(1, rs~completes - before)
++
++
++::routine newWatchedRecordset
++    -- a client-side Recordset with three records: "one", "two", "three"
++    rs = .WatchedRecordset~new("ADODB.Recordset", "WITHEVENTS")
++    rs~mode = "none"; rs~got = ""; rs~completes = 0
++    rs~CursorLocation = 3                         -- adUseClient
++    rs~Fields~Append("name", 200, 20)             -- adVarChar
++    rs~Open
++    do name over .array~of("one", "two", "three")
++        rs~AddNew
++        rs~Fields~Item("name")~Value = name
++        rs~Update
++    end
++    return rs
++
++::class 'WatchedRecordset' subclass OLEObject
++::attribute mode
++::attribute got
++::attribute completes
++
++::method willMove                                 -- WillMove(adReason, adStatus*, pRecordset)
++    select
++        when self~mode == "order" then do
++            w = ""
++            do i = 1 to arg()
++                if arg(i)~isA(.OLEObject) then w = w "OLEObject"
++                else w = w arg(i)
++            end
++            self~got = w~strip
++        end
++        when self~mode == "ok" then return 1      -- adStatusOK
++        when self~mode == "text" then return "not a number"
++        when self~mode == "cancel" then return 4  -- adStatusCancel
++        otherwise nop
++    end
++
++::method moveComplete                             -- MoveComplete(adReason, pError, adStatus*, pRecordset)
++    self~completes += 1
++    if self~mode == "unwanted" then return 5      -- adStatusUnwantedEvent
++
++
+ ::options novalue error
