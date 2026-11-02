@@ -17,7 +17,7 @@ cmake -DCMAKE_BUILD_TYPE=Release ../src/main > $OUT/cmake.log 2>&1 || { tail -50
 BUILD=$PWD
 run() {
   ( cd $BUILD && make -j$(sysctl -n hw.ncpuonline) > $OUT/make-$1.log 2>&1 ) || { tail -50 $OUT/make-$1.log; exit 1; }
-  export PATH=$BUILD/bin:$PWD/../src/test:$PWD/../src/test/framework:/usr/bin:/bin:/usr/pkg/bin
+  export PATH=$BUILD/bin:$PWD/../src/test:$PWD/../src/test/framework:/usr/bin:/bin:/usr/sbin:/sbin:/usr/pkg/bin
   export LD_LIBRARY_PATH=$BUILD/lib
   rexx -v | head -1
   for g in base/class/Alarm base/class/Ticker extensions/platform/unix/rxunixsys/SysUnix; do
