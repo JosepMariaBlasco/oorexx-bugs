@@ -1,0 +1,56 @@
+Index: ooRexx/API/oo/ProcessInvocation.testGroup
+===================================================================
+--- a/ooRexx/API/oo/ProcessInvocation.testGroup	(revision 13347)
++++ b/ooRexx/API/oo/ProcessInvocation.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2008-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2008-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -887,7 +887,42 @@
+   tester~loadLibrary = "rxmath"
+   self~assertEquals("2", tester~callInstanceProgram(self~resolveTestProgram('tests/callMath.rex')))
+ 
++-- bug #2107: Terminate() after the thread that created the instance called
++-- DetachThread(). The cases run in detach_root_terminate, a test binary, as
++-- its own process, with a watchdog: a Terminate() that never returns makes it
++-- exit with 99 instead of stopping the test suite.
++::method TestTerminateNoDetach
++  self~detachRootTerminate(0)
+ 
++::method TestTerminateAfterRootDetach
++  self~detachRootTerminate(1)
++
++::method TestTerminateAfterRootDetachWaitsForReply
++  self~detachRootTerminate(2)
++
++::method TestTerminateAfterRootDetachAndReattach
++  self~detachRootTerminate(3)
++
++::method TestTerminateOnOtherThreadAfterRootDetach
++  self~detachRootTerminate(4)
++
++::method TestTerminateAfterOtherThreadThenRootDetach
++  self~detachRootTerminate(5)
++
++::method detachRootTerminate private
++  use arg case
++  out. = ""
++  err. = ""
++  address system "detach_root_terminate" case with output stem out. error stem err.
++  message = "case" case "of detach_root_terminate, rc" rc
++  if rc == 99 then
++     message = message "(Terminate() did not return)"
++  if err.0 > 0 then
++     message = message":" err.1
++  self~assertEquals(0, rc, message)
++  self~assertEquals("case" case "ok", out.1)
++
++
+ ::method resolveTestProgram
+   use arg name
+   parse source . . me
