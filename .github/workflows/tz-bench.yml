@@ -1,0 +1,40 @@
+name: tz-bench
+
+# What does ooRexx's getCurrentTime() (localtime + gmtime + mktime, once per
+# clause that calls DATE or TIME) cost on OpenBSD, and on Linux for
+# comparison? See ci/tz-bench.c.
+
+on:
+  workflow_dispatch:
+    inputs:
+      calls:
+        description: calls per measurement
+        default: "100000"
+
+jobs:
+  openbsd:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Benchmark in an OpenBSD VM
+        uses: vmactions/openbsd-vm@v1
+        with:
+          usesh: true
+          run: sh ci/tz-bench-openbsd.sh ${{ inputs.calls }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tz-bench-openbsd
+          path: tz-bench
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Benchmark on Linux
+        run: |
+          uname -a
+          cc -O2 -o tz-bench ci/tz-bench.c
+          for tz in unset UTC Europe/Stockholm Europe/Madrid; do
+            if [ $tz = unset ]; then (unset TZ; ./tz-bench ${{ inputs.calls }}); else TZ=$tz ./tz-bench ${{ inputs.calls }}; fi
+          done
