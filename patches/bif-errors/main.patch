@@ -1,0 +1,504 @@
+Index: interpreter/classes/IntegerClass.cpp
+===================================================================
+--- a/interpreter/classes/IntegerClass.cpp	(revision 13359)
++++ b/interpreter/classes/IntegerClass.cpp	(working copy)
+@@ -1599,7 +1599,7 @@
+     for (size_t arg = 0; arg < argCount; arg++)
+     {
+         RexxObject *argument = args[arg];
+-        requiredArgument(argument, arg);
++        requiredArgument(argument, arg + 1);
+ 
+         // if this is an integer object, we can continue doing this
+         if (isInteger(argument))
+@@ -1658,7 +1658,7 @@
+     for (size_t arg = 0; arg < argCount; arg++)
+     {
+         RexxObject *argument = args[arg];
+-        requiredArgument(argument, arg);
++        requiredArgument(argument, arg + 1);
+ 
+         // if this is an integer object, we can continue doing this
+         if (isInteger(argument))
+Index: interpreter/classes/NumberStringMath.cpp
+===================================================================
+--- a/interpreter/classes/NumberStringMath.cpp	(revision 13359)
++++ b/interpreter/classes/NumberStringMath.cpp	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2018 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -239,7 +239,6 @@
+  */
+ NumberString *NumberString::maxMin(RexxObject **args, size_t argCount, ArithmeticOperator operation)
+ {
+-    const char *methodName = operation == OT_MAX ? "MAX" : "MIN";
+     // this is the result from comp() that indicates we have
+     // a greater comparison.
+     wholenumber_t compResult = operation == OT_MAX ? 1 : -1;
+@@ -266,7 +265,7 @@
+         RexxObject *nextObject = args[arg];
+         if (nextObject == OREF_NULL)
+         {
+-            reportException(Error_Incorrect_call_noarg, methodName, arg + 1);
++            missingArgument(arg + 1);
+         }
+ 
+         // try to get as a numberstring object
+@@ -295,6 +294,7 @@
+         // we have an invalid object type...that's an error
+         else
+         {
++            builtinArgumentError(Error_Incorrect_call_number, arg + 1, args[arg]);
+             reportException(Error_Incorrect_method_number, arg + 1, args[arg]);
+         }
+     }
+Index: interpreter/classes/ObjectClass.cpp
+===================================================================
+--- a/interpreter/classes/ObjectClass.cpp	(revision 13359)
++++ b/interpreter/classes/ObjectClass.cpp	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -1568,6 +1568,7 @@
+     // convert and validate the result
+     if (!unsignedNumberValue(result, precision) || result == 0)
+     {
++        builtinArgumentError(Error_Incorrect_call_positive, position, (RexxObject *)this);
+         reportException(Error_Incorrect_method_positive, position, (RexxObject *)this);
+     }
+     return result;
+@@ -1611,6 +1612,7 @@
+ 
+     if (!unsignedNumberValue(result, precision))
+     {
++        builtinArgumentError(Error_Incorrect_call_nonnegative, position, (RexxObject *)this);
+         reportException(Error_Incorrect_method_nonnegative, position, (RexxObject *)this);
+     }
+     return result;
+Index: interpreter/classes/StringClass.cpp
+===================================================================
+--- a/interpreter/classes/StringClass.cpp	(revision 13359)
++++ b/interpreter/classes/StringClass.cpp	(working copy)
+@@ -1059,6 +1059,7 @@
+     NumberString *numstr = numberString(); \
+     if (numstr == OREF_NULL)              \
+     {                                     \
++        builtinTargetError(Error_Incorrect_call_number, this);              \
+         reportException(Error_Incorrect_method_string_nonumber, name, this); \
+     }                                     \
+     return numstr->method;
+Index: interpreter/classes/StringClassMisc.cpp
+===================================================================
+--- a/interpreter/classes/StringClassMisc.cpp	(revision 13359)
++++ b/interpreter/classes/StringClassMisc.cpp	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2019 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -684,6 +684,10 @@
+     // if there are no input or output table specified, and no pad, this is just an uppercase.
+     if (tableo == OREF_NULL && tablei == OREF_NULL && pad == OREF_NULL)
+     {
++        // check start and range as translate's arguments 4 and 5 first: for
++        // upper they would be arguments 1 and 2
++        optionalPositionArgument(_start, 1, ARG_FOUR);
++        optionalLengthArgument(_range, 0, ARG_FIVE);
+         return upperRexx(_start, _range);
+     }
+ 
+Index: interpreter/classes/StringClassUtil.cpp
+===================================================================
+--- a/interpreter/classes/StringClassUtil.cpp	(revision 13359)
++++ b/interpreter/classes/StringClassUtil.cpp	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2025 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -68,6 +68,7 @@
+     // converted using the ARGUMENT_DIGITS value
+     if (!argument->unsignedNumberValue(value, Numerics::ARGUMENT_DIGITS))
+     {
++        builtinArgumentError(Error_Incorrect_call_nonnegative, position, argument);
+         reportException(Error_Incorrect_method_length, argument);
+     }
+     return value;
+@@ -121,6 +122,7 @@
+     // converted using the ARGUMENT_DIGITS value
+     if (!argument->numberValue(value, Numerics::ARGUMENT_DIGITS))
+     {
++        builtinArgumentError(Error_Incorrect_call_whole, position, argument);
+         reportException(Error_Incorrect_method_whole, position, argument);
+     }
+     return value;
+@@ -216,6 +218,7 @@
+ 
+     if (!argument->unsignedNumberValue(value, Numerics::ARGUMENT_DIGITS) || value == 0)
+     {
++        builtinArgumentError(Error_Incorrect_call_positive, position, argument);
+         reportException(Error_Incorrect_method_position, argument);
+     }
+     return value;
+@@ -264,6 +267,7 @@
+     // pad characters must be a single character long
+     if (parameter->getLength() != 1)
+     {
++        builtinArgumentError(Error_Incorrect_call_pad, position, argument);
+         reportException(Error_Incorrect_method_pad, argument);
+     }
+     return parameter->getChar(0);
+@@ -349,6 +353,7 @@
+     // if not one of the valid options (null string is not valid), raise the error
+     if (parameter->isNullString() || strchr(validOptions, option) == NULL)
+     {
++        builtinOptionError(position, validOptions, parameter);
+         reportException(Error_Incorrect_method_option, validOptions, parameter);
+     }
+     return option;
+Index: interpreter/classes/support/StringUtil.cpp
+===================================================================
+--- a/interpreter/classes/support/StringUtil.cpp	(revision 13359)
++++ b/interpreter/classes/support/StringUtil.cpp	(working copy)
+@@ -1131,6 +1131,8 @@
+             return booleanObject(!(len != 1 || (*scanp != '1' && *scanp != '0')));
+ 
+         default  :
++            // the type is the method's argument 1 (DATATYPE's argument 2)
++            builtinOptionError(1, "ABILMNOSUVWX9", new_string(option));
+             reportException(Error_Incorrect_method_option, "ABILMNOSUVWX9", new_string(option));
+     }
+     return TheFalseObject;
+Index: interpreter/concurrency/Activity.cpp
+===================================================================
+--- a/interpreter/concurrency/Activity.cpp	(revision 13359)
++++ b/interpreter/concurrency/Activity.cpp	(working copy)
+@@ -3889,3 +3889,88 @@
+         reportException(Error_Execution_circular_requires, name);
+     }
+ }
++
++
++/**
++ * Report a bad argument of a built-in function, when the check was
++ * delegated to the method that implements the function.  Does nothing
++ * (and the caller raises its method error) unless that function is
++ * running and its frame is the top one.
++ *
++ * @param error  The 40.xxx error: one that takes the function name, the
++ *               argument position and, unless value is NULL, the value.
++ * @param methodPosition
++ *               The argument position for the method.
++ * @param value  The bad value (NULL for a missing argument).
++ */
++void Activity::builtinArgumentError(RexxErrorCodes error, size_t methodPosition, RexxObject *value)
++{
++    if (!inBuiltinFunction())
++    {
++        return;
++    }
++    // the function's target is not a method argument: the method's arguments
++    // are the function's, skipping the target
++    wholenumber_t position = methodPosition < builtinTarget ? methodPosition : methodPosition + 1;
++    if (value == OREF_NULL)
++    {
++        reportException(error, builtinName, position);
++    }
++    reportException(error, builtinName, position, value);
++}
++
++
++/**
++ * Report a bad option of a built-in function (40.904), when the check was
++ * delegated to the method that implements it.  Does nothing unless that
++ * function is running and its frame is the top one.
++ *
++ * @param methodPosition
++ *                The argument position for the method.
++ * @param options The valid options.
++ * @param value   The bad option.
++ */
++void Activity::builtinOptionError(size_t methodPosition, const char *options, RexxObject *value)
++{
++    if (!inBuiltinFunction())
++    {
++        return;
++    }
++    wholenumber_t position = methodPosition < builtinTarget ? methodPosition : methodPosition + 1;
++    reportException(Error_Incorrect_call_list, builtinName, new_integer(position), options, value);
++}
++
++
++/**
++ * Report a bad target of a built-in function (ABS("A")), when the check
++ * was delegated to the method that implements it.  Does nothing unless that
++ * function is running and its frame is the top one.
++ *
++ * @param error  The 40.xxx error (function name, position, value).
++ * @param value  The bad value.
++ */
++void Activity::builtinTargetError(RexxErrorCodes error, RexxObject *value)
++{
++    if (!inBuiltinFunction())
++    {
++        return;
++    }
++    reportException(error, builtinName, (wholenumber_t)builtinTarget, value);
++}
++
++
++// the free-standing forms, for the argument helpers (see ActivityManager.hpp)
++void builtinArgumentError(RexxErrorCodes error, size_t methodPosition, RexxObject *value)
++{
++    ActivityManager::currentActivity.load()->builtinArgumentError(error, methodPosition, value);
++}
++
++void builtinOptionError(size_t methodPosition, const char *options, RexxObject *value)
++{
++    ActivityManager::currentActivity.load()->builtinOptionError(methodPosition, options, value);
++}
++
++void builtinTargetError(RexxErrorCodes error, RexxObject *value)
++{
++    ActivityManager::currentActivity.load()->builtinTargetError(error, value);
++}
+Index: interpreter/concurrency/Activity.hpp
+===================================================================
+--- a/interpreter/concurrency/Activity.hpp	(revision 13359)
++++ b/interpreter/concurrency/Activity.hpp	(working copy)
+@@ -93,6 +93,7 @@
+ {
+   friend class ProtectedBase;
+   friend class ActivationFrame;
++  friend class BuiltinFunctionScope;
+  public:
+ 
+     typedef enum
+@@ -325,6 +326,19 @@
+     inline RexxActivation *getCurrentRexxFrame() {return currentRexxFrame;}
+     inline void setCallbackParent(RexxActivation *a) {callbackParent = a;}
+     inline ActivationBase *getTopStackFrame() { return topStackFrame; }
++
++    // A built-in function that delegates the checking of its arguments to the
++    // method that implements it (LEFT calls RexxString::left) marks itself
++    // with a BuiltinFunctionScope.  The argument helpers then report a bad
++    // argument as the function's error (40.xxx), with the function's name and
++    // argument position, instead of as a method error (93.xxx).  Only while
++    // the function's own frame is the top one: anything reached through a
++    // message send (user code, a STRING method, a stream) runs in a frame of
++    // its own and keeps its method errors.
++    inline bool inBuiltinFunction() { return builtinName != NULL && builtinFrame == activationFrames; }
++    void builtinArgumentError(RexxErrorCodes error, size_t methodPosition, RexxObject *value);
++    void builtinOptionError(size_t methodPosition, const char *options, RexxObject *value);
++    void builtinTargetError(RexxErrorCodes error, RexxObject *value);
+     inline size_t getActivationDepth() { return stackFrameDepth; }
+     inline const NumericSettings *getNumericSettings () {return numericSettings;}
+     inline void        addRunningRequires(RexxString *program) { requiresTable->put(program, program);}
+@@ -454,6 +468,9 @@
+     ActivationFrame *activationFrames;  // list of stack-based object protectors
+     Activity *nestedActivity;           // used to push down activities in threads with more than one instance
+     IdentityTable *heldMutexes;         // a list of Mutex objects owned by this activity.
++    const char *builtinName = NULL;     // the built-in function running (see BuiltinFunctionScope)
++    ActivationFrame *builtinFrame = NULL; // the frame it was called from
++    size_t builtinTarget = 1;           // its argument that is the target of the method it calls
+ 
+     // structures containing the various interface vectors
+     static RexxThreadInterface threadContextFunctions;
+Index: interpreter/concurrency/ActivityManager.hpp
+===================================================================
+--- a/interpreter/concurrency/ActivityManager.hpp	(revision 13359)
++++ b/interpreter/concurrency/ActivityManager.hpp	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2025 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -406,6 +406,14 @@
+ inline void reportNovalue(RexxString *description) { reportCondition(GlobalNames::NOVALUE, description); }
+ inline void reportNostring(RexxString *description) { reportCondition(GlobalNames::NOSTRING, description); }
+ 
++// A bad argument checked by a method on behalf of a built-in function:
++// if that function is running and has delegated the check directly, these
++// raise the function's 40.xxx error; otherwise they return, and the caller
++// raises its method error.  See Activity::inBuiltinFunction().
++void builtinArgumentError(RexxErrorCodes error, size_t methodPosition, RexxObject *value);
++void builtinOptionError(size_t methodPosition, const char *options, RexxObject *value);
++void builtinTargetError(RexxErrorCodes error, RexxObject *value);
++
+ inline void reportException(RexxErrorCodes error)
+ {
+     ActivityManager::currentActivity.load()->reportAnException(error);
+Index: interpreter/expression/BuiltinFunctions.cpp
+===================================================================
+--- a/interpreter/expression/BuiltinFunctions.cpp	(revision 13359)
++++ b/interpreter/expression/BuiltinFunctions.cpp	(working copy)
+@@ -155,6 +155,8 @@
+ 
+     fix_args(INSERT);
+ 
++    builtinScope.targetIs(2);           // INSERT calls a method of its argument 2
++
+     RexxString *newString = required_string(INSERT, new);
+     RexxString *target = required_string(INSERT, target);
+     RexxInteger *n = optional_integer(INSERT, n);
+@@ -195,6 +197,8 @@
+ 
+     fix_args(OVERLAY);
+ 
++    builtinScope.targetIs(2);           // OVERLAY calls a method of its argument 2
++
+     RexxString *newString = required_string(OVERLAY, new);
+     RexxString *target = required_string(OVERLAY, target);
+     RexxInteger *n = optional_integer(OVERLAY, n);
+@@ -216,6 +220,8 @@
+ 
+     fix_args(POS);
+ 
++    builtinScope.targetIs(2);           // POS calls a method of its argument 2
++
+     RexxString *needle = required_string(POS, needle);
+     RexxString *haystack = required_string(POS, haystack);
+     RexxInteger *start = optional_integer(POS, start);
+@@ -236,6 +242,8 @@
+ 
+     fix_args(LASTPOS);
+ 
++    builtinScope.targetIs(2);           // LASTPOS calls a method of its argument 2
++
+     RexxString *needle = required_string(LASTPOS, needle);
+     RexxString *haystack = required_string(LASTPOS, haystack);
+     RexxInteger *start = optional_integer(LASTPOS, start);
+@@ -459,6 +467,8 @@
+ 
+     fix_args(WORDPOS);
+ 
++    builtinScope.targetIs(2);           // WORDPOS calls a method of its argument 2
++
+     RexxString *phrase = required_string(WORDPOS, phrase);
+     RexxString *string = required_string(WORDPOS, string);
+     RexxInteger *start = optional_integer(WORDPOS, start);
+@@ -2707,6 +2717,8 @@
+ 
+     fix_args(CHANGESTR);
+ 
++    builtinScope.targetIs(2);           // CHANGESTR calls a method of its argument 2
++
+     RexxString *needle = required_string(CHANGESTR, needle);
+     RexxString *haystack = required_string(CHANGESTR, haystack);
+     RexxString *newneedle = required_string(CHANGESTR, newneedle);
+@@ -2725,6 +2737,8 @@
+ 
+     fix_args(COUNTSTR);
+ 
++    builtinScope.targetIs(2);           // COUNTSTR calls a method of its argument 2
++
+     RexxString *needle = required_string(COUNTSTR, needle);
+     RexxString *haystack = required_string(COUNTSTR, haystack);
+ 
+Index: interpreter/expression/BuiltinFunctions.hpp
+===================================================================
+--- a/interpreter/expression/BuiltinFunctions.hpp	(revision 13359)
++++ b/interpreter/expression/BuiltinFunctions.hpp	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2014 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -49,9 +49,46 @@
+ // Individual arguments are retrieved relative to the starting position using
+ // the defines set up for each function
+ 
++/**
++ * Marks a running built-in function, so that the argument checks it
++ * delegates to the methods that implement it report the function's errors
++ * (40.xxx) and not the methods' (93.xxx).  See Activity::inBuiltinFunction().
++ */
++class BuiltinFunctionScope
++{
++ public:
++    inline BuiltinFunctionScope(Activity *a, const char *name) : activity(a),
++        savedName(a->builtinName), savedFrame(a->builtinFrame), savedTarget(a->builtinTarget)
++    {
++        activity->builtinName = name;
++        activity->builtinFrame = activity->activationFrames;
++        activity->builtinTarget = 1;
++    }
++
++    inline ~BuiltinFunctionScope()
++    {
++        activity->builtinName = savedName;
++        activity->builtinFrame = savedFrame;
++        activity->builtinTarget = savedTarget;
++    }
++
++    // the argument that becomes the target of the method (POS(needle, haystack)
++    // calls haystack~pos(needle)); the others are the method's arguments, in order
++    inline void targetIs(size_t position) { activity->builtinTarget = position; }
++
++ protected:
++    Activity *activity;
++    const char *savedName;
++    ActivationFrame *savedFrame;
++    size_t savedTarget;
++};
++
++
+ // makes sure that we have our minimum or maximum number of arguments.
+-#define fix_args(x) stack->expandArgs(argcount, x##_Min, x##_Max, #x)
+-#define check_args(x) stack->expandArgs(argcount, x##_Min, x##_Max, #x)
++// (Every built-in function starts with one of these, which also marks it
++// as running.)
++#define fix_args(x) BuiltinFunctionScope builtinScope(context->getActivity(), #x); stack->expandArgs(argcount, x##_Min, x##_Max, #x)
++#define check_args(x) BuiltinFunctionScope builtinScope(context->getActivity(), #x); stack->expandArgs(argcount, x##_Min, x##_Max, #x)
+ 
+ // get an individual argument from the stack, by name.
+ #define get_arg(x,n) (RexxObject *)stack->peek(argcount - x##_##n)
+Index: interpreter/runtime/MethodArguments.hpp
+===================================================================
+--- a/interpreter/runtime/MethodArguments.hpp	(revision 13359)
++++ b/interpreter/runtime/MethodArguments.hpp	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2025 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -73,6 +73,7 @@
+  */
+ inline void missingArgument(size_t argumentPosition)
+ {
++    builtinArgumentError(Error_Incorrect_call_noarg, argumentPosition, OREF_NULL);
+     reportException(Error_Incorrect_method_noarg, argumentPosition);
+ }
+ 

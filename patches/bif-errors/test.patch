@@ -1,0 +1,2207 @@
+Index: ooRexx/base/bif/ABS.testGroup
+===================================================================
+--- a/ooRexx/base/bif/ABS.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/ABS.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2005-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -99,7 +99,7 @@
+    self~assertSame(ABS( 0 + '  31 ' ), '31')
+ 
+ ::method "test_14"
+-   self~expectSyntax(93.943)
++   self~expectSyntax(40.11)
+    self~assertSame(ABS(' 0 + 31 '), '31')
+ 
+ ::method "test_15"
+@@ -127,7 +127,7 @@
+    self~assertSame(ABS('-'||2||'.'||'E+3'), '2000')
+ 
+ ::method "test_22"
+-   self~expectSyntax(93.943)
++   self~expectSyntax(40.11)
+    self~assertSame(ABS('a'), 'a')
+ 
+ ::method "test_23"
+@@ -160,20 +160,20 @@
+    self~assertSame("ABS"(10.5e12-1389004007), '10.499E+12')
+ 
+ ::method "test_29"
+-   self~expectSyntax(93.943)
++   self~expectSyntax(40.11)
+    x = ABS(1E1234567890)
+ 
+ ::method "test_30"
+-   self~expectSyntax(93.943)
++   self~expectSyntax(40.11)
+    self~assertSame(ABS(novalue), 1)
+ 
+ ::method "test_31"
+-   self~expectSyntax(93.943)
++   self~expectSyntax(40.11)
+    three = 3
+    self~assertSame(ABS(stem.three), 3)
+ 
+ ::method "test_ABS_subTest32"
+-   self~expectSyntax(93.943)
++   self~expectSyntax(40.11)
+    self~assertSame(ABS(invalid), 3)
+ 
+ ::method "test_33"
+@@ -254,5 +254,5 @@
+    x=abs()
+ 
+ ::method "test_105"
+-   self~expectSyntax(93.943)
++   self~expectSyntax(40.11)
+    x=abs('A')
+Index: ooRexx/base/bif/BuiltinArgumentErrors.testGroup
+===================================================================
+--- a/ooRexx/base/bif/BuiltinArgumentErrors.testGroup	(nonexistent)
++++ b/ooRexx/base/bif/BuiltinArgumentErrors.testGroup	(working copy)
+@@ -0,0 +1,138 @@
++#!/usr/bin/env rexx
++/*----------------------------------------------------------------------------*/
++/*                                                                            */
++/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
++/*                                                                            */
++/* This program and the accompanying materials are made available under       */
++/* the terms of the Common Public License v1.0 which accompanies this         */
++/* distribution. A copy is also available at the following address:           */
++/* https://www.oorexx.org/license.html                                        */
++/*                                                                            */
++/* Redistribution and use in source and binary forms, with or                 */
++/* without modification, are permitted provided that the following            */
++/* conditions are met:                                                        */
++/*                                                                            */
++/* Redistributions of source code must retain the above copyright             */
++/* notice, this list of conditions and the following disclaimer.              */
++/* Redistributions in binary form must reproduce the above copyright          */
++/* notice, this list of conditions and the following disclaimer in            */
++/* the documentation and/or other materials provided with the distribution.   */
++/*                                                                            */
++/* Neither the name of Rexx Language Association nor the names                */
++/* of its contributors may be used to endorse or promote products             */
++/* derived from this software without specific prior written permission.      */
++/*                                                                            */
++/* THIS SOFTWARE IS PROVIDED BY THE COPYright HOLDERS AND CONTRIBUTORS        */
++/* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT          */
++/* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS          */
++/* FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYright   */
++/* OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,      */
++/* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED   */
++/* TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,        */
++/* OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY     */
++/* OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING    */
++/* NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS         */
++/* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.               */
++/*                                                                            */
++  parse source . . s
++  group = .TestGroup~new(s)
++  group~add(.BuiltinArgumentErrors.testGroup)
++
++  if group~isAutomatedTest then return group
++
++  testResult = group~suite~execute~~print
++
++return testResult
++
++::requires 'ooTest.frm' -- load the ooRexxUnit classes
++
++-- Built-in functions that delegate the checking of their arguments to the
++-- String methods that implement them must report the function's errors
++-- (40.xxx, with the function's name and argument position), not the
++-- methods' (93.xxx, with method positions).  The methods themselves, and
++-- any code a function reaches through a message (here, a STRING method),
++-- keep their method errors.
++-- [bugs:#2006] [bugs:#2007] [bugs:#2010] [bugs:#2015] [bugs:#2016]
++::class "BuiltinArgumentErrors.testGroup" subclass ooTestCase public
++
++-- check code, function name and argument position (ADDITIONAL 1 and 2)
++::method checkError
++  use strict arg expression, code, name, position
++  co = raised(expression)
++  self~assertNotSame(.nil, co, expression "should raise" code)
++  self~assertSame(code, co~code, expression)
++  self~assertSame(name, co~additional[1], expression)
++  self~assertSame(position, co~additional[2]~string, expression)
++
++::method test_length_and_position
++  self~checkError('left("abc", -1)',              "40.13", "LEFT",      "2")
++  self~checkError('substr("abc", 1, -1)',         "40.13", "SUBSTR",    "3")
++  self~checkError('substr("abc", 0)',             "40.14", "SUBSTR",    "2")
++  self~checkError('word("abc", 0)',               "40.14", "WORD",      "2")
++  self~checkError('translate("abc",,,, 1, -1)',   "40.13", "TRANSLATE", "6")
++  self~checkError('copies("abc", -1)',            "40.13", "COPIES",    "2")
++  self~checkError('trunc(5, -1)',                 "40.13", "TRUNC",     "2")
++  self~checkError('format(5, -1)',                "40.13", "FORMAT",    "2")
++
++::method test_target_is_argument_2
++  self~checkError('pos("b", "abc", 0)',           "40.14", "POS",       "3")
++  self~checkError('lastpos("b", "abc", 1, -1)',   "40.13", "LASTPOS",   "4")
++  self~checkError('insert("x", "abc", -1)',       "40.13", "INSERT",    "3")
++  self~checkError('overlay("x", "abc", 0)',       "40.14", "OVERLAY",   "3")
++  self~checkError('wordpos("a", "a b", 0)',       "40.14", "WORDPOS",   "3")
++  self~checkError('changestr("b", "abc", "x", -1)', "40.13", "CHANGESTR", "4")
++
++::method test_options
++  self~checkError('strip("abc", "X")',            "40.904", "STRIP",    "2")
++  self~checkError('verify("abc", "a", "X")',      "40.904", "VERIFY",   "3")
++  self~checkError('datatype("abc", "+")',         "40.904", "DATATYPE", "2")
++
++::method test_number_target
++  self~checkError('abs("A")',                     "40.11", "ABS",       "1")
++  self~checkError('sign("A")',                    "40.11", "SIGN",      "1")
++  self~checkError('trunc("A")',                   "40.11", "TRUNC",     "1")
++  self~checkError('format("A")',                  "40.11", "FORMAT",    "1")
++  self~checkError('max("A", 1)',                  "40.11", "MAX",       "1")
++  self~checkError('min("A", 1)',                  "40.11", "MIN",       "1")
++
++::method test_max_min_arguments
++  -- [bugs:#2006]: the missing argument used to be "argument 0", and a
++  -- non-numeric one was counted from the second argument
++  self~checkError('max(1, , 2)',                  "40.5",  "MAX",       "2")
++  self~checkError('max(1, 2, , 3)',               "40.5",  "MAX",       "3")
++  self~checkError('min(1.5, , 2)',                "40.5",  "MIN",       "2")
++  self~checkError('max(5, "A")',                  "40.11", "MAX",       "2")
++  self~checkError('min(5.5, 2, "A")',             "40.11", "MIN",       "3")
++
++::method test_methods_keep_method_errors
++  self~assertSame("93.923", raised('"abc"~left(-1)')~code)
++  self~assertSame("93.924", raised('"abc"~substr(0)')~code)
++  self~assertSame("93.915", raised('"abc"~strip("X")')~code)
++  self~assertSame("93.943", raised('"A"~abs')~code)
++  self~assertSame("93.904", raised('5~max(2, "A")')~code)
++  -- the integer and the number string paths agree, and count from 1
++  do expression over '5~max(, 2)', '5.5~max(, 2)', '5~min(, 2)', '5.5~min(, 2)'
++    co = raised(expression)
++    self~assertSame("93.903", co~code, expression)
++    self~assertSame("1", co~additional[1]~string, expression)
++  end
++
++::method test_code_reached_through_a_message
++  -- LEFT asks its argument for a string; that STRING method's own error
++  -- is a method error, and must stay one
++  self~assertSame("93.923", raised('left(.MakesAMethodError~new, 2)')~code)
++  self~assertSame("93.923", raised('abs(.MakesAMethodError~new)')~code)
++
++
++-- the condition object of the SYNTAX error the expression raises, or .nil
++::routine raised
++  use strict arg expression
++  signal on syntax
++  interpret "x =" expression
++  return .nil
++syntax:
++  return condition("o")
++
++::class MakesAMethodError
++::method string
++  return "abc"~left(-1)
+Index: ooRexx/base/bif/C2D.testGroup
+===================================================================
+--- a/ooRexx/base/bif/C2D.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/C2D.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2005-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -131,47 +131,47 @@
+    self~assertSame(C2D(,-1), '-1')
+ 
+ ::method "test_22"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    vnull=''
+    self~assertSame(C2D('',-1), '-1')
+ 
+ ::method "test_23"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    self~assertSame(C2D(vnull,-1), '-1')
+ 
+ ::method "test_24"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    vnull=''
+    self~assertSame(C2D(vnull,-1), '-1')
+ 
+ ::method "test_25"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    vnullx=''x
+    self~assertSame(C2D(vnullx,-1), '-1')
+ 
+ ::method "test_26"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    self~assertSame(C2D('ROBERTrobertROBERTrobertROBERT',-1), '-1')
+ 
+ ::method "test_27"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    self~assertSame(C2D(v30c,-1), '-1')
+ 
+ ::method "test_28"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    v30x='178E2AB06C6DA2E2A284B01007818435EB8F83F6493A3C2C3C49EFEC5800'x
+    self~assertSame(C2D(v30x,-1), '-1')
+ 
+ ::method "test_29"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    self~assertSame(C2D(21*2,-1), '-1')
+ 
+ ::method "test_30"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    self~assertSame(C2D('21'*'2',-1), '-1')
+ 
+ ::method "test_31"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    v2='2'
+    v21='21'
+    self~assertSame(C2D(v21*v2,-1), '-1')
+Index: ooRexx/base/bif/CENTER.testGroup
+===================================================================
+--- a/ooRexx/base/bif/CENTER.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/CENTER.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2005-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -82,7 +82,7 @@
+    self~assertSame(CENTER('41'x,3), ' A ')
+ 
+ ::method "test_11"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    self~assertSame(CENTER('abc','-123'), 'abc')
+ 
+ ::method "test_12"
+@@ -205,11 +205,11 @@
+    self~assertSame(CENTER('12345ZYXWV','    15      '), '  12345ZYXWV   ')
+ 
+ ::method "test_45"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    self~assertSame(CENTER('12345ZYXWV','    -5      '), '')
+ 
+ ::method "test_46"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    self~assertSame(CENTER('12345ZYXWV','   - 5      '), '')
+ 
+ ::method "test_47"
+@@ -307,17 +307,17 @@
+    self~assertSame(CENTER(AA,a+b), ' A ')
+ 
+ ::method "test_71"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    AA  ='A'
+    self~assertSame(CENTER(AA,-2), ' A ')
+ 
+ ::method "test_72"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    AA  ='A'
+    self~assertSame(CENTER(AA,-0.03E2), ' A ')
+ 
+ ::method "test_73"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    AA  ='A'
+    self~assertSame(CENTER(AA,'  -3 '), ' A ')
+ 
+@@ -392,17 +392,17 @@
+    self~assertSame(CENTER(Z1,a+b), ' A ')
+ 
+ ::method "test_91"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    Z1  ='A'
+    self~assertSame(CENTER(Z1,-2), ' A ')
+ 
+ ::method "test_92"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    Z1  ='A'
+    self~assertSame(CENTER(Z1,-0.03E2), ' A ')
+ 
+ ::method "test_93"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    Z1  ='A'
+    self~assertSame(CENTER(Z1,'  -3 '), ' A ')
+ 
+Index: ooRexx/base/bif/CENTRE.testGroup
+===================================================================
+--- a/ooRexx/base/bif/CENTRE.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/CENTRE.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2005-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -82,7 +82,7 @@
+    self~assertSame(CENTRE('41'x,3), ' A ')
+ 
+ ::method "test_11"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    self~assertSame(CENTRE('abc','-123'), 'abc')
+ 
+ ::method "test_12"
+@@ -205,11 +205,11 @@
+    self~assertSame(CENTRE('12345ZYXWV','    15      '), '  12345ZYXWV   ')
+ 
+ ::method "test_45"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    self~assertSame(CENTRE('12345ZYXWV','    -5      '), '')
+ 
+ ::method "test_46"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    self~assertSame(CENTRE('12345ZYXWV','   - 5      '), '')
+ 
+ ::method "test_47"
+@@ -307,17 +307,17 @@
+    self~assertSame(CENTRE(AA,a+b), ' A ')
+ 
+ ::method "test_71"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    AA  ='A'
+    self~assertSame(CENTRE(AA,-2), ' A ')
+ 
+ ::method "test_72"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    AA  ='A'
+    self~assertSame(CENTRE(AA,-0.03E2), ' A ')
+ 
+ ::method "test_73"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    AA  ='A'
+    self~assertSame(CENTRE(AA,'  -3 '), ' A ')
+ 
+@@ -392,17 +392,17 @@
+    self~assertSame(CENTRE(Z1,a+b), ' A ')
+ 
+ ::method "test_91"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    Z1  ='A'
+    self~assertSame(CENTRE(Z1,-2), ' A ')
+ 
+ ::method "test_92"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    Z1  ='A'
+    self~assertSame(CENTRE(Z1,-0.03E2), ' A ')
+ 
+ ::method "test_93"
+-   self~expectSyntax(93.923)
++   self~expectSyntax(40.13)
+    Z1  ='A'
+    self~assertSame(CENTRE(Z1,'  -3 '), ' A ')
+ 
+Index: ooRexx/base/bif/CHANGESTR.testGroup
+===================================================================
+--- a/ooRexx/base/bif/CHANGESTR.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/CHANGESTR.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2005-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -69,7 +69,7 @@
+    self~assertSame("Test", changestr("t", "Test", "-", 0))
+ 
+ ::method test_count_negative
+-   self~expectSyntax(93.906) -- Method argument .. must be zero or a positive whole number
++   self~expectSyntax(40.13) -- Method argument .. must be zero or a positive whole number
+    call changeStr "t", "Test", "-", -1
+ 
+ 
+Index: ooRexx/base/bif/COPIES.testGroup
+===================================================================
+--- a/ooRexx/base/bif/COPIES.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/COPIES.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2005-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -78,7 +78,7 @@
+     self~assertSame('', copies('',' +255 '))
+ 
+ ::method 'test009'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('',' -256 ')
+ 
+ ::method 'test010'
+@@ -103,7 +103,7 @@
+     self~assertSame(copies(' ',256), copies(' ',' +256 '))
+ 
+ ::method 'test017'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(' ',' -32768 ')
+ 
+ ::method 'test018'
+@@ -129,7 +129,7 @@
+     self~assertSame(copies('ASDF',32768), copies('ASDF',' +32768 '))
+ 
+ ::method 'test025'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('ASDF',' -65536 ')
+ 
+ ::method 'test026'
+@@ -155,7 +155,7 @@
+     self~assertSame(copies('AS',65536), copies('AS',' +65536 '))
+ 
+ ::method 'test033'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('AS',' -131072 ')
+ 
+ ::method 'test034'
+@@ -184,7 +184,7 @@
+     self~assertSame('', copies('Q E A D Z C Q E A D Z C Q E A ',' +0 '))
+ 
+ ::method 'test042'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('Q E A D Z C Q E A D Z C Q E A ',' -1 ')
+ 
+ ::method 'test043'
+@@ -201,7 +201,7 @@
+     self~assertSame(copies('X',250), copies('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',' +1 '))
+ 
+ ::method 'test047'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',' -9 ')
+ 
+ ::method 'test048'
+@@ -214,7 +214,7 @@
+     self~assertSame('     ASDF     ASDF     ASDF     ASDF     ASDF     ASDF     ASDF     ASDF     ASDF', copies('     ASDF',' +9 '))
+ 
+ ::method 'test051'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('     ASDF',' -10 ')
+ 
+ ::method 'test052'
+@@ -233,7 +233,7 @@
+     self~assertSame(copies('ASDF QWER ZXCV'||'ASDF QWER ZXCV',5), copies('ASDF QWER ZXCV',' +10 '))
+ 
+ ::method 'test057'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('ASDF QWER ZXCV',' -11 ')
+ 
+ ::method 'test058'
+@@ -256,7 +256,7 @@
+     self~assertSame('ASDF     '||copies('ASDF     '||'ASDF     ',5), copies('ASDF     ',' +11 '))
+ 
+ ::method 'test064'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('ASDF     ',' -255 ')
+ 
+ ::method 'test065'
+@@ -282,7 +282,7 @@
+     self~assertSame(copies('X ',31875), copies('X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X ',' +255 '))
+ 
+ ::method 'test072'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X ',' -256 ')
+ 
+ ::method 'test073'
+@@ -308,7 +308,7 @@
+     self~assertSame('', copies(''X,' +256 '))
+ 
+ ::method 'test080'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(''X,' -32768 ')
+ 
+ ::method 'test081'
+@@ -391,7 +391,7 @@
+     self~assertSame('', copies('71776572617364667a78637671776572617364667a786376717765726173'x,' +0 '))
+ 
+ ::method 'test106'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('71776572617364667a78637671776572617364667a786376717765726173'x,' -1 ')
+ 
+ ::method 'test107'
+@@ -408,7 +408,7 @@
+     self~assertSame('q e a d z c q e a d z c q e a ', copies('71206520612064207a20632071206520612064207a206320712065206120'x,' +1 '))
+ 
+ ::method 'test111'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('71206520612064207a20632071206520612064207a206320712065206120'x,' -9 ')
+ 
+ ::method 'test112'
+@@ -424,7 +424,7 @@
+     self~assertSame(copies('     asdf',9), copies('202020202061736466'x,' +9 '))
+ 
+ ::method 'test116'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('202020202061736466'x,' -10 ')
+ 
+ ::method 'test117'
+@@ -440,7 +440,7 @@
+     self~assertSame(copies('asdf qwer zxcv',10), copies('617364662071776572207a786376'x,' +10 '))
+ 
+ ::method 'test121'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('617364662071776572207a786376'x,' -11 ')
+ 
+ ::method 'test122'
+@@ -463,7 +463,7 @@
+     self~assertSame(copies('asdf     ',11), copies('617364662020202020'x,' +11 '))
+ 
+ ::method 'test128'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('617364662020202020'x,' -255 ')
+ 
+ ::method 'test129'
+@@ -495,7 +495,7 @@
+     self~assertSame(.true, copies('58205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820'X,' +255 ') == xre)
+ 
+ ::method 'test136'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('58205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820'X,' -256 ')
+ 
+ -- set 2 (Variable/Literal)
+@@ -549,7 +549,7 @@
+     self~assertSame('', copies(.vnull,' +255 '))
+ 
+ ::method 'test146'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.vnull,' -256 ')
+ 
+ ::method 'test147'
+@@ -571,7 +571,7 @@
+     self~assertSame(copies(' ',256), copies(.vblank,' +256 '))
+ 
+ ::method 'test153'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.vblank,' -32768 ')
+ 
+ ::method 'test154'
+@@ -597,7 +597,7 @@
+     self~assertSame(copies('ASDF',32768), copies(.v4c,' +32768 '))
+ 
+ ::method 'test161'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.v4c,' -65536 ')
+ 
+ ::method 'test162'
+@@ -623,7 +623,7 @@
+     self~assertSame(copies('AS',65536), copies(.v2c,' +65536 '))
+ 
+ ::method 'test169'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.v2c,' -131072 ')
+ 
+ ::method 'test170'
+@@ -652,7 +652,7 @@
+     self~assertSame('', copies(.v15b,' +0 '))
+ 
+ ::method 'test178'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.v15b,' -1 ')
+ 
+ ::method 'test179'
+@@ -669,7 +669,7 @@
+     self~assertSame(copies('X',250), copies(.v250,' +1 '))
+ 
+ ::method 'test183'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.v250,' -9 ')
+ 
+ ::method 'test184'
+@@ -685,7 +685,7 @@
+     self~assertSame('     ASDF     ASDF     ASDF     ASDF     ASDF     ASDF     ASDF     ASDF     ASDF', copies(.vb1w,' +9 '))
+ 
+ ::method 'test188'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.vb1w,' -10 ')
+ 
+ ::method 'test189'
+@@ -701,7 +701,7 @@
+     self~assertSame(copies('ASDF QWER ZXCVASDF QWER ZXCV',5), copies(.v3w,' +10 '))
+ 
+ ::method 'test193'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.v3w,' -11 ')
+ 
+ ::method 'test194'
+@@ -724,7 +724,7 @@
+     self~assertSame('ASDF     '||copies('ASDF     ASDF     ',5), copies(.v1wb,' +11 '))
+ 
+ ::method 'test200'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.v1wb,' -255 ')
+ 
+ ::method 'test201'
+@@ -750,7 +750,7 @@
+     self~assertSame(copies('X ',31875), copies(.v125b,' +255 '))
+ 
+ ::method 'test208'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.v125b,' -256 ')
+ 
+ ::method 'test209'
+@@ -775,7 +775,7 @@
+     self~assertSame('', copies(.vxnull,' +256 '))
+ 
+ ::method 'test216'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.vxnull,' -32768 ')
+ 
+ ::method 'test217'
+@@ -858,7 +858,7 @@
+     self~assertSame('', copies(.v30x,' +0 '))
+ 
+ ::method 'test242'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.v30x,' -1 ')
+ 
+ ::method 'test243'
+@@ -875,7 +875,7 @@
+     self~assertSame('q e a d z c q e a d z c q e a ', copies(.v15bx,' +1 '))
+ 
+ ::method 'test247'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.v15bx,' -9 ')
+ 
+ ::method 'test248'
+@@ -891,7 +891,7 @@
+     self~assertSame(copies('202020202061736466'x,9), copies(.vb1x,' +9 '))
+ 
+ ::method 'test252'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.vb1x,' -10 ')
+ 
+ ::method 'test253'
+@@ -907,7 +907,7 @@
+     self~assertSame(copies('617364662071776572207a786376'x,10), copies(.v3wx,' +10 '))
+ 
+ ::method 'test257'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.v3wx,' -11 ')
+ 
+ ::method 'test258'
+@@ -930,7 +930,7 @@
+     self~assertSame(copies('617364662020202020'x,11), copies(.v1xb,' +11 '))
+ 
+ ::method 'test264'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.v1xb,' -255 ')
+ 
+ ::method 'test265'
+@@ -956,7 +956,7 @@
+     self~assertSame(copies('X ',31875), copies(.v125bx,' +255 '))
+ 
+ ::method 'test272'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.v125bx,' -256 ')
+ 
+ ::method 'test273'
+@@ -1115,7 +1115,7 @@
+     self~assertSame('', copies(.vnull,.np255))
+ 
+ ::method 'test287'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.vnull,.nn256)
+ 
+ ::method 'test288'
+@@ -1137,7 +1137,7 @@
+     self~assertSame(copies(' ',256), copies(.vblank,.np256))
+ 
+ ::method 'test294'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.vblank,.nn32768)
+ 
+ ::method 'test295'
+@@ -1163,7 +1163,7 @@
+     self~assertSame(copies('ASDF',32768), copies(.v4c,.np32768))
+ 
+ ::method 'test302'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.v4c,.nn65536)
+ 
+ ::method 'test303'
+@@ -1189,7 +1189,7 @@
+     self~assertSame(copies('AS',65536), copies(.v2c,.np65536))
+ 
+ ::method 'test310'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.v2c,.nn131072)
+ 
+ ::method 'test311'
+@@ -1218,7 +1218,7 @@
+     self~assertSame('', copies(.v15b,.np0))
+ 
+ ::method 'test319'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.v15b,.nn1)
+ 
+ ::method 'test320'
+@@ -1235,7 +1235,7 @@
+     self~assertSame(copies('X',250), copies(.v250,.np1))
+ 
+ ::method 'test324'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.v250,.nn9)
+ 
+ ::method 'test325'
+@@ -1251,7 +1251,7 @@
+     self~assertSame('     ASDF     ASDF     ASDF     ASDF     ASDF     ASDF     ASDF     ASDF     ASDF', copies(.vb1w,.np9))
+ 
+ ::method 'test329'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.vb1w,.nn10)
+ 
+ ::method 'test330'
+@@ -1267,7 +1267,7 @@
+     self~assertSame(copies('ASDF QWER ZXCVASDF QWER ZXCV',5), copies(.v3w,.np10))
+ 
+ ::method 'test334'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.v3w,.nn11)
+ 
+ ::method 'test335'
+@@ -1290,7 +1290,7 @@
+     self~assertSame('ASDF     '||copies('ASDF     ASDF     ',5), copies(.v1wb,.np11))
+ 
+ ::method 'test341'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.v1wb,.nn255)
+ 
+ ::method 'test342'
+@@ -1316,7 +1316,7 @@
+     self~assertSame(copies('X ',31875), copies(.v125b,.np255))
+ 
+ ::method 'test349'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.v125b,.nn256)
+ 
+ ::method 'test350'
+@@ -1341,7 +1341,7 @@
+     self~assertSame('', copies(.vxnull,.np256))
+ 
+ ::method 'test357'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.vxnull,.nn32768)
+ 
+ ::method 'test358'
+@@ -1424,7 +1424,7 @@
+     self~assertSame('', copies(.v30x,.np0))
+ 
+ ::method 'test383'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.v30x,.nn1)
+ 
+ ::method 'test384'
+@@ -1441,7 +1441,7 @@
+     self~assertSame('q e a d z c q e a d z c q e a ', copies(.v15bx,.np1))
+ 
+ ::method 'test388'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.v15bx,.nn9)
+ 
+ ::method 'test389'
+@@ -1454,7 +1454,7 @@
+     self~assertSame(copies('202020202061736466'x,9), copies(.vb1x,.np9))
+ 
+ ::method 'test392'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.vb1x,.nn10)
+ 
+ ::method 'test393'
+@@ -1470,7 +1470,7 @@
+     self~assertSame(copies('617364662071776572207a786376'x,10), copies(.v3wx,.np10))
+ 
+ ::method 'test397'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.v3wx,.nn11)
+ 
+ ::method 'test398'
+@@ -1493,7 +1493,7 @@
+     self~assertSame(copies('617364662020202020'x,11), copies(.v1xb,.np11))
+ 
+ ::method 'test404'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.v1xb,.nn255)
+ 
+ ::method 'test405'
+@@ -1519,7 +1519,7 @@
+     self~assertSame(copies('X ',31875), copies(.v125bx,.np255))
+ 
+ ::method 'test412'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(.v125bx,.nn256)
+ 
+ ::method 'test413'
+@@ -2007,11 +2007,11 @@
+     xre = copies('',.n09E1)
+ 
+ ::method 'test519'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('',.nn256)
+ 
+ ::method 'test520'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(' ',.nn32768)
+ 
+ ::method 'test521'
+@@ -2019,7 +2019,7 @@
+     xre = copies('ASDF',.n11E1)
+ 
+ ::method 'test522'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('ASDF',.nn65536)
+ 
+ ::method 'test523'
+@@ -2027,7 +2027,7 @@
+     xre = copies('AS',.n255E2)
+ 
+ ::method 'test524'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('AS',.nn131072)
+ 
+ ::method 'test525'
+@@ -2035,7 +2035,7 @@
+     xre = copies('QWERASDFZXCVQWERASDFZXCVQWERAS',.n256E2)
+ 
+ ::method 'test526'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('Q E A D Z C Q E A D Z C Q E A ',.nn1)
+ 
+ ::method 'test527'
+@@ -2043,15 +2043,15 @@
+     xre = copies('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',.n65536E4)
+ 
+ ::method 'test528'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',.nn9)
+ 
+ ::method 'test529'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('     ASDF',.nn10)
+ 
+ ::method 'test530'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('ASDF QWER ZXCV',.nn11)
+ 
+ ::method 'test531'
+@@ -2059,7 +2059,7 @@
+     xre = copies('ASDF     ',.n01E1)
+ 
+ ::method 'test532'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('ASDF     ',.nn255)
+ 
+ ::method 'test533'
+@@ -2067,11 +2067,11 @@
+     xre = copies('X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X ',.n09E1)
+ 
+ ::method 'test534'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X X ',.nn256)
+ 
+ ::method 'test535'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(''X,.nn32768)
+ 
+ ::method 'test536'
+@@ -2091,7 +2091,7 @@
+     xre = copies('6173'x,.n256E2)
+ 
+ ::method 'test540'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('71776572617364667a78637671776572617364667a786376717765726173'x,.nn1)
+ 
+ ::method 'test541'
+@@ -2099,15 +2099,15 @@
+     xre = copies('71206520612064207a20632071206520612064207a206320712065206120'x,.n65536E4)
+ 
+ ::method 'test542'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('71206520612064207a20632071206520612064207a206320712065206120'x,.nn9)
+ 
+ ::method 'test543'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('202020202061736466'x,.nn10)
+ 
+ ::method 'test544'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('617364662071776572207a786376'x,.nn11)
+ 
+ ::method 'test545'
+@@ -2115,7 +2115,7 @@
+     xre = copies('617364662020202020'x,.n01E1)
+ 
+ ::method 'test546'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('617364662020202020'x,.nn255)
+ 
+ ::method 'test547'
+@@ -2123,7 +2123,7 @@
+     xre = copies('58205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820'X,.n09E1)
+ 
+ ::method 'test548'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('58205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820582058205820'X,.nn256)
+ 
+ ::method 'test549'
+@@ -2342,7 +2342,7 @@
+     self~assertSame('-7-7-7-7-7-7-7', copies(MIN(-7,-3,-4.3),MAX(ABS(-7),ABS(-3.5),ABS(-4))))
+ 
+ ::method 'test592'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies(SIGN(' -0.307 '),SIGN(-4))
+ 
+ ::method 'test593'
+@@ -2368,7 +2368,7 @@
+     self~assertSame(copies('ASDF     ',42), copies('ASDF     ',6*7))
+ 
+ ::method 'test600'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('     ASDF',9-10)
+ 
+ ::method 'test601'
+@@ -2387,7 +2387,7 @@
+     self~assertSame('-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20-20', copies(((2**3)*2)-12*((8**2)-61),84-42))
+ 
+ ::method 'test606'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies((1+1+1+1+1+1+1)*(1+1+1+1+1+1),9-10)
+ 
+ ::method 'test607'
+@@ -2409,7 +2409,7 @@
+     self~assertSame(copies('QWERASDFZXCVQWERASDFZXCVQWERAS',.nv42), copies('QWERASDFZXCVQWERASDFZXCVQWERAS',.nv6*.nv7))
+ 
+ ::method 'test613'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = copies('     ASDF',.nv9-.nv10)
+ 
+ ::method 'test614'
+Index: ooRexx/base/bif/DATATYPE.testGroup
+===================================================================
+--- a/ooRexx/base/bif/DATATYPE.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/DATATYPE.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -401,11 +401,11 @@
+ 
+ ::method test_datatype_option_invalid_letter
+   -- NOTE: "Method option" isn't really appropriate here
+-  self~expectSyntax(93.915) -- Method option must be one of "ABILMNOSUVWX9"
++  self~expectSyntax(40.904) -- Method option must be one of "ABILMNOSUVWX9"
+   a = datatype(0, "q")
+ 
+ ::method test_datatype_option_null
+-  self~expectSyntax(93.915) -- Method option must be one of "ABILMNOSUVWX9"
++  self~expectSyntax(40.904) -- Method option must be one of "ABILMNOSUVWX9"
+   a = datatype(0, "")
+ 
+ ::method test_datatype_internal
+Index: ooRexx/base/bif/DELSTR.testGroup
+===================================================================
+--- a/ooRexx/base/bif/DELSTR.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/DELSTR.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -52,7 +52,7 @@
+ 
+ ::method 'test01'
+     vblank = ' '
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     r = delStr(vblank,0)
+ 
+ ::method 'test02'
+@@ -107,7 +107,7 @@
+     r = delStr(v30,1.2)
+ 
+ ::method 'test15'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     r = delStr(v30,'-31')
+ 
+ ::method 'test16'
+@@ -141,7 +141,7 @@
+ 
+ ::method 'test23'
+     vblank = ' '
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     r = delStr(vblank,0,'31'x)
+ 
+ ::method 'test24'
+@@ -303,7 +303,7 @@
+ 
+ ::method test_args_two_start_zero
+   -- 93.924:  Invalid position argument specified
+-  self~expectSyntax(93.924)
++  self~expectSyntax(40.14)
+   call delstr 123456, 0
+ 
+ ::method test_args_two_start
+@@ -314,7 +314,7 @@
+ 
+ ::method test_args_two_length_negative
+   -- 93.923:  Invalid length argument specified
+-  self~expectSyntax(93.923)
++  self~expectSyntax(40.13)
+   call delstr 123456, , -1
+ 
+ ::method test_args_two_length
+@@ -327,12 +327,12 @@
+ 
+ ::method test_args_three_start_zero
+   -- 93.924:  Invalid position argument specified
+-  self~expectSyntax(93.924)
++  self~expectSyntax(40.14)
+   call delstr 123456, 0, 1
+ 
+ ::method test_args_three_length_negative
+   -- 93.923:  Invalid length argument specified
+-  self~expectSyntax(93.923)
++  self~expectSyntax(40.13)
+   call delstr 123456, 1, -1
+ 
+ ::method test_args_three_length
+Index: ooRexx/base/bif/DELWORD.testGroup
+===================================================================
+--- a/ooRexx/base/bif/DELWORD.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/DELWORD.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -85,11 +85,11 @@
+     self~assertSame('delWord', delWord('delWord','31'x,'30'x))
+ 
+ ::method 'test09'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     r = delWord('delWord','30'x,'30'x)
+ 
+ ::method 'test10'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     r = delWord(' ','30'x,'30'x)
+ 
+ ::method 'test11'
+@@ -124,7 +124,7 @@
+ 
+ ::method 'test17'
+     v8 = 'one two  three   four    five     six      seven       eight'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     r = delWord(v8,-4-8,-4+8)
+ 
+ ::method 'test18'
+Index: ooRexx/base/bif/FORMAT.testGroup
+===================================================================
+--- a/ooRexx/base/bif/FORMAT.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/FORMAT.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -2073,19 +2073,19 @@
+     xre=format(22287634.9876,1,1,0,2)
+ 
+ ::method test661
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(22287634.9876,1,1,-1,-1)
+ 
+ ::method test662
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(22287634.9876,1,1,-1,0)
+ 
+ ::method test663
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(22287634.9876,1,1,-1,1)
+ 
+ ::method test664
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(22287634.9876,1,1,0,-1)
+ 
+ ::method test665
+@@ -2097,23 +2097,23 @@
+     xre=format(22287634.9876,1,1,0,1)
+ 
+ ::method test667
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(22287634.9876,1,1,1,-1)
+ 
+ ::method test668
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(22287634.9876,0,0,-1,-1)
+ 
+ ::method test669
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(22287634.9876,0,0,-1,0)
+ 
+ ::method test670
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(22287634.9876,0,0,-1,1)
+ 
+ ::method test671
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(22287634.9876,0,0,0,-1)
+ 
+ ::method test672
+@@ -2125,7 +2125,7 @@
+     xre=format(22287634.9876,0,0,0,1)
+ 
+ ::method test674
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(22287634.9876,0,0,1,-1)
+ 
+ ::method test675
+@@ -2221,15 +2221,15 @@
+     xre=format(9.99999999,1,0,2,2)
+ 
+ ::method test698
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(9.99999999,1,0,-1,0)
+ 
+ ::method test699
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(9.99999999,1,0,-1,1)
+ 
+ ::method test700
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(9.99999999,1,0,-1,2)
+ 
+ ::method test701
+@@ -2241,39 +2241,39 @@
+     xre=format(9.99999999,1,0,1,2)
+ 
+ ::method test703
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(9.99999999,1,0,-1,-1)
+ 
+ ::method test704
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(9.99999999,1,0,-1,0)
+ 
+ ::method test705
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(9.99999999,1,0,-1,1)
+ 
+ ::method test706
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(9.99999999,1,0,0,-1)
+ 
+ ::method test707
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(9.99999999,1,0,1,-1)
+ 
+ ::method test708
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(9.99999999,0,0,-1,-1)
+ 
+ ::method test709
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(9.99999999,0,0,-1,0)
+ 
+ ::method test710
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(9.99999999,0,0,-1,1)
+ 
+ ::method test711
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(9.99999999,0,0,0,-1)
+ 
+ ::method test712
+@@ -2285,7 +2285,7 @@
+     xre=format(9.99999999,0,0,0,1)
+ 
+ ::method test714
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(9.99999999,0,0,1,-1)
+ 
+ ::method test715
+@@ -2389,19 +2389,19 @@
+     xre=format(22287634.9876,2,2,0,0)
+ 
+ ::method test740
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(22287634.9876,-1,-1,0,0)
+ 
+ ::method test741
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(22287634.9876,-1,0,0,0)
+ 
+ ::method test742
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(22287634.9876,-1,1,0,0)
+ 
+ ::method test743
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(22287634.9876,0,-1,0,0)
+ 
+ ::method test744
+@@ -2413,7 +2413,7 @@
+     xre=format(22287634.9876,0,1,0,0)
+ 
+ ::method test746
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(22287634.9876,1,-1,0,0)
+ 
+ ::method test747
+@@ -2529,15 +2529,15 @@
+     xre=format(9.999999995,1,0,0,2)
+ 
+ ::method test773
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(9.9999999,1,0,0,-1)
+ 
+ ::method test774
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(9.99999999,1,0,0,-1)
+ 
+ ::method test775
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(9.999999995,1,0,0,-1)
+ 
+ ::method test776
+@@ -2549,7 +2549,7 @@
+     xre=format(9.999999995,1,0,0,1)
+ 
+ ::method test778
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(9.9999999,0,0,0,-1)
+ 
+ ::method test779
+@@ -2561,7 +2561,7 @@
+     xre=format(9.9999999,0,0,0,1)
+ 
+ ::method test781
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(9.99999999,0,0,0,-1)
+ 
+ ::method test782
+@@ -2573,7 +2573,7 @@
+     xre=format(9.99999999,0,0,0,1)
+ 
+ ::method test784
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre=format(9.999999995,0,0,0,-1)
+ 
+ ::method test785
+Index: ooRexx/base/bif/INSERT.testGroup
+===================================================================
+--- a/ooRexx/base/bif/INSERT.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/INSERT.testGroup	(working copy)
+@@ -165,7 +165,7 @@
+     xre = insert('A',.v30,1.2)
+ 
+ ::method 'test033'
+-    self~expectSyntax(93.906)
++    self~expectSyntax(40.13)
+     xre = insert('A',.v30,'-31')
+ 
+ ::method 'test034'
+Index: ooRexx/base/bif/LASTPOS.testGroup
+===================================================================
+--- a/ooRexx/base/bif/LASTPOS.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/LASTPOS.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -369,7 +369,7 @@
+     self~assertSame('1', lastPos('4a'x,'4a'x,2))
+ 
+ ::method 'test093'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = lastPos('4b'x,'4a'x,0)
+ 
+ ::method 'test094'
+@@ -421,7 +421,7 @@
+     self~assertSame('0', lastPos('0',.v26,1))
+ 
+ ::method 'test110'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = lastPos('A     B     C     D     E     ',.v26,-1)
+ 
+ ::method 'test111'
+@@ -685,7 +685,7 @@
+     xre = lastPos('34','aaaaabcdef',1,'xxx')
+ 
+ ::method testRange03
+-    self~expectSyntax(93.923)
++    self~expectSyntax(40.13)
+     xre = lastPos('-','aaaaabcdef',1,-12)
+ 
+ ::method testRange04
+Index: ooRexx/base/bif/OVERLAY.testGroup
+===================================================================
+--- a/ooRexx/base/bif/OVERLAY.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/OVERLAY.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -111,7 +111,7 @@
+     self~assertSame('1234567890', overLay(XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX,.v1))
+ 
+ ::method 'test010'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = overLay('20'x,'*',0)
+ 
+ ::method 'test011'
+Index: ooRexx/base/bif/POS.testGroup
+===================================================================
+--- a/ooRexx/base/bif/POS.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/POS.testGroup	(working copy)
+@@ -241,11 +241,11 @@
+     self~assertSame('3', pos("wuv","uvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvwuvw", 1))
+ 
+ ::method 'test092'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre=pos('-','--------',0)
+ 
+ ::method 'test093'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre=pos('-','--------',-12)
+ 
+ ::method 'test094'
+@@ -293,7 +293,7 @@
+     xre = pos('34','123456789',1,'xxx')
+ 
+ ::method testRange03
+-    self~expectSyntax(93.923)
++    self~expectSyntax(40.13)
+     xre = pos('-','--------',1,-12)
+ 
+ ::method testRange04
+Index: ooRexx/base/bif/SIGN.testGroup
+===================================================================
+--- a/ooRexx/base/bif/SIGN.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/SIGN.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -93,7 +93,7 @@
+     self~assertSame('1', sign(9e999999999))
+ 
+ ::method 'test015'
+-    self~expectSyntax(93.943)
++    self~expectSyntax(40.11)
+     if .ooRexxUnit.architecture == 32 then
+         xre = sign('999999999e999999999')
+     else
+@@ -100,7 +100,7 @@
+         xre = sign('999999999e999999999999999999')
+ 
+ ::method 'test016'
+-    self~expectSyntax(93.943)
++    self~expectSyntax(40.11)
+     if .ooRexxUnit.architecture == 32 then
+        xre = sign('-1.0e-999999999')
+     else
+@@ -107,7 +107,7 @@
+        xre = sign('-1.0e-999999999999999999')
+ 
+ ::method 'test017'
+-    self~expectSyntax(93.943)
++    self~expectSyntax(40.11)
+     if .ooRexxUnit.architecture == 32 then
+         xre = sign('0.1e-999999999')
+     else
+@@ -114,7 +114,7 @@
+         xre = sign('0.1e-999999999999999999')
+ 
+ ::method 'test018'
+-    self~expectSyntax(93.943)
++    self~expectSyntax(40.11)
+     if .ooRexxUnit.architecture == 32 then
+         xre = sign('0.1e-9999999999')
+     else
+@@ -121,7 +121,7 @@
+         xre = sign('0.1e-9999999999999999999')
+ 
+ ::method 'test019'
+-    self~expectSyntax(93.943)
++    self~expectSyntax(40.11)
+     if .ooRexxUnit.architecture == 32 then
+         xre = sign('0.1e9999999999')
+     else
+@@ -131,7 +131,7 @@
+     self~assertSame('1', sign('3132'x))
+ 
+ ::method 'test021'
+-    self~expectSyntax(93.943)
++    self~expectSyntax(40.11)
+     if .ooRexxUnit.architecture == 32 then
+         xre = sign(999e999999999)
+     else
+@@ -211,7 +211,7 @@
+     self~assertSame('-1', sign('-'||'12'))
+ 
+ ::method 'test041'
+-    self~expectSyntax(93.943)
++    self~expectSyntax(40.11)
+     xre = sign('-'||'-12')
+ 
+ ::method 'test042'
+@@ -218,7 +218,7 @@
+     self~assertSame('1', sign('1'||'23'||'456'||'7890'))
+ 
+ ::method 'test043'
+-    self~expectSyntax(93.943)
++    self~expectSyntax(40.11)
+     xre = sign('a')
+ 
+ ::method 'test044'
+@@ -229,7 +229,7 @@
+     self~assertSame('-1', sign('17'-'1.e2'))
+ 
+ ::method 'test046'
+-    self~expectSyntax(93.943)
++    self~expectSyntax(40.11)
+     xre = sign('17-1.e2')
+ 
+ ::method 'test047'
+Index: ooRexx/base/bif/SPACE.testGroup
+===================================================================
+--- a/ooRexx/base/bif/SPACE.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/SPACE.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -165,7 +165,7 @@
+     self~assertSame('one    two    three    four    five    six    seven    eight', space(.v8,-4+8))
+ 
+ ::method 'test028'
+-    self~expectSyntax(93.923)
++    self~expectSyntax(40.13)
+     xre = space(.v8,-4-8)
+ 
+ ::method 'test029'
+Index: ooRexx/base/bif/STRIP.testGroup
+===================================================================
+--- a/ooRexx/base/bif/STRIP.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/STRIP.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -110,7 +110,7 @@
+     self~assertSame('aaa', strip(' aaa ','B','  '))
+ 
+ ::method 'test018'
+-    self~expectSyntax(93.915)
++    self~expectSyntax(40.904)
+     xre=strip(' aaa ','x',' ')
+ 
+ ::method 'test019'
+@@ -303,15 +303,15 @@
+     self~assertSame(.s, strip(.s,,'a'))
+ 
+ ::method 'test073'
+-    self~expectSyntax(93.915)
++    self~expectSyntax(40.904)
+     xre = strip(.s,'c','a')
+ 
+ ::method 'test074'
+-    self~expectSyntax(93.915)
++    self~expectSyntax(40.904)
+     xre = strip(.s,nov.2)
+ 
+ ::method 'test076'
+-    self~expectSyntax(93.915)
++    self~expectSyntax(40.904)
+     xre = strip(nov1,nov2,nov3)
+ 
+ ::method 'test077'
+@@ -318,7 +318,7 @@
+     self~assertSame('NOV', strip(nov))
+ 
+ ::method 'test078'
+-    self~expectSyntax(93.915)
++    self~expectSyntax(40.904)
+     xre = strip(.s,nov.2)
+ 
+ ::method 'test079'
+Index: ooRexx/base/bif/SUBSTR.testGroup
+===================================================================
+--- a/ooRexx/base/bif/SUBSTR.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/SUBSTR.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -58,7 +58,7 @@
+     .local~v10000 = copies('\',10000)
+ 
+ ::method 'test001'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = subStr(.vblank,0)
+ 
+ ::method 'test002'
+@@ -111,7 +111,7 @@
+     xre = subStr(.v30,1.2)
+ 
+ ::method 'test017'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = subStr(.v30,'-31')
+ 
+ ::method 'test018'
+@@ -144,7 +144,7 @@
+     self~assertSame('', subStr('',2-1,0))
+ 
+ ::method 'test026'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = subStr(.vblank,0,'31'x)
+ 
+ ::method 'test027'
+Index: ooRexx/base/bif/SUBWORD.testGroup
+===================================================================
+--- a/ooRexx/base/bif/SUBWORD.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/SUBWORD.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -108,11 +108,11 @@
+     self~assertSame('SUBWORD', subWord('SUBWORD','31'x))
+ 
+ ::method 'test008'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = "SUBWORD"('SUBWORD','30'x)
+ 
+ ::method 'test009'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = subWord(' ','30'x)
+ 
+ ::method 'test010'
+@@ -163,7 +163,7 @@
+     self~assertSame('four    five     six      seven       eight', subWord(.v8,-4+8))
+ 
+ ::method 'test023'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = subWord(.v8,-4-8)
+ 
+ ::method 'test024'
+@@ -362,11 +362,11 @@
+     self~assertSame('', subWord('SUBWORD','31'x,'30'x))
+ 
+ ::method 'test082'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = "SUBWORD"('SUBWORD','30'x,'30'x)
+ 
+ ::method 'test083'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = subWord(' ','30'x,'30'x)
+ 
+ ::method 'test084'
+@@ -417,7 +417,7 @@
+     self~assertSame('four    five     six      seven', subWord(.v8,-4+8,-4+8))
+ 
+ ::method 'test097'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = subWord(.v8,-4-8,-4+8)
+ 
+ ::method 'test098'
+Index: ooRexx/base/bif/TRANSLATE.testGroup
+===================================================================
+--- a/ooRexx/base/bif/TRANSLATE.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/TRANSLATE.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -143,7 +143,7 @@
+     self~assertSame('abcdef ', translate('abcdef ',,,'$',8,6))
+ 
+ ::method testStart02
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     x = translate('abcdef ',,,'$',0,6)
+ 
+ ::method testStart03
+@@ -155,11 +155,11 @@
+     x = translate('abcdef ',,,'$',0.5,6)
+ 
+ ::method testStart05
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     x = translate('abcdef ',,,'$',-5,6)
+ 
+ ::method testStart06
+-    self~expectSyntax(93.923)
++    self~expectSyntax(40.13)
+     x = translate('abcdef ',,,'$',1, -6)
+ 
+ ::method testStart07
+Index: ooRexx/base/bif/TRUNC.testGroup
+===================================================================
+--- a/ooRexx/base/bif/TRUNC.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/TRUNC.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -98,7 +98,7 @@
+     self~assertSame('-2000', trunc('-'||'2'||'.'||'E'||'+'||'3'))
+ 
+ ::method 'test014'
+-    self~expectSyntax(93.943)
++    self~expectSyntax(40.11)
+     xre = trunc('AB.CD')
+ 
+ ::method 'test015'
+@@ -177,7 +177,7 @@
+     self~assertSame(copies('3',9)||copies('0',99991)||'.000000000000000', trunc(XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX,15))
+ 
+ ::method 'test033'
+-    self~expectSyntax(93.943)
++    self~expectSyntax(40.11)
+     xre=trunc(nov,5)
+ 
+ ::method 'test034'
+@@ -189,7 +189,7 @@
+     xre=trunc(nov1,no.v2)
+ 
+ ::method 'test036'
+-    self~expectSyntax(93.943)
++    self~expectSyntax(40.11)
+     xre=trunc(nov,5)
+ 
+ ::method 'test037'
+Index: ooRexx/base/bif/VERIFY.testGroup
+===================================================================
+--- a/ooRexx/base/bif/VERIFY.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/VERIFY.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -180,15 +180,15 @@
+     self~assertSame('0', verify('',noval.12))
+ 
+ ::method 'test039'
+-    self~expectSyntax(93.915)
++    self~expectSyntax(40.904)
+     xre = verify('','',xov)
+ 
+ ::method 'test040'
+-    self~expectSyntax(93.915)
++    self~expectSyntax(40.904)
+     xre = verify('','',xova.)
+ 
+ ::method 'test041'
+-    self~expectSyntax(93.915)
++    self~expectSyntax(40.904)
+     xre = verify('','',xoval.12)
+ 
+ ::method 'test042'
+@@ -291,7 +291,7 @@
+     self~assertSame('1', verify('abc','','n'))
+ 
+ ::method 'test070'
+-    self~expectSyntax(93.915)
++    self~expectSyntax(40.904)
+     xre = verify('abc','','o')
+ 
+ ::method 'test071'
+@@ -301,7 +301,7 @@
+     self~assertSame('0', verify('','','n'))
+ 
+ ::method 'test073'
+-    self~expectSyntax(93.915)
++    self~expectSyntax(40.904)
+     xre = verify('','','o')
+ 
+ ::method 'test074'
+@@ -314,11 +314,11 @@
+     self~assertSame('0', verify('abc','','n',4))
+ 
+ ::method 'test077'
+-    self~expectSyntax(93.915)
++    self~expectSyntax(40.904)
+     xre = verify('abc','','o',4)
+ 
+ ::method 'test078'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = verify('abc','','m',0)
+ 
+ ::method 'test079'
+@@ -402,7 +402,7 @@
+     xre = verify('ABCDEF','ABC',,2,'xxx')
+ 
+ ::method testRange03
+-    self~expectSyntax(93.923)
++    self~expectSyntax(40.13)
+     xre = verify('ABCDEF','ABC',,2,-12)
+ 
+ ::method testRange04
+Index: ooRexx/base/bif/WORD.testGroup
+===================================================================
+--- a/ooRexx/base/bif/WORD.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/WORD.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -97,11 +97,11 @@
+     self~assertSame('WORD', word('WORD','31'x))
+ 
+ ::method 'test0009'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = word('WORD','30'x)
+ 
+ ::method 'test010'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = word(' ','30'x)
+ 
+ ::method 'test011'
+@@ -158,7 +158,7 @@
+     self~assertSame('four', word(.v8,-4+8))
+ 
+ ::method 'test026'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = word(.v8,-4-8)
+ 
+ ::method 'test027'
+Index: ooRexx/base/bif/WORDINDEX.testGroup
+===================================================================
+--- a/ooRexx/base/bif/WORDINDEX.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/WORDINDEX.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -97,11 +97,11 @@
+     self~assertSame('1', wordIndex('WORD','31'x))
+ 
+ ::method 'test009'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = wordIndex('WORD','30'x)
+ 
+ ::method 'test010'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = wordIndex(' ','30'x)
+ 
+ ::method 'test011'
+@@ -158,7 +158,7 @@
+     self~assertSame('18', wordIndex(.v8,-4+8))
+ 
+ ::method 'test026'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = wordIndex(.v8,-4-8)
+ 
+ ::method 'test027'
+Index: ooRexx/base/bif/WORDLENGTH.testGroup
+===================================================================
+--- a/ooRexx/base/bif/WORDLENGTH.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/WORDLENGTH.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -98,11 +98,11 @@
+     self~assertSame('4', wordLength('WORD','31'x))
+ 
+ ::method 'test0009'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = wordLength('WORD','30'x)
+ 
+ ::method 'test010'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = wordLength(' ','30'x)
+ 
+ ::method 'test011'
+@@ -159,7 +159,7 @@
+     self~assertSame('4', wordLength(.v8,-4+8))
+ 
+ ::method 'test026'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = wordLength(.v8,-4-8)
+ 
+ ::method 'test027'
+Index: ooRexx/base/bif/WORDPOS.testGroup
+===================================================================
+--- a/ooRexx/base/bif/WORDPOS.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/WORDPOS.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -339,7 +339,7 @@
+     self~assertSame('0', wordPos('4a'x,'4a'x,2))
+ 
+ ::method 'test089'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = wordPos('4b'x,'4a'x,0)
+ 
+ ::method 'test090'
+@@ -391,7 +391,7 @@
+     self~assertSame('0', wordPos('0',.v26,1))
+ 
+ ::method 'test106'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = wordPos('A     B     C     D     E     ',.v26,-1)
+ 
+ ::method 'test107'
+Index: ooRexx/base/bif/X2D.testGroup
+===================================================================
+--- a/ooRexx/base/bif/X2D.testGroup	(revision 13359)
++++ b/ooRexx/base/bif/X2D.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -241,7 +241,7 @@
+ 
+ ::method 'test039'
+     numeric digits 1000
+-    self~expectSyntax(93.923)
++    self~expectSyntax(40.13)
+     xre = x2d('abc',-17)
+ 
+ ::method 'test040'
+Index: ooRexx/base/class/String/delstr.testGroup
+===================================================================
+--- a/ooRexx/base/class/String/delstr.testGroup	(revision 13359)
++++ b/ooRexx/base/class/String/delstr.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -51,7 +51,7 @@
+ 
+ ::method 'test01'
+     vblank = ' '
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     r = delStr(vblank,0)
+ 
+ ::method 'test02'
+Index: ooRexx/base/class/String/substr.testGroup
+===================================================================
+--- a/ooRexx/base/class/String/substr.testGroup	(revision 13359)
++++ b/ooRexx/base/class/String/substr.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -57,7 +57,7 @@
+     .local~v10000 = copies('\',10000)
+ 
+ ::method 'test001'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = subStr(.vblank,0)
+ 
+ ::method 'test002'
+Index: ooRexx/base/class/String/word.testGroup
+===================================================================
+--- a/ooRexx/base/class/String/word.testGroup	(revision 13359)
++++ b/ooRexx/base/class/String/word.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -96,11 +96,11 @@
+     self~assertSame('WORD', 'WORD'~word('31'x))
+ 
+ ::method 'test0009'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = word('WORD','30'x)
+ 
+ ::method 'test010'
+-    self~expectSyntax(93.924)
++    self~expectSyntax(40.14)
+     xre = word(' ','30'x)
+ 
+ ::method 'test011'
