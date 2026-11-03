@@ -1,49 +1,31 @@
 --- a/ooRexx/extensions/platform/windows/ole/OLEObject.testGroup
 +++ b/ooRexx/extensions/platform/windows/ole/OLEObject.testGroup
-@@ -134,6 +134,39 @@
-     self~assertEquals(1, rs~completes - before)
+@@ -167,6 +167,20 @@
+     self~assertSame(2, mismatchedArgument("x.txt", "abc", .false))
+     self~assertSame(3, mismatchedArgument("x.txt", 1, "abc", 0))
  
- 
-+::method 'test_long_exception_description'
-+    -- WScript.Shell's RegRead puts the key it was given into the description
-+    -- of the exception it raises.  A key of 5000 characters gives a
-+    -- description longer than the 2048-byte buffer the error text is
-+    -- formatted into, which it used to overflow (a crash or worse).  The text
-+    -- is now cut to fit.
-+    shell = .OLEObject~new("WScript.Shell")
-+    key = "HKCU\Software\ooRexx-test-" || copies("x", 5000) || "\"
-+    signal on syntax name trapped
-+    shell~RegRead(key)
-+    self~fail("RegRead of a key that does not exist should raise an OLE exception")
-+    return
-+trapped:
-+    co = condition("o")
-+    self~assertSame("92.906", co~code)
-+    message = co~message
-+    self~assertTrue(message~pos("Description:") > 0, message~left(200))
-+    -- long enough to have reached the end of the buffer, and cut there
-+    self~assertTrue(message~length > 2000, "description too short to test the buffer:" message~length)
-+    self~assertTrue(message~length < 2100, "message not cut to the buffer:" message~length)
-+
 +::method 'test_type_mismatch_argument_number'
 +    -- Error 92.909 names the first argument that could not be coerced.
 +    -- IDispatch::Invoke gives its index in the argument array, where the
 +    -- arguments are in reverse order, and the error used to name argument
 +    -- index + 1: right only when it was the last one.
 +    -- Scripting.FileSystemObject's OpenTextFile(FileName, IOMode, Create,
-+    -- Format): neither IOMode nor Create can be made from "abc".
++    -- Format): neither IOMode nor Format (both long) can be made from "abc".
 +    self~assertSame(2, mismatchedArgument("x.txt", "abc"))
-+    self~assertSame(3, mismatchedArgument("x.txt", 1, "abc"))
++    self~assertSame(4, mismatchedArgument("x.txt", 1, .false, "abc"))
++    self~assertSame(2, mismatchedArgument("x.txt", "abc", .false, 0))
++    -- the middle one of three, which index + 1 got right
 +    self~assertSame(2, mismatchedArgument("x.txt", "abc", .false))
-+    self~assertSame(3, mismatchedArgument("x.txt", 1, "abc", 0))
++
 +
  ::routine newWatchedRecordset
      -- a client-side Recordset with three records: "one", "two", "three".
      -- The subclass of OLEObject is made here, at run time: a ::CLASS
-@@ -179,4 +212,17 @@
-     if self~mode == "unwanted" then return 5      -- adStatusUnwantedEvent
+@@ -224,5 +238,19 @@
+     return co~additional[1]
  
  
++
 +-- the argument number in the 92.909 raised by OpenTextFile with these arguments
 +::routine mismatchedArgument
 +    fso = .OLEObject~new("Scripting.FileSystemObject")
@@ -56,5 +38,6 @@
 +    return co~additional[1]
 +
 +
- ::options novalue error
 +
+ ::options novalue error
+ 
