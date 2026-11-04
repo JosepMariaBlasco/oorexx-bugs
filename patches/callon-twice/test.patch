@@ -1,0 +1,71 @@
+Index: ooRexx/base/keyword/CALL.testGroup
+===================================================================
+--- a/ooRexx/base/keyword/CALL.testGroup	(revision 13364)
++++ b/ooRexx/base/keyword/CALL.testGroup	(working copy)
+@@ -964,6 +964,66 @@
+   self~assertSame("(none)", result)
+   self~assertSame("(none)", search_order())
+ 
++-- One clause raising the same condition twice, trapped by CALL ON: each
++-- occurrence calls the handler, in order, with its own condition object
++-- (bug #2084: the second one crashed the interpreter)
++::method test_call_on_user_twice_in_one_clause
++  calls = .array~new
++  call on user twice name onUserTwice
++  z = raiseTwice(1) + raiseTwice(2)
++  self~assertEquals(3, z)
++  self~assertEquals(2, calls~items)
++  self~assertEquals("one", calls[1])
++  self~assertEquals("two", calls[2])
++  return
++
++raiseTwice:
++  raise user twice description (word("one two", arg(1))) return (arg(1))
++
++onUserTwice:
++  calls~append(condition("d"))
++  return
++
++::method test_call_on_notready_twice_in_one_clause
++  calls = .array~new
++  dir = .File~new(.File~temporaryPath, "no-such-dir-2084")~absolutePath
++  a = dir || .File~separator || "a"
++  b = dir || .File~separator || "b"
++  call on notready name onNotreadyTwice
++  z = linein(a) || linein(b)
++  self~assertEquals("", z)
++  self~assertEquals(2, calls~items)
++  self~assertEquals(a, calls[1])
++  self~assertEquals(b, calls[2])
++  return
++
++onNotreadyTwice:
++  calls~append(condition("d"))
++  return
++
++-- rexxref, Condition Traps: while a CALL ON trap is delayed (from the
++-- moment its condition is raised until its handler returns), a new ERROR or
++-- FAILURE is ignored; only the first of two in one clause calls the handler
++::method test_call_on_error_and_failure_twice_in_one_clause
++  calls = .array~new
++  call on error name onErrorTwice
++  call on failure name onErrorTwice
++  z = raiseErrorTwice("ERROR", 1) + raiseErrorTwice("ERROR", 2)
++  self~assertEquals(0, z)
++  z = raiseErrorTwice("FAILURE", 3) + raiseErrorTwice("FAILURE", 4)
++  -- the same inside an INTERPRET
++  interpret 'z = raiseErrorTwice("ERROR", 5) + raiseErrorTwice("ERROR", 6)'
++  self~assertEquals("ERROR 1|FAILURE 3|ERROR 5", calls~makeString("L", "|"))
++  return
++
++raiseErrorTwice:
++  if arg(1) == "ERROR" then raise error (arg(2)) return 0
++  raise failure (arg(2)) return 0
++
++onErrorTwice:
++  calls~append(condition("c") condition("o")~rc)
++  return
++
+ -- create temporary external files with a range of extensions
+ ::method createFiles
+   use strict arg baseName, extensionList
