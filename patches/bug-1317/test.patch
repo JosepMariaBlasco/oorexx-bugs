@@ -1,0 +1,37 @@
+Index: ooRexx/utilities/rexx/rexx_command.testGroup
+===================================================================
+--- a/ooRexx/utilities/rexx/rexx_command.testGroup	(revision 13368)
++++ b/ooRexx/utilities/rexx/rexx_command.testGroup	(working copy)
+@@ -393,6 +393,32 @@
+   self~assertSame(expected2, outlines[7]~word(3),'SYSCARGS wrong:' outlines[3])
+   self~assertSame(expected3, outlines[9])
+ 
++-- bug #1317: on Unix the arguments were joined into a fixed 8192-byte buffer
++-- (stack overflow, abort with glibc's fortified strcat).  Windows does not
++-- join them, and its cmd.exe cannot pass a command line this long anyway.
++::method test_passingArgsLong1
++  expose outLines
++  /* one argument longer than 8192 characters, with -e */
++  if .ooRexxUnit.OSName == 'WINDOWS' then return
++  theCmd = 'rexx -e "say length(arg(1)) verify(arg(1), ''x'')"' 'x'~copies(20000)
++  theRC = issueCmd(theCmd, outLines)
++  self~assertRC(0, theRC)
++  self~assertEquals(1, outLines~items)
++  self~assertSame('20000 0', outlines[1])
++
++::method test_passingArgsLong2
++  expose outLines
++  /* many arguments, more than 8192 characters together, to a program file */
++  if .ooRexxUnit.OSName == 'WINDOWS' then return
++  showArgs = self~makeTestPgm
++  args = 'ab '~copies(4000)~strip
++  theCmd = 'rexx' showArgs args
++  theRC = issueCmd(theCmd, outLines)
++  self~assertRC(0, theRC)
++  self~assertEquals(3, outLines~items)
++  self~assertSame('The arguments string is ['args']', outlines[1])
++  self~assertSame(4000, outlines[2]~word(3))
++
+ ::method test_optOnoString1
+   expose outLines
+   /* the o option without an options string   */
