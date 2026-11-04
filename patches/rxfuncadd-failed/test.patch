@@ -1,0 +1,49 @@
+Index: ooRexx/API/classic/CLASSIC.testGroup
+===================================================================
+--- a/ooRexx/API/classic/CLASSIC.testGroup	(revision 13360)
++++ b/ooRexx/API/classic/CLASSIC.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2008-2024 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2008-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -854,6 +854,35 @@
+   call rxfuncdrop 'TestExternalFunction'
+   self~assertEquals(0, result)
+ 
++-- bug #2134: a failed RxFuncAdd must not leave the function registered,
++-- or RxFuncQuery reports it as available (in every later process too)
++::method 'test_57_externalfunction_no_library'
++  call rxfuncdrop 'NoSuchFunction2134'     -- in case an older ooRexx left it
++  call rxfuncadd 'NoSuchFunction2134', 'nosuchlibrary2134', 'NoSuchFunction2134'
++  self~assertEquals(1, result)
++  call rxfuncquery 'NoSuchFunction2134'
++  self~assertEquals(1, result)
++  call rxfuncadd 'NoSuchFunction2134', 'nosuchlibrary2134', 'NoSuchFunction2134'
++  self~assertEquals(1, result)
++  call rxfuncquery 'NoSuchFunction2134'
++  self~assertEquals(1, result)
++
++::method 'test_58_externalfunction_no_procedure'
++  call rxfuncdrop 'NoSuchProcedure2134'
++  call rxfuncadd 'NoSuchProcedure2134', 'orxclassic1', 'NoSuchProcedure2134'
++  self~assertEquals(1, result)
++  call rxfuncquery 'NoSuchProcedure2134'
++  self~assertEquals(1, result)
++
++::method 'test_59_externalfunction_registered_directive'
++  call rxfuncdrop 'NoSuchRegistered2134'
++  signal on syntax
++  .routine~new('x', '::routine NoSuchRegistered2134 external "REGISTERED nosuchlibrary2134 NoSuchRegistered2134"')
++  self~fail('no syntax error')
++syntax:
++  call rxfuncquery 'NoSuchRegistered2134'
++  self~assertEquals(1, result)
++
+ -- Note: The order of these tests is very important.
+ 
+ ::method 'test_60_subcom'
