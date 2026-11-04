@@ -1,0 +1,293 @@
+Index: ooRexx/base/directives/CLASS.testGroup
+===================================================================
+--- a/ooRexx/base/directives/CLASS.testGroup	(revision 13366)
++++ b/ooRexx/base/directives/CLASS.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -491,10 +491,10 @@
+   self~assertSyntaxError(25.901, "::class test public private")
+ 
+ ::method test_direct_abstract_subclass
+-  self~assertSyntaxError(98.989, ("x = .test~new", "::class test abstract"))
++  self~assertRuntimeError(98.989, ("x = .test~new", "::class test abstract"))
+ 
+ ::method test_direct_abstract_mixinclass
+-  self~assertSyntaxError(98.989, ("x = .test~new", "::class test abstract mixinclass object"))
++  self~assertRuntimeError(98.989, ("x = .test~new", "::class test abstract mixinclass object"))
+ 
+ ::method test_create_abstract_subclass
+   instance = self~runDynamicSource(("return .test~new", "::class test subclass abstractClass", "::class abstractClass abstract"))
+Index: ooRexx/base/directives/OPTIONS.testGroup
+===================================================================
+--- a/ooRexx/base/directives/OPTIONS.testGroup	(revision 13366)
++++ b/ooRexx/base/directives/OPTIONS.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2024 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -171,17 +171,17 @@
+ ::method test_error_syntax_simple
+   -- 98.970:  External command "..." ended with return code ...
+   -- also test syntax error message inserts
+-  self~assertSyntaxError((98.970, "exit 1", 1), ("'exit 1'", "::options error syntax"))
++  self~assertRuntimeError((98.970, "exit 1", 1), ("'exit 1'", "::options error syntax"))
+ 
+ ::method test_error_syntax_address
+-  self~assertSyntaxError((98.970, "exit 2", 2), ("'exit 2'", "::options error syntax"))
++  self~assertRuntimeError((98.970, "exit 2", 2), ("'exit 2'", "::options error syntax"))
+ 
+ ::method test_error_syntax_address_io
+-  self~assertSyntaxError((98.970, "exit 100", 100), ("address '' 'exit 100' with output using (.Array~new)", "::options error syntax"))
++  self~assertRuntimeError((98.970, "exit 100", 100), ("address '' 'exit 100' with output using (.Array~new)", "::options error syntax"))
+ 
+ -- if uncaptured, FAILURE is re-raised as ERROR
+ ::method test_error_syntax_failure
+-  self~assertSyntaxError((98.970, "invalid", 30), ("address 'none' 'invalid'", "::options trace off error syntax"))
++  self~assertRuntimeError((98.970, "invalid", 30), ("address 'none' 'invalid'", "::options trace off error syntax"))
+ 
+ 
+ -- OPTIONS FAILURE tests
+@@ -232,13 +232,13 @@
+   -- also test syntax error message inserts
+   -- this only works on Unix-like systems .. see comment above
+   if \.RexxInfo~platform~caselessAbbrev("WINDOWS") then
+-    self~assertSyntaxError((98.971, "non-existing", 127), ("address '' 'non-existing' with error using (.Array~new)", "::options trace off failure syntax"))
++    self~assertRuntimeError((98.971, "non-existing", 127), ("address '' 'non-existing' with error using (.Array~new)", "::options trace off failure syntax"))
+ 
+ ::method test_failure_syntax_address
+-  self~assertSyntaxError((98.971, "command", 30), ("address 'invalid' 'command'", "::options trace off failure syntax"))
++  self~assertRuntimeError((98.971, "command", 30), ("address 'invalid' 'command'", "::options trace off failure syntax"))
+ 
+ ::method test_failure_syntax_address_io
+-  self~assertSyntaxError((98.971, "", 30), ("address 'invalid' '' with output using (.Array~new)", "::options trace off failure syntax"))
++  self~assertRuntimeError((98.971, "", 30), ("address 'invalid' '' with output using (.Array~new)", "::options trace off failure syntax"))
+ 
+ 
+ -- OPTIONS LOSTDIGITS tests
+@@ -267,31 +267,31 @@
+ ::method test_lostdigits_syntax_add
+   -- 98.972:  Number ... has more digits than the current precision
+   -- also test syntax error message inserts
+-  self~assertSyntaxError((98.972, "1234567890"), ("return 1234567890 + 0", "::options lostdigits syntax"))
++  self~assertRuntimeError((98.972, "1234567890"), ("return 1234567890 + 0", "::options lostdigits syntax"))
+ 
+ ::method test_lostdigits_syntax_plus
+-  self~assertSyntaxError((98.972, "1234567890"), ("return +1234567890", "::options lostdigits syntax"))
++  self~assertRuntimeError((98.972, "1234567890"), ("return +1234567890", "::options lostdigits syntax"))
+ 
+ ::method test_lostdigits_syntax_subtract
+-  self~assertSyntaxError((98.972, "1234567890"), ("return 0 - 1234567890", "::options lostdigits syntax"))
++  self~assertRuntimeError((98.972, "1234567890"), ("return 0 - 1234567890", "::options lostdigits syntax"))
+ 
+ ::method test_lostdigits_syntax_negate
+-  self~assertSyntaxError((98.972, "1234567890"), ("return -1234567890", "::options lostdigits syntax"))
++  self~assertRuntimeError((98.972, "1234567890"), ("return -1234567890", "::options lostdigits syntax"))
+ 
+ ::method test_lostdigits_syntax_multiply
+-  self~assertSyntaxError((98.972, "1234567890"), ("return 1234567890 * 1", "::options lostdigits syntax"))
++  self~assertRuntimeError((98.972, "1234567890"), ("return 1234567890 * 1", "::options lostdigits syntax"))
+ 
+ ::method test_lostdigits_syntax_divide
+-  self~assertSyntaxError((98.972, "1234567890"), ("return 1 / 1234567890", "::options lostdigits syntax"))
++  self~assertRuntimeError((98.972, "1234567890"), ("return 1 / 1234567890", "::options lostdigits syntax"))
+ 
+ ::method test_lostdigits_syntax_power
+-  self~assertSyntaxError((98.972, "1234567890"), ("return 1234567890 ** 0", "::options lostdigits syntax"))
++  self~assertRuntimeError((98.972, "1234567890"), ("return 1234567890 ** 0", "::options lostdigits syntax"))
+ 
+ ::method test_lostdigits_syntax_less_digits
+-  self~assertSyntaxError((98.972, 1234), ("return 1234 * 0", "::options digits 3 lostdigits syntax"))
++  self~assertRuntimeError((98.972, 1234), ("return 1234 * 0", "::options digits 3 lostdigits syntax"))
+ 
+ ::method test_lostdigits_syntax_more_digits
+-  self~assertSyntaxError((98.972, "12345678901234567890"), ("return 12345678901234567890 * 0", "::options digits 19 lostdigits syntax"))
++  self~assertRuntimeError((98.972, "12345678901234567890"), ("return 12345678901234567890 * 0", "::options digits 19 lostdigits syntax"))
+ 
+ 
+ -- OPTIONS NOSTRING tests
+@@ -320,13 +320,13 @@
+ ::method test_nostring_syntax_class
+   -- 98.973:  Object "..." does not have a string representation
+   -- also test syntax error message inserts
+-  self~assertSyntaxError((98.973, .Array), ("return '' || .Array", "::options nostring syntax"))
++  self~assertRuntimeError((98.973, .Array), ("return '' || .Array", "::options nostring syntax"))
+ 
+ ::method test_nostring_syntax_nil
+   -- that's a bit of a surprise for an enabled NOSTRING SYNTAX:
+   -- the expression '' || .Array puts .Array into additional, but
+   -- but datatype(.nil) puts the string "The NIL object" (not .nil) into additional
+-  self~assertSyntaxError((98.973, "The NIL object"), ("return datatype(.nil)", "::options nostring syntax"))
++  self~assertRuntimeError((98.973, "The NIL object"), ("return datatype(.nil)", "::options nostring syntax"))
+ 
+ 
+ -- OPTIONS NOTREADY tests
+@@ -356,10 +356,10 @@
+ ::method test_notready_syntax_bif
+   -- 98.974:  Stream "..." is not ready
+   -- also test syntax error message inserts
+-  self~assertSyntaxError((98.974, "/"), ("return charin('/')", "::options notready syntax"))
++  self~assertRuntimeError((98.974, "/"), ("return charin('/')", "::options notready syntax"))
+ 
+ ::method test_notready_syntax_method
+-  self~assertSyntaxError((98.974, "/"), ("return .Stream~new('/')~charIn", "::options notready syntax"))
++  self~assertRuntimeError((98.974, "/"), ("return .Stream~new('/')~charIn", "::options notready syntax"))
+ 
+ 
+ -- OPTIONS ALL tests
+@@ -426,38 +426,38 @@
+ ::method test_all_syntax_error
+   -- 98.970:  External command "..." ended with return code ...
+   -- also test syntax error message inserts
+-  self~assertSyntaxError((98.970, "exit 3", 3), ("'exit 3'", "::options all syntax"))
++  self~assertRuntimeError((98.970, "exit 3", 3), ("'exit 3'", "::options all syntax"))
+ 
+ ::method test_all_syntax_failure
+   -- 98.971:  External command "..." failed with return code ...
+-  self~assertSyntaxError((98.971, "command", 30), ("address 'non-existing' 'command'", "::options all syntax trace off"))
++  self~assertRuntimeError((98.971, "command", 30), ("address 'non-existing' 'command'", "::options all syntax trace off"))
+ 
+ ::method test_all_syntax_lostdigits
+   -- 98.972:  Number ... has more digits than the current precision
+-  self~assertSyntaxError((98.972, "1234567890"), ("return 1234567890 / 1234567890", "::options all syntax"))
++  self~assertRuntimeError((98.972, "1234567890"), ("return 1234567890 / 1234567890", "::options all syntax"))
+ 
+ ::method test_all_syntax_nostring
+   -- 98.973:  Object "..." does not have a string representation
+-  self~assertSyntaxError((98.973, .Array), ("return '' || .Array", "::options all syntax"))
++  self~assertRuntimeError((98.973, .Array), ("return '' || .Array", "::options all syntax"))
+ 
+ ::method test_all_syntax_notready
+   -- 98.974:  Stream "..." is not ready
+-  self~assertSyntaxError((98.974, "/"), ("return chars('/')", "::options all syntax"))
++  self~assertRuntimeError((98.974, "/"), ("return chars('/')", "::options all syntax"))
+ 
+ ::method test_all_syntax_novalue
+   -- 98.986:  Reference to unassigned variable "...".
+-  self~assertSyntaxError((98.986, "NOVALUE"), ("return novalue", "::options all syntax"))
++  self~assertRuntimeError((98.986, "NOVALUE"), ("return novalue", "::options all syntax"))
+ 
+ 
+ -- OPTIONS NOVALUE tests
+ 
+ ::method test_novalue_syntax_simple
+-  self~assertSyntaxError(98.986, ("return abc", "::options novalue syntax"))
++  self~assertRuntimeError(98.986, ("return abc", "::options novalue syntax"))
+   -- NOVALUE ERROR is deprecated, but still supported
+-  self~assertSyntaxError(98.986, ("return abc", "::options novalue error"))
++  self~assertRuntimeError(98.986, ("return abc", "::options novalue error"))
+ 
+ ::method test_novalue_syntax_compound
+-  self~assertSyntaxError(98.986, ("return abc.1.2", "::options novalue syntax"))
++  self~assertRuntimeError(98.986, ("return abc.1.2", "::options novalue syntax"))
+ 
+ ::method test_novalue_syntax_stem
+   -- stems never raise novalue
+Index: ooRexx/base/keyword/LABEL.testGroup
+===================================================================
+--- a/ooRexx/base/keyword/LABEL.testGroup	(revision 13366)
++++ b/ooRexx/base/keyword/LABEL.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2024 Rexx Language Association. All rights reserved.         */
++/* Copyright (c) 2024-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -52,13 +52,13 @@
+ -- a label is not allowed preceding EXPOSE
+ ::method test_label_expose
+   -- EXPOSE must be the first instruction executed after a method invocation
+-  self~assertSyntaxError(99.907, ".Method~new('m', 'lbl: expose')")
++  self~assertRuntimeError(99.907, ".Method~new('m', 'lbl: expose')")
+ 
+ 
+ -- a label is not allowed in an INTERPRET
+ ::method test_label_interpret
+   -- INTERPRET data must not contain labels; found "LBL"
+-  self~assertSyntaxError(47.1, "interpret 'lbl:'")
++  self~assertRuntimeError(47.1, "interpret 'lbl:'")
+ 
+ 
+ -- a label is not allowed inside a DO/LOOP block
+Index: ooRexx/base/keyword/NUMERIC.testGroup
+===================================================================
+--- a/ooRexx/base/keyword/NUMERIC.testGroup	(revision 13366)
++++ b/ooRexx/base/keyword/NUMERIC.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -642,7 +642,7 @@
+ 
+ ::method test_fuzz_default_larger
+   -- Value of NUMERIC DIGITS ("5") must exceed value of NUMERIC FUZZ ("5")
+-  self~assertSyntaxError(33.1, -
++  self~assertRuntimeError(33.1, -
+    "numeric fuzz 0; numeric digits 5; numeric fuzz; ::options fuzz 5")
+ 
+ ::method test_digits_fuzz_default
+Index: ooRexx/base/keyword/SIGNAL.testGroup
+===================================================================
+--- a/ooRexx/base/keyword/SIGNAL.testGroup	(revision 13366)
++++ b/ooRexx/base/keyword/SIGNAL.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2024 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -251,8 +251,8 @@
+   self~runDynamicSource(("signal off novalue; return a; ::options all syntax"))
+ 
+   -- but these two should raise Error 98.986:  Reference to unassigned variable
+-  self~assertSyntaxError(98.986, ("signal off lostdigits; a = a; ::options novalue syntax"))
+-  self~assertSyntaxError(98.986, ("signal off lostdigits; a = a; ::options all syntax"))
++  self~assertRuntimeError(98.986, ("signal off lostdigits; a = a; ::options novalue syntax"))
++  self~assertRuntimeError(98.986, ("signal off lostdigits; a = a; ::options all syntax"))
+ 
+ -- [bugs:#1877] SYNTAX error raised on next clause only
+ -- if (e.g.) a NOVALUE is raised and fails due to missing label, the resulting
+Index: ooRexx/base/keyword/TRACE.testGroup
+===================================================================
+--- a/ooRexx/base/keyword/TRACE.testGroup	(revision 13366)
++++ b/ooRexx/base/keyword/TRACE.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2023-2025 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2023-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -74,7 +74,7 @@
+ 
+ ::method test_trace_option_invalid
+   -- TRACE request letter must be one of "ACEFILNOR"; found  "X"
+-  self~assertSyntaxError(24.1, "trace ('Xyzzy')")
++  self~assertRuntimeError(24.1, "trace ('Xyzzy')")
+ 
+ ::method test_trace_option_invalid_runtime
+   self~expectSyntax(24.1) -- TRACE request letter must be one of "ACEFILNOR"; found  "X"
