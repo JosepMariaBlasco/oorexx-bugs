@@ -1,0 +1,43 @@
+Index: ooRexx/base/bif/BEEP.testGroup
+===================================================================
+--- a/ooRexx/base/bif/BEEP.testGroup	(revision 13366)
++++ b/ooRexx/base/bif/BEEP.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2005-2025 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -79,6 +79,29 @@
+     self~expectSyntax(88.907)
+     retc = beep(32768, 1)
+ 
++-- bug #2009: an argument that is not a whole number is reported by name, as
++-- "must be a whole number", and not with the range of a C whole number;
++-- a whole number out of range, however large, gets BEEP's own range
++::method test_not_a_whole_number
++    self~assertBeepError(88.903, "frequency", '"*"')
++    self~assertBeepError(88.903, "frequency", '"*", 1')
++    self~assertBeepError(88.903, "frequency", '440.5, 1')
++    self~assertBeepError(88.903, "duration", '440, "x"')
++    self~assertBeepError(88.903, "duration", '440, 0.5')
++    self~assertBeepError(88.907, "frequency", '1E30, 1')
++    self~assertBeepError(88.901, 2, '440')
++
++::method assertBeepError
++    use strict arg code, name, arguments
++    signal on syntax
++    interpret "call beep" arguments
++    self~fail("BEEP" arguments "should raise" code)
++    return
++syntax:
++    co = condition("o")
++    self~assertSame(code, co~code, "BEEP" arguments)
++    self~assertSame(name, co~additional[1], "BEEP" arguments)
++
+ ::method test_beep_duration
+   -- Except for Windows and Linux there is generally no frequency and
+   -- duration support available.  And even on Linux this will typically

@@ -1,0 +1,183 @@
+Index: ooRexx/base/bif/BuiltinArgumentErrors.testGroup
+===================================================================
+--- a/ooRexx/base/bif/BuiltinArgumentErrors.testGroup	(revision 13366)
++++ b/ooRexx/base/bif/BuiltinArgumentErrors.testGroup	(working copy)
+@@ -104,6 +104,24 @@
+   self~checkError('max(5, "A")',                  "40.11", "MAX",       "2")
+   self~checkError('min(5.5, 2, "A")',             "40.11", "MIN",       "3")
+ 
++-- [bugs:#2011] [bugs:#2014] [bugs:#2010]: the stream functions check their
++-- positions and counts themselves, whether the stream exists or not
++::method test_stream_functions
++  file = .File~new(.File~temporaryPath, "no-such-file-2011")~absolutePath
++  -- a file that does not exist, and one that does (this one)
++  do name over q(file), q(.context~package~name)
++    self~checkError('linein('name', 0)',        "40.14",  "LINEIN",  "2")
++    self~checkError('linein('name', 1, -1)',    "40.904", "LINEIN",  "3")
++    self~checkError('linein('name', 1, 3)',     "40.904", "LINEIN",  "3")
++    self~checkError('charin('name', -1)',       "40.14",  "CHARIN",  "2")
++    self~checkError('charin('name', 1, -1)',    "40.13",  "CHARIN",  "3")
++  end
++  self~checkError('charin(, , -1)',             "40.13",  "CHARIN",  "3")
++  self~checkError('lineout('q(file)', "x", 0)', "40.14",  "LINEOUT", "3")
++  self~checkError('charout('q(file)', "x", -1)', "40.14", "CHAROUT", "3")
++  call stream file, "c", "close"
++  call SysFileDelete file
++
+ ::method test_methods_keep_method_errors
+   self~assertSame("93.923", raised('"abc"~left(-1)')~code)
+   self~assertSame("93.924", raised('"abc"~substr(0)')~code)
+@@ -133,6 +151,10 @@
+ syntax:
+   return condition("o")
+ 
++-- a string as a Rexx literal
++::routine q
++  return '"'arg(1)~changeStr('"', '""')'"'
++
+ ::class MakesAMethodError
+ ::method string
+   return "abc"~left(-1)
+Index: ooRexx/base/bif/CHARIN.testGroup
+===================================================================
+--- a/ooRexx/base/bif/CHARIN.testGroup	(revision 13366)
++++ b/ooRexx/base/bif/CHARIN.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2005-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -181,7 +181,7 @@
+   self~assertTrue(fileName \== "")
+   self~charInTestingFile = fileName
+ 
+-  self~expectSyntax(93.907)
++  self~expectSyntax(40.14)
+   r = charin(fileName, -3, 6)
+ 
+ 
+@@ -192,7 +192,7 @@
+   self~assertTrue(fileName \== "")
+   self~charInTestingFile = fileName
+ 
+-  self~expectSyntax(88.907)
++  self~expectSyntax(40.13)
+   r = charin(fileName, , -6)
+ 
+ 
+@@ -204,7 +204,7 @@
+   self~charInTestingFile = fileName
+ 
+   len = '1234567890'~length + .endOfLine~length
+-  self~expectSyntax(88.907)
++  self~expectSyntax(40.13)
+   r = charin(fileName, len, -3)
+ 
+ 
+@@ -215,7 +215,7 @@
+   self~assertTrue(fileName \== "")
+   self~charInTestingFile = fileName
+ 
+-  self~expectSyntax(93.907)
++  self~expectSyntax(40.14)
+   r = charin(fileName, 0, 6)
+ 
+ -- Tests using 0 for length.
+Index: ooRexx/base/bif/CHAROUT.testGroup
+===================================================================
+--- a/ooRexx/base/bif/CHAROUT.testGroup	(revision 13366)
++++ b/ooRexx/base/bif/CHAROUT.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2005-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -239,7 +239,7 @@
+   self~assertTrue(fileName \== "")
+   self~charOutTestingFile = fileName
+ 
+-  self~expectSyntax(93.907)
++  self~expectSyntax(40.14)
+   ret = charout(fileName, "X", -2)
+   self~assertSame(0, ret)
+ 
+@@ -250,7 +250,7 @@
+   self~assertTrue(fileName \== "")
+   self~charOutTestingFile = fileName
+ 
+-  self~expectSyntax(93.907)
++  self~expectSyntax(40.14)
+   ret = charout(fileName, "X", 0)
+   self~assertSame(0, ret)
+ 
+@@ -645,7 +645,7 @@
+   ret = stream(fileName, 'C', "open nobuffer")
+   self~assertSame("READY:", ret)
+ 
+-  self~expectSyntax(93.907)
++  self~expectSyntax(40.14)
+   ret = charout(fileName, "X", -2)
+   self~assertSame(0, ret)
+ 
+@@ -659,7 +659,7 @@
+   ret = stream(fileName, 'C', "open nobuffer")
+   self~assertSame("READY:", ret)
+ 
+-  self~expectSyntax(93.907)
++  self~expectSyntax(40.14)
+   ret = charout(fileName, "X", 0)
+   self~assertSame(0, ret)
+ 
+@@ -1060,7 +1060,7 @@
+   ret = stream(fileName, 'C', "open binary")
+   self~assertSame("READY:", ret)
+ 
+-  self~expectSyntax(93.907)
++  self~expectSyntax(40.14)
+   ret = charout(fileName, "X", -2)
+   self~assertSame(0, ret)
+ 
+@@ -1074,7 +1074,7 @@
+   ret = stream(fileName, 'C', "open binary")
+   self~assertSame("READY:", ret)
+ 
+-  self~expectSyntax(93.907)
++  self~expectSyntax(40.14)
+   ret = charout(fileName, "X", 0)
+   self~assertSame(0, ret)
+ 
+Index: ooRexx/base/bif/LINEOUT.testGroup
+===================================================================
+--- a/ooRexx/base/bif/LINEOUT.testGroup	(revision 13366)
++++ b/ooRexx/base/bif/LINEOUT.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -71,11 +71,11 @@
+   call lineout self~file, , "line"
+ 
+ ::method test_line_negative
+-  self~expectSyntax(93.907) -- Method argument 1 must be a positive whole number
++  self~expectSyntax(40.14) -- Method argument 1 must be a positive whole number
+   call lineout self~file, , -1
+ 
+ ::method test_line_zero
+-  self~expectSyntax(93.907) -- Method argument 1 must be a positive whole number
++  self~expectSyntax(40.14) -- Method argument 1 must be a positive whole number
+   call lineout self~file, , 0
+ 
+ ::method test_stdout
