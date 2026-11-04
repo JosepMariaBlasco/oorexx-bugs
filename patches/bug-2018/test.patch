@@ -1,0 +1,81 @@
+Index: ooRexx/base/keyword/SELECT.testGroup
+===================================================================
+--- a/ooRexx/base/keyword/SELECT.testGroup	(revision 13366)
++++ b/ooRexx/base/keyword/SELECT.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -633,6 +633,34 @@
+   -- END has no corresponding DO, LOOP, or SELECT
+   self~assertSyntaxError(10.1, "select; when 1 then; end")
+ 
++-- bug #2018: a WHEN cannot be the instruction of an empty THEN.
++-- .routine~new only translates: the code must not run, as running it
++-- crashed the interpreter before the fix.
++::method test_select_when_then_when
++  -- WHEN has no corresponding SELECT
++  self~expectSyntax(9.1)
++  .routine~new("test", ("select", "  when 0 then", "  when 1 then nop", "end"))
++
++::method test_select_when_then_when_true
++  -- WHEN has no corresponding SELECT
++  self~expectSyntax(9.1)
++  .routine~new("test", ("select", "  when 1 then", "  when 1 then nop", "end"))
++
++::method test_select_when_then_null_when
++  -- WHEN has no corresponding SELECT
++  self~expectSyntax(9.1)
++  .routine~new("test", "select; when 0 then; when 1 then nop; end")
++
++::method test_select_when_then_if_then_when
++  -- WHEN has no corresponding SELECT
++  self~expectSyntax(9.1)
++  .routine~new("test", "select; when 0 then if 1 then; when 1 then nop; end")
++
++::method test_select_when_then_otherwise
++  -- OTHERWISE has no corresponding SELECT
++  self~expectSyntax(9.2)
++  .routine~new("test", "select; when 0 then; otherwise nop; end")
++
+ ::method test_select_minimum_required
+   select
+     when 1 then self~assertTrue(1)
+Index: ooRexx/base/keyword/SelectCase.testGroup
+===================================================================
+--- a/ooRexx/base/keyword/SelectCase.testGroup	(revision 13366)
++++ b/ooRexx/base/keyword/SelectCase.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -223,6 +223,19 @@
+ ::method 'test_18'
+   self~assertSyntaxError(35.934, ("select case 1", "when 1,,2 then x = 1", "end"))
+ 
++-- bug #2018: a WHEN cannot be the instruction of an empty THEN.
++-- .routine~new only translates: the code must not run, as running it
++-- crashed the interpreter before the fix.
++::method 'test_when_then_when'
++  -- WHEN has no corresponding SELECT
++  self~expectSyntax(9.1)
++  .routine~new("test", ("select case 2", "when 1 then", "when 2 then nop", "end"))
++
++::method 'test_when_then_when_match'
++  -- WHEN has no corresponding SELECT
++  self~expectSyntax(9.1)
++  .routine~new("test", ("select case 1", "when 1 then", "when 2 then nop", "end"))
++
+ ::method 'test_19'
+   self~expectSyntax(7.3)
+   select case 3
