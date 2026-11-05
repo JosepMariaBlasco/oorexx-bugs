@@ -1,6 +1,6 @@
 name: exit-hang-openbsd
 
-# Does the test suite's rexx exit on OpenBSD? Plain trunk, no patches.
+# The full test suite on OpenBSD, and does its rexx exit? Plain trunk, no patches.
 # See ci/exit-hang-openbsd.sh.
 
 on:
@@ -15,6 +15,9 @@ on:
       grace:
         description: seconds rexx may take to exit after printing the summary
         default: "180"
+      user:
+        description: account that runs the suite ("root" = as root, as before)
+        default: "ci"
 
 jobs:
   openbsd:
@@ -28,7 +31,7 @@ jobs:
           usesh: true
           mem: 6144
           prepare: pkg_add -I cmake subversion gdb
-          run: sh ci/exit-hang-openbsd.sh ${{ inputs.rev }} ${{ inputs.minutes }} ${{ inputs.grace }}
+          run: sh ci/exit-hang-openbsd.sh ${{ inputs.rev }} ${{ inputs.minutes }} ${{ inputs.grace }} ${{ inputs.user }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
