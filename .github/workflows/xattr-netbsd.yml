@@ -1,0 +1,25 @@
+name: xattr-netbsd
+
+# What do listxattr()/extattr_list_file() return on NetBSD? (SysUnix
+# TEST_XATTR lists 1 attribute out of 2.) No ooRexx build. See
+# ci/xattr-netbsd.sh and ci/xattr-probe.c.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  netbsd:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the xattr probe in a NetBSD VM
+        uses: vmactions/netbsd-vm@v1
+        with:
+          usesh: true
+          run: sh ci/xattr-netbsd.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: xattr-netbsd
+          path: xattr
