@@ -1,0 +1,46 @@
+--- a/ooRexx/base/expressions/SPECIAL.testGroup
++++ b/ooRexx/base/expressions/SPECIAL.testGroup
+@@ -48,6 +48,7 @@
+ 
+ 
+ ::requires 'ooTest.frm' -- load the ooRexxUnit classes
++::requires 'FileUtils.cls' -- for issueCmd
+ 
+ ::class "SPECIAL.testGroup" subclass ooTestCase public
+ 
+@@ -533,3 +534,35 @@
+ ::method "test_96"
+    self~expectSyntax((34.901,"A"))
+    x = a && 1
++
++
++-- bug #1247: very long chains of operators or messages are built by the
++-- parser without recursion, but were evaluated recursively until the C stack
++-- ran out (SIGSEGV).  Now they must either work or raise 11.1 (control stack
++-- full), depending on the available stack.  They run in a child process, so
++-- that a crash cannot take the test suite with it.
++::method deepExpression
++  use strict arg name, expression, result
++  source = .array~of( -
++    "signal on syntax", -
++    expression, -
++    "say x", -
++    "exit", -
++    "syntax: say condition('o')~code")
++  program = .TemporaryTestFile~new(self, name".tmp.rex")~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName, output)
++  self~assertSame(1, output~items, name": rexx ended with rc" theRC "and no output")
++  self~assertTrue(output[1] == result | output[1] == "11.1", name": got" output[1])
++
++::method "test_1247_operators"
++  n = 1000000
++  self~deepExpression("deep_operators", "x =" "-1"~copies(n), -n)
++
++::method "test_1247_interpret"
++  n = 1000000
++  self~deepExpression("deep_interpret", "interpret 'x =' '-1'~copies("n")", -n)
++
++::method "test_1247_messages"
++  n = 1000000
++  self~deepExpression("deep_messages", "x = 1" || "~string"~copies(n), 1)
