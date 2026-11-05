@@ -6,18 +6,27 @@ name: xattr-netbsd
 
 on:
   workflow_dispatch:
+    inputs:
+      rev:
+        description: ooRexx SVN revision to build and test before/after the patch ("" = probe only)
+        default: ""
+      patch:
+        description: patch set under patches/
+        default: "xattr"
 
 jobs:
   netbsd:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - name: Run the xattr probe in a NetBSD VM
         uses: vmactions/netbsd-vm@v1
         with:
           usesh: true
-          run: sh ci/xattr-netbsd.sh
+          mem: 6144
+          prepare: /usr/sbin/pkg_add cmake subversion-base ncurses
+          run: sh ci/xattr-netbsd.sh "${{ inputs.rev }}" "${{ inputs.patch }}"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
