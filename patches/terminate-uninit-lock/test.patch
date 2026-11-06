@@ -1,0 +1,15 @@
+--- a/ooRexx/API/oo/ProcessInvocation.testGroup
++++ b/ooRexx/API/oo/ProcessInvocation.testGroup
+@@ -909,6 +909,12 @@
+ ::method TestTerminateAfterOtherThreadThenRootDetach
+   self~detachRootTerminate(5)
+ 
++-- bug #1650: Terminate() on a thread never attached to the instance ran the
++-- uninit methods with the kernel lock taken twice, so an uninit method that
++-- waits for a guard held by another thread kept the lock and hung both
++::method TestTerminateOnOtherThreadUninitWaitsForGuard
++  self~detachRootTerminate(6)
++
+ ::method detachRootTerminate private
+   use arg case
+   out. = ""
