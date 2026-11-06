@@ -1,0 +1,52 @@
+--- a/ooRexx/base/keyword/TRACE.testGroup
++++ b/ooRexx/base/keyword/TRACE.testGroup
+@@ -44,6 +44,7 @@
+   return group~suite~execute~~print
+ 
+ ::requires 'ooTest.frm'
++::requires 'FileUtils.cls' -- for issueCmd
+ 
+ ::class TRACE.testGroup subclass ooTestCase public
+ 
+@@ -1320,6 +1321,41 @@
+ 
+ -- ArrayStream allows to capture TRACE output to an Array
+ -- we inherit from Stream just for the SAY method
++-- bug #1871: if the .traceOutput destination is traced itself, each trace
++-- line it writes produces more trace lines, recursively, until the C stack
++-- runs out and the interpreter crashes.  Trace lines produced while one is
++-- being written to the destination now go to the console instead.  Run in a
++-- child process, so that a crash cannot take the test suite with it.
++::method test_traced_traceoutput_destination
++  source = .array~of( -
++    ".traceOutput~destination(.Tracer~new)", -
++    "call traced", -
++    ".traceOutput~destination", -
++    "say 'lines' .Tracer~count", -
++    "exit", -
++    "traced:", -
++    "  trace r", -
++    "  x = 1", -
++    "  return", -
++    "::class Tracer", -
++    "::attribute count class", -
++    "::method init class", -
++    "  self~count = 0", -
++    "::method lineout", -
++    "  trace r", -
++    "  .Tracer~count += 1", -
++    "  return 0")
++  program = .TemporaryTestFile~new(self, "traced_destination.tmp.rex")~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName, output)
++  self~assertSame(0, theRC, "rexx ended with rc" theRC)
++  -- the destination got the trace lines of the TRACED routine; its own
++  -- trace lines went to the console, before ours
++  self~assertTrue(output~items > 0, "no output")
++  self~assertSame("lines", output~lastItem~word(1), output~lastItem)
++  self~assertTrue(output~lastItem~word(2) > 0, output~lastItem)
++
++
+ ::class ArrayStream subclass Array inherit Stream
+ ::method init
+   expose line
