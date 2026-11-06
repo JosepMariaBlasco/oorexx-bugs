@@ -7,7 +7,7 @@ on:
     inputs:
       rev:
         description: ooRexx SVN revision
-        default: "13334"
+        default: "13397"
       patchset:
         description: directory under patches/
         default: apicontext-traps
@@ -16,7 +16,7 @@ on:
         default: ooRexx/API/oo/FUNCTION.testGroup
 
 env:
-  REV: ${{ inputs.rev || '13334' }}
+  REV: ${{ inputs.rev || '13397' }}
   PATCHSET: ${{ inputs.patchset || 'apicontext-traps' }}
   GROUP: ${{ inputs.group || 'ooRexx/API/oo/FUNCTION.testGroup' }}
 
