@@ -7,18 +7,18 @@ on:
     inputs:
       rev:
         description: ooRexx SVN revision
-        default: "13418"
+        default: "13419"
       patchset:
         description: directory under patches/
-        default: bug-1865
+        default: bug-2079
       group:
         description: test group to run first (path under test/trunk)
-        default: ooRexx/base/keyword/CALL.testGroup
+        default: ooRexx/API/oo/ProcessInvocation.testGroup
 
 env:
-  REV: ${{ inputs.rev || '13418' }}
-  PATCHSET: ${{ inputs.patchset || 'bug-1865' }}
-  GROUP: ${{ inputs.group || 'ooRexx/base/keyword/CALL.testGroup' }}
+  REV: ${{ inputs.rev || '13419' }}
+  PATCHSET: ${{ inputs.patchset || 'bug-2079' }}
+  GROUP: ${{ inputs.group || 'ooRexx/API/oo/ProcessInvocation.testGroup' }}
 
 jobs:
   source:
