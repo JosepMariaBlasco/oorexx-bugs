@@ -7,18 +7,18 @@ on:
     inputs:
       rev:
         description: ooRexx SVN revision
-        default: "13397"
+        default: "13418"
       patchset:
         description: directory under patches/
-        default: apicontext-traps
+        default: bug-1865
       group:
         description: test group to run first (path under test/trunk)
-        default: ooRexx/API/oo/FUNCTION.testGroup
+        default: ooRexx/base/keyword/CALL.testGroup
 
 env:
-  REV: ${{ inputs.rev || '13397' }}
-  PATCHSET: ${{ inputs.patchset || 'apicontext-traps' }}
-  GROUP: ${{ inputs.group || 'ooRexx/API/oo/FUNCTION.testGroup' }}
+  REV: ${{ inputs.rev || '13418' }}
+  PATCHSET: ${{ inputs.patchset || 'bug-1865' }}
+  GROUP: ${{ inputs.group || 'ooRexx/base/keyword/CALL.testGroup' }}
 
 jobs:
   source:

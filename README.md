@@ -23,6 +23,7 @@ the ooRexx test suite, next to an unpatched build of the same revision.
 | `halt-request-r13331` | A HALT is sometimes lost when posted to a frame that is ending; `halt-request` regenerated on r13331 (copyright hunks dropped); **committed** r13334 | [#2124](https://sourceforge.net/p/oorexx/bugs/2124/) |
 | `apicontext-traps` | Condition traps of a native activation turned off by a nested API call through its context (an untrapped SYNTAX then crashes); the ticket's fix, plus a test (`FUNCTION.testGroup`, a "nested" handler in orxfunction), on r13334; **committed** r13335 (code), r13336 (test) | [#2104](https://sourceforge.net/p/oorexx/bugs/2104/) |
 | `rexxinfo-date` | The build date from `__DATE__` in one place only, so that `.RexxInfo~name`, `.RexxInfo~date` and `rexx -v` agree | [#2051](https://sourceforge.net/p/oorexx/bugs/2051/) (and #1813), committed r13312 |
+| `bug-1865` | `./name` and `../name` skip the search order (caller's directory, current directory, REXX_PATH, PATH) and are resolved against the current directory only; with the patch they are searched for like any other relative name, `../name` in the parent of each directory; Unix and Windows (`SearchPath` replaced by a loop for these names), with tests in `CALL.testGroup` and `REQUIRES.testGroup`, on r13418 | [#1865](https://sourceforge.net/p/oorexx/bugs/1865/) |
 
 ## Results
 

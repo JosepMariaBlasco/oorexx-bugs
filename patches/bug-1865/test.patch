@@ -1,0 +1,111 @@
+--- a/ooRexx/base/keyword/CALL.testGroup
++++ b/ooRexx/base/keyword/CALL.testGroup
+@@ -1063,3 +1063,62 @@
+ 
+ called.rex~delete
+ my.dir~delete
++
++
++-- #1865: "./name" and "../name" are searched for like any other relative
++-- name: in the caller's directory, then in the current directory, then
++-- along REXX_PATH and PATH; "../name" is looked for in the parent of each
++::method test_bug_1865
++s = .ooRexxUnit.directory.separator
++base = .TemporaryTestDirectory~new(self, "test_bug_1865")~~create
++app = .TemporaryTestDirectory~new(base, "app")~~create
++lib = .TemporaryTestDirectory~new(base, "lib")~~create
++cwdRoot = .TemporaryTestDirectory~new(base, "cwdroot")~~create
++cwd = .TemporaryTestDirectory~new(cwdRoot, "cwd")~~create
++cwdLib = .TemporaryTestDirectory~new(cwdRoot, "lib3")~~create
++rp = .TemporaryTestDirectory~new(base, "rp")~~create
++rpSub = .TemporaryTestDirectory~new(rp, "sub")~~create
++rpLib = .TemporaryTestDirectory~new(rp, "lib2")~~create
++dirs = (rpLib, rpSub, rp, cwdLib, cwd, cwdRoot, lib, app, base)
++
++files = .Array~new
++files~append(.TemporaryTestFile~new(app, "same.rex")~~create("return 'same'"))
++files~append(.TemporaryTestFile~new(cwd, "same.rex")~~create("return 'current'"))
++files~append(.TemporaryTestFile~new(cwd, "cwdonly.rex")~~create("return 'current'"))
++files~append(.TemporaryTestFile~new(lib, "up.rex")~~create("return 'parent of same'"))
++files~append(.TemporaryTestFile~new(cwdLib, "upcwd.rex")~~create("return 'parent of current'"))
++files~append(.TemporaryTestFile~new(rpLib, "uprp.rex")~~create("return 'parent of REXX_PATH'"))
++-- the caller lives in "app"; it calls the name it is given
++main = .TemporaryTestFile~new(app, "main.rex")~~create(("use arg name", "call (name)", "return result"))
++files~append(main)
++
++names = ("."s"same.rex", "."s"cwdonly.rex", ".."s"lib"s"up.rex", -
++         ".."s"lib3"s"upcwd.rex", ".."s"lib2"s"uprp.rex")
++results = .Array~new(names~items)
++
++oldRexxPath = value("REXX_PATH", , "ENVIRONMENT")
++oldDirectory = directory()
++call value "REXX_PATH", rpSub~absolutePath, "ENVIRONMENT"
++call directory cwd~absolutePath
++signal on syntax name restore
++do i = 1 to names~items
++  call (main~absolutePath) names[i]
++  results[i] = result
++end
++restore:
++signal off syntax
++call directory oldDirectory
++call value "REXX_PATH", oldRexxPath, "ENVIRONMENT"
++
++do f over files
++  f~delete
++end
++do d over dirs
++  d~delete
++end
++
++self~assertSame("same", results[1], names[1])
++self~assertSame("current", results[2], names[2])
++self~assertSame("parent of same", results[3], names[3])
++self~assertSame("parent of current", results[4], names[4])
++self~assertSame("parent of REXX_PATH", results[5], names[5])
+--- a/ooRexx/base/directives/REQUIRES.testGroup
++++ b/ooRexx/base/directives/REQUIRES.testGroup
+@@ -429,4 +429,43 @@
+   return requires -- keep this to avoid temp files going away early
+ 
+ 
++-- #1865: "./name" and "../name" are searched for like any other relative
++-- name, so a package can require files next to it or in its parent
++-- directory, whatever the current directory is
++::method test_bug_1865
++  s = .ooRexxUnit.directory.separator
++  base = .TemporaryTestDirectory~new(self, "test_bug_1865_requires")~~create
++  app = .TemporaryTestDirectory~new(base, "app")~~create
++  lib = .TemporaryTestDirectory~new(base, "lib")~~create
++  cwd = .TemporaryTestDirectory~new(base, "cwd")~~create
++
++  files = .Array~new
++  files~append(.TemporaryTestFile~new(lib, "bug1865up.cls")~~create(("::class bug1865up public", "::constant where 'parent of same'")))
++  files~append(.TemporaryTestFile~new(app, "bug1865same.cls")~~create(("::class bug1865same public", "::constant where 'same'")))
++  main = .TemporaryTestFile~new(app, "main.rex")~~create(( -
++    "return .bug1865same~where '/' .bug1865up~where", -
++    "::requires '."s"bug1865same.cls'", -
++    "::requires '.."s"lib"s"bug1865up.cls'"))
++  files~append(main)
++
++  r = .nil
++  oldDirectory = directory()
++  call directory cwd~absolutePath
++  signal on syntax name restore
++  call (main~absolutePath)
++  r = result
++restore:
++  signal off syntax
++  call directory oldDirectory
++
++  do f over files
++    f~delete
++  end
++  do d over (cwd, lib, app, base)
++    d~delete
++  end
++
++  self~assertSame("same / parent of same", r)
++
++
+ ::options all syntax
