@@ -115,3 +115,7 @@ the ooRexx test suite, next to an unpatched build of the same revision.
 - `rexxinfo-date` (#2051) on r13311, Windows (MSVC): `RexxInfo.testGroup`
   21/21; full suite 24,540 tests with the same 7 failures as the unpatched
   build. No new warnings.
+- `bug-1865` (#1865) on r13418, Windows (MSVC, run 42395665659):
+  `CALL.testGroup` 31/31; full suite 24,671 tests with the same 9 failures
+  as the unpatched build, which also fails the two new `test_bug_1865`
+  (`CALL.testGroup`, `REQUIRES.testGroup`). No new warnings.
