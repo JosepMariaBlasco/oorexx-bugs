@@ -1,0 +1,135 @@
+Index: ooRexx/base/class/Message.testGroup
+===================================================================
+--- ooRexx/base/class/Message.testGroup	(revision 13421)
++++ ooRexx/base/class/Message.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -48,6 +48,7 @@
+ -- End of entry point.
+ 
+ ::requires 'ooTest.frm' -- load the ooRexxUnit classes
++::requires 'FileUtils.cls' -- for issueCmd
+ 
+ ::class "Message.testGroup" subclass ooTestCase public
+ 
+@@ -918,6 +919,63 @@
+   m~~startWith(o,(1,2))~result
+ 
+ 
++-- ~result raises again the condition object that ~errorCondition answers,
++-- and Rexx code can change it.  A missing RC or ERRORTEXT, an ADDITIONAL that
++-- is not an array and a line in the TRACEBACK that is not a string
++-- segfaulted.  They run in a child process, so that a crash cannot take the
++-- test suite with it.
++::method test_result_changed_condition
++  source = .array~of( -
++    "say test('rc', ""e~remove('RC'); e~remove('ERRORTEXT')"")", -
++    "say test('additional', ""e['ADDITIONAL'] = 'not an array'"")", -
++    "say test('object', ""e['CODE'] = '42.1'; e['ADDITIONAL'] = .object~new"")", -
++    "say test('code', ""e['CODE'] = .array~of(1)"")", -
++    "-- not trapped: the error is displayed with its traceback", -
++    "m = failed()", -
++    "m~errorCondition~traceback~insert(.array~of(1, 2))", -
++    "m~errorCondition~traceback~insert(.object~new)", -
++    "m~result", -
++    "exit", -
++    "test: procedure", -
++    "  use arg label, change", -
++    "  m = failed()", -
++    "  e = m~errorCondition", -
++    "  rc = e~rc; errortext = e~errortext; message = e~message", -
++    "  interpret change", -
++    "  signal on syntax", -
++    "  m~result", -
++    "  return label 'no error'", -
++    "syntax:", -
++    "  co = condition('o')", -
++    "  return label co~code (co~rc == rc) (co~errortext == errortext) (co~message == message)", -
++    "failed: procedure", -
++    "  m = .message~new(.t~new, 'boom')", -
++    "  m~start", -
++    "  m~wait", -
++    "  return m", -
++    "::class t", -
++    "::method boom", -
++    "  return 1/0")
++  program = .TemporaryTestFile~new(self, "result_changed_condition.tmp.rex")~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName, output)
++  results = .directory~new
++  do line over output
++    if wordpos(line~word(1), "rc additional object code") > 0 then
++      results[line~word(1)] = line~subword(2)
++  end
++  self~assertSame(4, results~items, "rexx ended with rc" theRC "after" output~items "lines")
++  -- RC and ERRORTEXT are set again from CODE
++  self~assertSame("42.3 1 1 1", results["rc"])
++  self~assertSame("93.900", results["additional"]~word(1))
++  self~assertSame("93.900", results["object"]~word(1))
++  self~assertSame("93.900", results["code"]~word(1))
++  -- the lines that are not strings are displayed by their default names
++  self~assertTrue(output~hasItem("an Array"), "rexx ended with rc" theRC)
++  self~assertTrue(output~hasItem("an Object"), "rexx ended with rc" theRC)
++  self~assertSame("Error 42.3:", output~lastItem~subword(1, 2))
++
++
+ ::class nixinoxi     -- has info method, but class is on its own
+ ::method clzInfo class
+   return "nixinoxi_class"
+Index: ooRexx/base/keyword/RAISE.testGroup
+===================================================================
+--- ooRexx/base/keyword/RAISE.testGroup	(revision 13421)
++++ ooRexx/base/keyword/RAISE.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2006-2024 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2006-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -44,6 +44,7 @@
+   return group~suite~execute~~print
+ 
+ ::requires 'ooTest.frm'
++::requires 'FileUtils.cls' -- for issueCmd
+ 
+ ::class RAISE.testGroup subclass ooTestCase public
+ 
+@@ -488,6 +489,28 @@
+ 
+ -- ArrayStream allows to capture TRACE output to an Array
+ -- we inherit from Stream just for the SAY method
++-- the TRACEBACK of a condition object is shared with the object CONDITION('O')
++-- answers.  RAISE PROPAGATE of a SYNTAX condition whose TRACEBACK had a line
++-- that is not a string segfaulted when the error was displayed.  It runs in a
++-- child process, so that a crash cannot take the test suite with it.
++::method test_propagate_traceback_not_string
++  source = .array~of( -
++    "call sub", -
++    "exit", -
++    "sub:", -
++    "  signal on syntax", -
++    "  x = 1/0", -
++    "syntax:", -
++    "  condition('o')~traceback~insert(.array~of(1, 2))", -
++    "  raise propagate")
++  program = .TemporaryTestFile~new(self, "propagate_traceback.tmp.rex")~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName, output)
++  -- the line that is not a string is displayed by its default name
++  self~assertTrue(output~hasItem("an Array"), "rexx ended with rc" theRC "after" output~items "lines")
++  self~assertSame("Error 42.3:", output~lastItem~subword(1, 2))
++
++
+ ::class ArrayStream subclass Array inherit Stream
+ ::method init
+   expose line
