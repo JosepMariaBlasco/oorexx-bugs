@@ -1,0 +1,125 @@
+Index: ooRexx/base/rexxutil/SysDumpVariables.testGroup
+===================================================================
+--- a/ooRexx/base/rexxutil/SysDumpVariables.testGroup	(revision 13427)
++++ b/ooRexx/base/rexxutil/SysDumpVariables.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -47,6 +47,7 @@
+ return testResult
+ 
+ ::requires 'ooTest.frm'
++::requires 'FileUtils.cls' -- for issueCmd
+ 
+ 
+ ::class "SysDumpVariables.testGroup" public subclass ooTestCase
+@@ -88,6 +89,57 @@
+   self~assertTrue(output~hasItem("Name=" || longName || ", Value='long'"))
+   self~assertTrue(output~hasItem("Name=VAR, Value='" || longValue || "'"))
+ 
++-- a variable whose STRING method raises an error segfaulted, even under
++-- SIGNAL ON SYNTAX; the error must reach the program.  A simple variable,
++-- a stem default value and a compound variable, in a child process, so
++-- that a crash cannot take the test suite with it.
++::method test_string_raises
++  source = .array~of( -
++    "call simple", -
++    "call stemDefault", -
++    "call compound", -
++    "exit", -
++    "simple: procedure", -
++    "  signal on syntax name trapSimple", -
++    "  a = 'first'", -
++    "  b = .raiser~new", -
++    "  call SysDumpVariables", -
++    "  say 'not trapped'", -
++    "  return", -
++    "trapSimple: say 'trapped' condition('o')~code", -
++    "  return", -
++    "stemDefault: procedure", -
++    "  signal on syntax name trapStem", -
++    "  s. = .raiser~new", -
++    "  call SysDumpVariables", -
++    "  say 'not trapped'", -
++    "  return", -
++    "trapStem: say 'trapped' condition('o')~code", -
++    "  return", -
++    "compound: procedure", -
++    "  signal on syntax name trapCompound", -
++    "  s.1 = .raiser~new", -
++    "  call SysDumpVariables", -
++    "  say 'not trapped'", -
++    "  return", -
++    "trapCompound: say 'trapped' condition('o')~code", -
++    "  return", -
++    "::class raiser", -
++    "::method string", -
++    "  raise syntax 93.900 array('raised')")
++  program = .TemporaryTestFile~new(self, "dump_string_raises.tmp.rex")~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName, output)
++  results = .array~new
++  do line over output
++    if line~word(1) == "trapped" | line == "not trapped" then
++      results~append(line)
++  end
++  self~assertSame(3, results~items, "rexx ended with rc" theRC "after" results~items "results")
++  do line over results
++    self~assertSame("trapped 93.900", line)
++  end
++
+ ::routine DumpVariables
+   -- no local variables are declared here
+   call SysDumpVariables arg(1)
+Index: ooRexx/base/rexxutil/SysFormatMessage.testGroup
+===================================================================
+--- a/ooRexx/base/rexxutil/SysFormatMessage.testGroup	(revision 13427)
++++ b/ooRexx/base/rexxutil/SysFormatMessage.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -47,6 +47,7 @@
+ return testResult
+ 
+ ::requires 'ooTest.frm'
++::requires 'FileUtils.cls' -- for issueCmd
+ 
+ 
+ ::class "SysFormatMessage.testGroup" public subclass ooTestCase
+@@ -91,4 +92,24 @@
+   self~assertSame(1~copies(32 * (2**9 - 1)), SysFormatMessage("&2&4&6&8&1&3&5&7&9", subs))
+ 
+ 
++-- a substitution value whose STRING method raises an error segfaulted; the
++-- error must reach the program.  In a child process, so that a crash cannot
++-- take the test suite with it.
++::method test_string_raises
++  source = .array~of( -
++    "signal on syntax", -
++    "x = SysFormatMessage('&1', .array~of(.raiser~new))", -
++    "say 'not trapped'", -
++    "exit", -
++    "syntax: say 'trapped' condition('o')~code", -
++    "::class raiser", -
++    "::method string", -
++    "  raise syntax 93.900 array('raised')")
++  program = .TemporaryTestFile~new(self, "format_string_raises.tmp.rex")~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName, output)
++  self~assertSame(1, output~items, "rexx ended with rc" theRC "after" output~items "lines")
++  self~assertSame("trapped 93.900", output[1])
++
++
+ ::options novalue error
