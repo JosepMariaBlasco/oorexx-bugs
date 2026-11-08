@@ -1,0 +1,91 @@
+Index: ooRexx/base/runtime.objects/environmentEntries.testGroup
+===================================================================
+--- a/ooRexx/base/runtime.objects/environmentEntries.testGroup	(revision 13433)
++++ b/ooRexx/base/runtime.objects/environmentEntries.testGroup	(working copy)
+@@ -197,7 +197,53 @@
+   .debugInput~destination
+   self~assertSame(3, a)
+ 
++-- a .debugInput whose LINEIN answers no value advances, like a null line
++::method test_debuginput_no_value
++  .debugInput~destination(.InputSource~new(.nil, "a=2", "=", "trace ?"))
++  self~disableTraceOutput -- .traceOutput~destination(.NullOutput~new)
++  trace ?r
++  a = 1
++  if a = 2 then a = 3
++  .debugInput~destination
++  self~assertSame(3, a)
+ 
++-- a .debugInput whose LINEIN answers a non-string is read through its
++-- string value (it used to be read as if it were a string); under this
++-- group's ::OPTIONS the conversion raises NOSTRING as a syntax error
++::method test_debuginput_non_string
++  .debugInput~destination(.InputSource~new(.StringValue~new("nop")))
++  self~disableTraceOutput -- .traceOutput~destination(.NullOutput~new)
++  signal on syntax name nostring
++  trace ?r
++  nop
++nostring:
++  trace off
++  .debugInput~destination
++  condition = condition("o")
++  self~assertFalse(condition~isNil, "NOSTRING should have been raised")
++  self~assertSame("98.973", condition~code)
++
++-- PULL and PARSE LINEIN with an .input whose LINEIN answers no value
++-- read a null string
++::method test_input_no_value
++  .input~destination(.InputSource~new(.nil, .nil))
++  pull a
++  parse linein b
++  .input~destination
++  self~assertSame("", a)
++  self~assertSame("", b)
++
++-- a queue whose PULL answers no value is empty: PULL reads from .input
++::method test_queue_no_value
++  queue = .stdque
++  .local~stdque = .InputSource~new(.nil)
++  .input~destination(.ArrayStream~of("a"))
++  pull a
++  .local~stdque = queue
++  .input~destination
++  self~assertSame("A", a)
++
++
+ -- .local has Streams .stderr, stdin, .stdout,
+ -- RexxQueue .stdque, and Array .syscargs
+ ::method test_local_streams_queue_array
+@@ -382,4 +428,32 @@
+   return self[line]
+ 
+ 
++-- answers LINEIN and PULL with its items, in order; for a .nil item, or
++-- when there are no items left, it answers no value
++::class InputSource
++::method init
++  expose items
++  use strict arg ...
++  items = arg(1, "a")
++::method lineIn
++  expose items
++  if items~isEmpty then
++    return
++  item = items~delete(1)
++  if item~isNil then
++    return
++  return item
++::method pull
++  forward message("LINEIN")
++
++-- an object that is not a string, whose string value is given
++::class StringValue
++::method init
++  expose value
++  use strict arg value
++::method string
++  expose value
++  return value
++
++
+ ::options all syntax error condition failure condition
