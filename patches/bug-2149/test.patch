@@ -1,0 +1,52 @@
+Index: ooRexx/base/keyword/TRACE.testGroup
+===================================================================
+--- a/ooRexx/base/keyword/TRACE.testGroup	(revision 13423)
++++ b/ooRexx/base/keyword/TRACE.testGroup	(working copy)
+@@ -1356,6 +1356,47 @@
+   self~assertTrue(output~lastItem~word(2) > 0, output~lastItem)
+ 
+ 
++-- a .traceOutput destination that raises an error (its LINEOUT fails, it has
++-- no LINEOUT, its LINEOUT recurses without end) made the interpreter crash
++-- later: the error was caught without unwinding the frames it went through.
++-- The trace lines now go to the console, and the program goes on.  Run in a
++-- child process, so that a crash cannot take the test suite with it.
++::method test_failing_traceoutput_destination
++  source = .array~of( -
++    "call test .Failing~new", -
++    "call test ''           -- a string has no LINEOUT", -
++    "call test .Deep~new", -
++    "say 'done'", -
++    "exit", -
++    "test:", -
++    "  .traceOutput~destination(arg(1))", -
++    "  call traced", -
++    "  .traceOutput~destination", -
++    "  return", -
++    "traced:", -
++    "  trace r", -
++    "  x = 'traced'", -
++    "  return", -
++    "::class Failing", -
++    "::method lineout", -
++    "  raise syntax 98.900 array('lineout failed')", -
++    "::class Deep", -
++    "::method lineout unguarded", -
++    "  call spin", -
++    "spin: call spin")
++  program = .TemporaryTestFile~new(self, "failing_destination.tmp.rex")~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName, output)
++  self~assertSame(0, theRC, "rexx ended with rc" theRC)
++  self~assertSame("done", output~lastItem)
++  -- the trace lines of the three calls went to the console
++  traced = 0
++  do line over output
++    if line~space == '>>> "traced"' then traced += 1
++  end
++  self~assertSame(3, traced)
++
++
+ ::class ArrayStream subclass Array inherit Stream
+ ::method init
+   expose line

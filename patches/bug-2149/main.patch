@@ -1,0 +1,78 @@
+Index: interpreter/concurrency/Activity.cpp
+===================================================================
+--- a/interpreter/concurrency/Activity.cpp	(revision 13423)
++++ b/interpreter/concurrency/Activity.cpp	(working copy)
+@@ -66,6 +66,7 @@
+ #include "InterpreterInstance.hpp"
+ #include "ActivityDispatcher.hpp"
+ #include "MessageDispatcher.hpp"
++#include "ConditionTrappingDispatcher.hpp"
+ #include "Interpreter.hpp"
+ #include "PackageClass.hpp"
+ #include "SystemInterpreter.hpp"
+@@ -3334,6 +3335,39 @@
+ 
+ 
+ /**
++ * Sends a trace line to the .traceoutput target.
++ */
++class TraceOutputInvoker : public TrapInvoker
++{
++ public:
++    TraceOutputInvoker(RexxObject *s, RexxObject *l) : stream(s), line(l) { }
++
++    void invoke() override
++    {
++        ProtectedObject result;
++        stream->sendMessage(GlobalNames::LINEOUT, line, result);
++    }
++
++ private:
++    RexxObject *stream;
++    RexxObject *line;
++};
++
++
++/**
++ * Runs a TraceOutputInvoker, trapping the errors it raises (not
++ * the other conditions, which behave as they did).
++ */
++class TraceOutputDispatcher : public ConditionTrappingDispatcher
++{
++ public:
++    TraceOutputDispatcher(TrapInvoker &t) : ConditionTrappingDispatcher(t) { }
++
++    bool trapConditions() override { return false; }
++};
++
++
++/**
+  * Write out a line of trace output.
+  *
+  * @param activation The current activation context.
+@@ -3368,16 +3402,16 @@
+                 bool &flag;
+             } sending(sendingTraceOutput);
+ 
+-            // need this in case the .traceoutput or the .error monitor
+-            // gives us an invalid object with no LINEOUT
+-            try
++            // the target can raise an error: it has no LINEOUT, or its LINEOUT
++            // fails.  The error is trapped in a native activation of its own,
++            // so that it unwinds only the frames of the LINEOUT call: a
++            // catch here would leave the frames between the target and the
++            // activation the error was thrown to on the stack
++            TraceOutputInvoker invoker(stream, traceObject);
++            TraceOutputDispatcher dispatcher(invoker);
++            run(dispatcher);
++            if (dispatcher.conditionOccurred())
+             {
+-                ProtectedObject result;
+-
+-                stream->sendMessage(GlobalNames::LINEOUT, traceObject, result);
+-            }
+-            catch (NativeActivation *)
+-            {
+                 Protected<RexxString> line = traceObject->requestString();
+                 lineOut(line); // don't lose the data!
+             }
