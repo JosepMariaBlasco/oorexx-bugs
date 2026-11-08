@@ -1,7 +1,8 @@
 Index: interpreter/concurrency/Activity.cpp
 ===================================================================
---- interpreter/concurrency/Activity.cpp	(revision 13421)
-+++ interpreter/concurrency/Activity.cpp	(working copy)
+diff --git a/main/interpreter/concurrency/Activity.cpp b/main/interpreter/concurrency/Activity.cpp
+--- a/main/interpreter/concurrency/Activity.cpp	(revision 13421)
++++ b/main/interpreter/concurrency/Activity.cpp	(revision 13422)
 @@ -787,7 +787,6 @@
      conditionObj->put(condition, GlobalNames::CONDITION);
  
@@ -169,8 +170,9 @@ Index: interpreter/concurrency/Activity.cpp
          }
 Index: interpreter/concurrency/Activity.hpp
 ===================================================================
---- interpreter/concurrency/Activity.hpp	(revision 13421)
-+++ interpreter/concurrency/Activity.hpp	(working copy)
+diff --git a/main/interpreter/concurrency/Activity.hpp b/main/interpreter/concurrency/Activity.hpp
+--- a/main/interpreter/concurrency/Activity.hpp	(revision 13421)
++++ b/main/interpreter/concurrency/Activity.hpp	(revision 13422)
 @@ -123,6 +123,7 @@
      bool        raiseCondition(DirectoryClass *);
      void        checkConditionSyntaxOptions(RexxString *, RexxObject *, RexxObject *);
@@ -181,8 +183,9 @@ Index: interpreter/concurrency/Activity.hpp
      void        raiseException(RexxErrorCodes, RexxString *, ArrayClass *, RexxObject *);
 Index: interpreter/concurrency/MessageDispatcher.cpp
 ===================================================================
---- interpreter/concurrency/MessageDispatcher.cpp	(revision 13421)
-+++ interpreter/concurrency/MessageDispatcher.cpp	(working copy)
+diff --git a/main/interpreter/concurrency/MessageDispatcher.cpp b/main/interpreter/concurrency/MessageDispatcher.cpp
+--- a/main/interpreter/concurrency/MessageDispatcher.cpp	(revision 13421)
++++ b/main/interpreter/concurrency/MessageDispatcher.cpp	(revision 13422)
 @@ -65,10 +65,12 @@
  {
      // use the base error handling and set our return code to the negated error code.

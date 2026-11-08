@@ -1,7 +1,8 @@
 Index: ooRexx/base/class/Message.testGroup
 ===================================================================
---- ooRexx/base/class/Message.testGroup	(revision 13421)
-+++ ooRexx/base/class/Message.testGroup	(working copy)
+diff --git a/test/ooRexx/base/class/Message.testGroup b/test/ooRexx/base/class/Message.testGroup
+--- a/test/ooRexx/base/class/Message.testGroup	(revision 13422)
++++ b/test/ooRexx/base/class/Message.testGroup	(revision 13423)
 @@ -1,7 +1,7 @@
  #!/usr/bin/env rexx
  /*----------------------------------------------------------------------------*/
@@ -85,8 +86,9 @@ Index: ooRexx/base/class/Message.testGroup
    return "nixinoxi_class"
 Index: ooRexx/base/keyword/RAISE.testGroup
 ===================================================================
---- ooRexx/base/keyword/RAISE.testGroup	(revision 13421)
-+++ ooRexx/base/keyword/RAISE.testGroup	(working copy)
+diff --git a/test/ooRexx/base/keyword/RAISE.testGroup b/test/ooRexx/base/keyword/RAISE.testGroup
+--- a/test/ooRexx/base/keyword/RAISE.testGroup	(revision 13422)
++++ b/test/ooRexx/base/keyword/RAISE.testGroup	(revision 13423)
 @@ -1,7 +1,7 @@
  #!/usr/bin/env rexx
  /*----------------------------------------------------------------------------*/
