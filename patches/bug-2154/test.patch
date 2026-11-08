@@ -2,90 +2,94 @@ Index: ooRexx/base/runtime.objects/environmentEntries.testGroup
 ===================================================================
 --- a/ooRexx/base/runtime.objects/environmentEntries.testGroup	(revision 13433)
 +++ b/ooRexx/base/runtime.objects/environmentEntries.testGroup	(working copy)
-@@ -197,7 +197,53 @@
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2007-2024 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2007-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -44,6 +44,7 @@
+   return group~suite~execute~~print
+ 
+ ::requires 'ooTest.frm' -- load the ooRexxUnit classes
++::requires 'FileUtils.cls' -- for issueCmd
+ 
+ ::class environmentEntries.testGroup subclass ooTestCase public
+ 
+@@ -197,7 +198,73 @@
    .debugInput~destination
    self~assertSame(3, a)
  
-+-- a .debugInput whose LINEIN answers no value advances, like a null line
-+::method test_debuginput_no_value
-+  .debugInput~destination(.InputSource~new(.nil, "a=2", "=", "trace ?"))
-+  self~disableTraceOutput -- .traceOutput~destination(.NullOutput~new)
-+  trace ?r
-+  a = 1
-+  if a = 2 then a = 3
-+  .debugInput~destination
-+  self~assertSame(3, a)
++-- the line read for interactive debug (.debugInput), PULL and PARSE PULL
++-- (the queue, then .input) and PARSE LINEIN (.input) is the answer of a
++-- LINEIN or PULL method, which can be a Rexx method.  An answer of no value
++-- crashed the interpreter, and a non-string answer to .debugInput was read
++-- as if it were a string.  No value must read as a null string (for the
++-- queue, as an empty queue), and a non-string through its string value.
++-- In a child process, so that a crash cannot take the test suite with it.
++::method test_input_no_value_non_string
++  source = .array~of( -
++    ".traceOutput~destination(.sink~new)", -
++    ".debugInput~destination(.inputSource~new(.nil, 'a=2', '=', 'trace off'))", -
++    "trace ?r", -
++    "a = 1", -
++    "if a = 2 then a = 3", -
++    ".debugInput~destination", -
++    "say '[3]' '[' || a || ']'", -
++    ".debugInput~destination(.inputSource~new(.stringValue~new('b=1'), 'trace off'))", -
++    "b = 0", -
++    "trace ?r", -
++    "nop", -
++    ".debugInput~destination", -
++    "say '[1]' '[' || b || ']'", -
++    ".input~destination(.inputSource~new(.nil, .nil, .stringValue~new('c')))", -
++    "parse linein x; say '[]' '[' || x || ']'", -
++    "pull x; say '[]' '[' || x || ']'", -
++    "pull x; say '[C]' '[' || x || ']'", -
++    ".input~destination", -
++    ".local~stdque = .inputSource~new(.nil, .stringValue~new('e'))", -
++    ".input~destination(.inputSource~new('d'))", -
++    "parse pull x; say '[d]' '[' || x || ']'", -
++    "parse pull x; say '[e]' '[' || x || ']'", -
++    ".input~destination", -
++    "exit", -
++    "-- answers LINEIN and PULL with its items, in order; for a .nil item, or", -
++    "-- when there are no items left, it answers no value", -
++    "::class inputSource", -
++    "::method init", -
++    "  expose items", -
++    "  items = arg(1, 'a')", -
++    "::method linein", -
++    "  expose items", -
++    "  if items~isEmpty then return", -
++    "  item = items~delete(1)", -
++    "  if item~isNil then return", -
++    "  return item", -
++    "::method pull", -
++    "  forward message('LINEIN')", -
++    "-- not a string; its string value is given", -
++    "::class stringValue", -
++    "::method init", -
++    "  expose value", -
++    "  use arg value", -
++    "::method string", -
++    "  expose value", -
++    "  return value", -
++    "::class sink", -
++    "::method lineout", -
++    "  return 0")
++  program = .TemporaryTestFile~new(self, "input_no_value.tmp.rex")~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName, output)
++  self~assertSame(7, output~items, "rexx ended with rc" theRC "after" output~items "lines")
++  do line over output
++    self~assertSame(line~word(1), line~word(2), line)
++  end
  
-+-- a .debugInput whose LINEIN answers a non-string is read through its
-+-- string value (it used to be read as if it were a string); under this
-+-- group's ::OPTIONS the conversion raises NOSTRING as a syntax error
-+::method test_debuginput_non_string
-+  .debugInput~destination(.InputSource~new(.StringValue~new("nop")))
-+  self~disableTraceOutput -- .traceOutput~destination(.NullOutput~new)
-+  signal on syntax name nostring
-+  trace ?r
-+  nop
-+nostring:
-+  trace off
-+  .debugInput~destination
-+  condition = condition("o")
-+  self~assertFalse(condition~isNil, "NOSTRING should have been raised")
-+  self~assertSame("98.973", condition~code)
-+
-+-- PULL and PARSE LINEIN with an .input whose LINEIN answers no value
-+-- read a null string
-+::method test_input_no_value
-+  .input~destination(.InputSource~new(.nil, .nil))
-+  pull a
-+  parse linein b
-+  .input~destination
-+  self~assertSame("", a)
-+  self~assertSame("", b)
-+
-+-- a queue whose PULL answers no value is empty: PULL reads from .input
-+::method test_queue_no_value
-+  queue = .stdque
-+  .local~stdque = .InputSource~new(.nil)
-+  .input~destination(.ArrayStream~of("a"))
-+  pull a
-+  .local~stdque = queue
-+  .input~destination
-+  self~assertSame("A", a)
-+
 +
  -- .local has Streams .stderr, stdin, .stdout,
  -- RexxQueue .stdque, and Array .syscargs
  ::method test_local_streams_queue_array
-@@ -382,4 +428,32 @@
-   return self[line]
- 
- 
-+-- answers LINEIN and PULL with its items, in order; for a .nil item, or
-+-- when there are no items left, it answers no value
-+::class InputSource
-+::method init
-+  expose items
-+  use strict arg ...
-+  items = arg(1, "a")
-+::method lineIn
-+  expose items
-+  if items~isEmpty then
-+    return
-+  item = items~delete(1)
-+  if item~isNil then
-+    return
-+  return item
-+::method pull
-+  forward message("LINEIN")
-+
-+-- an object that is not a string, whose string value is given
-+::class StringValue
-+::method init
-+  expose value
-+  use strict arg value
-+::method string
-+  expose value
-+  return value
-+
-+
- ::options all syntax error condition failure condition
