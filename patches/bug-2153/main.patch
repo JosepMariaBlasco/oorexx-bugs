@@ -1,0 +1,13 @@
+Index: interpreter/platform/windows/SysRexxUtil.cpp
+===================================================================
+--- a/interpreter/platform/windows/SysRexxUtil.cpp	(revision 13429)
++++ b/interpreter/platform/windows/SysRexxUtil.cpp	(working copy)
+@@ -1944,7 +1944,7 @@
+ 
+ RexxRoutine1(int, SysCloseMutexSem, uintptr_t, h)
+ {
+-    return !ReleaseMutex((HANDLE)h) ? GetLastError() : 0;
++    return !CloseHandle((HANDLE)h) ? GetLastError() : 0;
+ }
+ 
+ /*************************************************************************
