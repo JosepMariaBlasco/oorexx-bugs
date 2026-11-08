@@ -1,0 +1,64 @@
+Index: ooRexx/base/class/Class.testGroup
+===================================================================
+--- a/ooRexx/base/class/Class.testGroup	(revision 13429)
++++ b/ooRexx/base/class/Class.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2006-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2006-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -48,6 +48,7 @@
+ -- End of entry point.
+ 
+ ::requires 'ooTest.frm' -- load the ooRexxUnit classes
++::requires 'FileUtils.cls' -- for issueCmd
+ 
+    /* the following "floating" methods define their own object scope and
+       are stored in a directory by the runtime system and can be retrieved
+@@ -1147,6 +1148,42 @@
+   self~expectSyntax(93.952)
+   .defineTesterBase~defineMethods(.stringTable~of(("somemethod", ("x = something",.nil,"return 123"))))
+ 
++-- the methods argument of defineMethods, enhanced and subclass is sent
++-- SUPPLIER; when that is a user method that answered something other than a
++-- supplier (a string, or nothing), the interpreter crashed.  It must raise
++-- 98.994.  In a child process, so that a crash cannot take the test suite
++-- with it.
++::method test_methods_supplier_not_a_supplier
++  source = .array~of( -
++    "call test 98.994, '.k~defineMethods(.answersString~new)'", -
++    "call test 98.994, '.k~defineMethods(.answersNothing~new)'", -
++    "call test 98.994, 'o = .object~enhanced(.answersString~new)'", -
++    "call test 98.994, 'c = .object~subclass(""c"", .class, .answersString~new)'", -
++    "call test 'ok', '.k~defineMethods(.answersSupplier~new)'", -
++    "exit", -
++    "test: procedure", -
++    "  use arg expected, clause", -
++    "  signal on syntax", -
++    "  interpret clause", -
++    "  say 'ok' expected clause", -
++    "  return", -
++    "syntax: say condition('o')~code expected clause", -
++    "  return", -
++    "::class k", -
++    "::class answersString", -
++    "::method supplier; return 'x'", -
++    "::class answersNothing", -
++    "::method supplier; return", -
++    "::class answersSupplier", -
++    "::method supplier; return .supplier~new(.array~of('return 42'), .array~of('m'))")
++  program = .TemporaryTestFile~new(self, "methods_supplier.tmp.rex")~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName, output)
++  self~assertSame(5, output~items, "rexx ended with rc" theRC "after" output~items "lines")
++  do line over output
++    self~assertSame(line~word(2), line~word(1), line)
++  end
++
+ ::method test_delete_no_args
+   self~expectSyntax(88.901)
+   .defineTesterBase~delete
