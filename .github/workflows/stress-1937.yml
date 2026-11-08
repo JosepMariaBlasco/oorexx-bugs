@@ -1,0 +1,98 @@
+name: stress-1937
+
+# Bug #1937 (crash while evaluating GUARD ... WHEN under ::OPTIONS TRACE) on Windows,
+# at several trunk revisions: r13113 (before #2003, r13114), r13114, r13183 (before
+# #2072, r13184), r13184, and a recent one. Each revision runs the ticket's
+# testGuard.rex many times, one process each, and probes/bug-1937/stress.rex, which
+# repeats the same scenario in one process.
+
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/stress-1937.yml", "probes/bug-1937/**"]
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: testGuard.rex runs per revision
+        default: "300"
+      rounds:
+        description: stress.rex rounds per pass (3 passes)
+        default: "1000"
+
+env:
+  RUNS: ${{ inputs.runs || '300' }}
+  ROUNDS: ${{ inputs.rounds || '1000' }}
+
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Export trunk at each revision
+        run: |
+          sudo apt-get install -y -qq subversion > /dev/null
+          for r in 13113 13114 13183 13184 13421; do
+            svn export -q -r $r https://svn.code.sf.net/p/oorexx/code-0/main/trunk src
+            tar czf src-$r.tgz src && rm -rf src
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sources
+          path: "*.tgz"
+
+  stress:
+    needs: source
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rev: ["13113", "13114", "13183", "13184", "13421"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: sources
+      - name: Unpack
+        shell: bash
+        run: tar xzf src-${{ matrix.rev }}.tgz
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Build
+        shell: cmd
+        run: |
+          mkdir build
+          cd build
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ..\src > ..\cmake.log 2>&1 || (type ..\cmake.log & exit /b 1)
+          ninja > ..\ninja.log 2>&1 || (type ..\ninja.log & exit /b 1)
+      - name: testGuard.rex, one process per run
+        shell: pwsh
+        continue-on-error: true
+        timeout-minutes: 60
+        run: |
+          $env:PATH = "$env:GITHUB_WORKSPACE\build\bin;$env:PATH"
+          Set-Location probes\bug-1937
+          $null > NUL.txt
+          $tally = @{}
+          for ($i = 1; $i -le [int]$env:RUNS; $i++) {
+            $p = Start-Process -FilePath rexx -ArgumentList "testGuard.rex" -NoNewWindow -PassThru -RedirectStandardOutput o.txt -RedirectStandardError e.txt -RedirectStandardInput NUL.txt
+            if (-not $p.WaitForExit(20000)) { $p.Kill(); $rc = 'HANG' } else { $rc = '0x{0:X8}' -f $p.ExitCode }
+            $err = Select-String -Path e.txt -Pattern 'Error \d+' | Select-Object -First 1
+            if ($err) { $rc = "$rc " + $err.Matches[0].Value }
+            $tally[$rc] = 1 + [int]$tally[$rc]
+            if ($rc -ne '0x00000000') { Write-Output "run $i : $rc" }
+          }
+          Write-Output "r${{ matrix.rev }} testGuard.rex x$env:RUNS:"
+          $tally.GetEnumerator() | Sort-Object Name | ForEach-Object { Write-Output ("  {0} : {1}" -f $_.Name, $_.Value) }
+      - name: stress.rex, 3 passes
+        shell: pwsh
+        continue-on-error: true
+        timeout-minutes: 60
+        run: |
+          $env:PATH = "$env:GITHUB_WORKSPACE\build\bin;$env:PATH"
+          Set-Location probes\bug-1937
+          $null > NUL.txt
+          for ($k = 1; $k -le 3; $k++) {
+            $p = Start-Process -FilePath rexx -ArgumentList "stress.rex $env:ROUNDS" -NoNewWindow -PassThru -RedirectStandardOutput o.txt -RedirectStandardError e.txt -RedirectStandardInput NUL.txt
+            if (-not $p.WaitForExit(900000)) { $p.Kill(); $rc = 'HANG' } else { $rc = '0x{0:X8}' -f $p.ExitCode }
+            $n = (Select-String -Path e.txt -Pattern '^\s+7 \*-\*').Count
+            $err = (Select-String -Path e.txt -Pattern 'Error \d+(\.\d+)?' | Select-Object -First 3 | ForEach-Object { $_.Line.Trim() }) -join ' | '
+            Write-Output "r${{ matrix.rev }} stress pass $k : rc=$rc rounds=$n $err"
+          }
