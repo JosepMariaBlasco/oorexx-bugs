@@ -1,0 +1,77 @@
+Index: ooRexx/base/class/Object.testGroup
+===================================================================
+--- a/ooRexx/base/class/Object.testGroup	(revision 13425)
++++ b/ooRexx/base/class/Object.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2008-2022 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2008-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -51,6 +51,7 @@
+   Directives, Classes, or Routines.
+ \* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ ::requires 'ooTest.frm'
++::requires 'FileUtils.cls' -- for issueCmd
+ 
+ /* class: object.testGroup - - - - - - - - - - - - - - - - - - - - - - - - - -*\
+ 
+@@ -1172,7 +1173,55 @@
+   self~assertEquals(2, r~size)
+   self~assertSameList(('a', 'b'), r)
+ 
++-- when an object's MAKEARRAY method answered something that is not an Array
++-- (a List, a string, or nothing), the places that need an array read the
++-- answer as an array, and crashed.  It must count as "not converted": each
++-- place raises its own error.  An Array subclass is still accepted.  The
++-- cases run in a child process, so that a crash cannot take the test suite
++-- with it.
++::method test_request_array_not_an_array
++  source = .array~of( -
++    "call test 98.946, 'f = .fwd~new~go(.answersList~new)'", -
++    "call test 93.961, 'm = .method~new(""m"", .answersString~new)'", -
++    "call test 93.961, 'm = .method~new(""m"", .answersList~new)'", -
++    "call test 93.961, 'r = .routine~new(""r"", .answersList~new)'", -
++    "call test 98.939, 'raise syntax 93.900 additional (.answersList~new)'", -
++    "call test 93.972, 'x = ""abc""~send(.answersList~new)'", -
++    "call test 88.913, 'x = ""abc""~sendWith(""LEFT"", .answersList~new)'", -
++    "call test 88.913, 'm = .message~new(""abc"", ""LEFT"", ""A"", .answersList~new)'", -
++    "call test 98.913, 'm = ""abc""~startWith(""LEFT"", .answersList~new)'", -
++    "call test 98.913, 'x = .routine~new(""r"", ""return 1"")~callWith(.answersList~new)'", -
++    "call test 98.913, 's = .supplier~new(.answersString~new, .array~of(1))'", -
++    "call test 98.913, 'do x over .answersList~new; end'", -
++    "call test 'ok', 'if .fwd~new~go(.answersSubclass~new) \== ""2 a b"" then exit 1'", -
++    "exit", -
++    "test: procedure", -
++    "  use arg expected, clause", -
++    "  signal on syntax", -
++    "  interpret clause", -
++    "  say 'ok' expected clause", -
++    "  return", -
++    "syntax: say condition('o')~code expected clause", -
++    "  return", -
++    "::class fwd", -
++    "::method go; forward message 'M' arguments (arg(1))", -
++    "::method m; return arg() arg(1) arg(2)", -
++    "::class answersList", -
++    "::method makeArray; return .list~of('a', 'b')", -
++    "::class answersString", -
++    "::method makeArray; return 'return 1'", -
++    "::class answersSubclass", -
++    "::method makeArray; return .arraySubclass~of('a', 'b')", -
++    "::class arraySubclass subclass array")
++  program = .TemporaryTestFile~new(self, "request_array.tmp.rex")~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName, output)
++  self~assertSame(13, output~items, "rexx ended with rc" theRC "after" output~items "lines")
++  do line over output
++    self~assertSame(line~word(2), line~word(1), line)
++  end
+ 
++
+ -- TODO:  add UNKNOWN method tests
+ -- TODO:  add hashcode/== override tests for collections.
+ 
