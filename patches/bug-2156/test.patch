@@ -1,0 +1,68 @@
+Index: ooRexx/utilities/rexxc/rexxc.testGroup
+===================================================================
+--- a/ooRexx/utilities/rexxc/rexxc.testGroup	(revision 13445)
++++ b/ooRexx/utilities/rexxc/rexxc.testGroup	(working copy)
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env rexx
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2018-2025 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2018-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -213,6 +213,54 @@
+   return
+ 
+ 
++-- [bugs:#2156]: the language level a compiled program requires is the
++-- 5.0.0 level (6.05), so that older releases can run it, unless the program
++-- uses a feature that came later: the GC built-in function and ::OPTIONS
++-- NUMERIC INHERIT or NOINHERIT (5.2.0, 6.06). A GC that resolves to an
++-- internal label is not the built-in function.
++::method test_bug_2156
++  nl = .endOfLine
++  cases = .Array~of( -
++    .Array~of(60500, "say 1"), -
++    .Array~of(60600, "x = gc()"), -
++    .Array~of(60600, "x = 'GC'()"), -
++    .Array~of(60600, "call gc"), -
++    .Array~of(60600, "call 'GC'"), -
++    .Array~of(60600, "call on halt name gc"), -
++    .Array~of(60500, "x = gc()" || nl || "exit" || nl || "gc: return 1"), -
++    .Array~of(60500, "call gc" || nl || "exit" || nl || "gc: return"), -
++    .Array~of(60600, "::options numeric inherit"), -
++    .Array~of(60600, "::options numeric noinherit") -
++  )
++  source = .TemporaryTestFile~new(self, "test_bug_2156.rex")
++  compiled = .TemporaryTestFile~new(self, "test_bug_2156.rexc")
++  do case over cases
++    source~create(case[2])
++    address "" "rexxc" self~q(source~fullName) self~q(compiled~fullName) "-s" with output stem o. error stem e.
++    self~assertRc(0, rc, "rexxc expected to compile" case[2] "with rc 0")
++    self~assertSame(case[1], requiredLanguageLevel(compiled), "required language level of:" case[2])
++  end
++  source~delete
++  compiled~delete
++
++
++-- the language level stored in the header of a program compiled by rexxc:
++-- after the shebang line, a 16-byte tag ("/**/@REXX"), four 16-bit fields
++-- (magic number, image version, word size, big-endian flag) and the level
++-- as a 32-bit number
++::routine requiredLanguageLevel
++  use strict arg file
++  s = .Stream~new(file)
++  s~open("read shared")
++  data = s~charIn(1, s~chars)
++  s~close
++  p = data~pos("/**/@REXX")
++  level = data~substr(p + 24, 4)
++  if data~substr(p + 22, 2) == "0000"x then
++    level = level~reverse
++  return level~c2d
++
++
+ -- second word of the resource name is the expected return code
+ ::resource "empty 0"
+ ::END
