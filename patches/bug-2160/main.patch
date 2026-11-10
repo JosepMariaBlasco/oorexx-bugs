@@ -1,0 +1,62 @@
+Index: interpreter/execution/SecurityManager.cpp
+===================================================================
+--- a/interpreter/execution/SecurityManager.cpp	(revision 13458)
++++ b/interpreter/execution/SecurityManager.cpp	(working copy)
+@@ -340,8 +340,15 @@
+         {
+             securityManager = secObject;
+         }
+-        // the name can be replaced by the security manager
+-        return (RexxString *)securityArgs->get(GlobalNames::NAME);
++        // the name can be replaced by the security manager, by any object:
++        // use its string value.  A removed entry means access is not
++        // permitted.
++        RexxObject *newName = (RexxObject *)securityArgs->get(GlobalNames::NAME);
++        if (newName == OREF_NULL)
++        {
++            return OREF_NULL;
++        }
++        return newName->requestString();
+     }
+     // not handled, return the name unchanged
+     return name;
+Index: interpreter/package/PackageManager.cpp
+===================================================================
+--- a/interpreter/package/PackageManager.cpp	(revision 13458)
++++ b/interpreter/package/PackageManager.cpp	(working copy)
+@@ -729,13 +729,16 @@
+     SecurityManager *manager = activity->getEffectiveSecurityManager();
+     RexxObject *securityManager = OREF_NULL;
+ 
+-    shortName = manager->checkRequiresAccess(shortName, securityManager);
++    // the security manager can replace the name with a new object, which
++    // nothing else holds: protect it while we use it
++    Protected<RexxString> checkedShortName = manager->checkRequiresAccess(shortName, securityManager);
+     // no return means forbidden access to this name.  Just return
+     // nothing
+-    if (shortName == OREF_NULL)
++    if (checkedShortName.isNull())
+     {
+         return OREF_NULL;
+     }
++    shortName = checkedShortName;
+ 
+ 
+     // first check this using the specified name.  Since we need to perform checks in the
+@@ -766,13 +769,14 @@
+     // it's possible we don't have a file version of this
+     if (resolvedName != OREF_NULL)
+     {
+-        resolvedName = manager->checkRequiresAccess(resolvedName, securityManager);
++        Protected<RexxString> checkedResolvedName = manager->checkRequiresAccess(resolvedName, securityManager);
+         // no return means forbidden access to this name.  Just return
+         // nothing
+-        if (resolvedName == OREF_NULL)
++        if (checkedResolvedName.isNull())
+         {
+             return OREF_NULL;
+         }
++        resolvedName = checkedResolvedName;
+ 
+ 
+         // now check again using the longer name

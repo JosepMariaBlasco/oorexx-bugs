@@ -1,0 +1,41 @@
+--- a/ooRexx/base/security.manager/SecurityManager.testGroup
++++ b/ooRexx/base/security.manager/SecurityManager.testGroup
+@@ -51,6 +51,7 @@
+ return testResult
+ 
+ ::requires 'ooTest.frm' -- load the ooRexxUnit classes
++::requires 'FileUtils.cls' -- for issueCmd
+ 
+ 
+ 
+@@ -345,6 +346,30 @@
+   self~assertTrue(mgr~Entry("REQUIRES", "NAME")~endsWith(filename))
+   self~assertTrue(return~endsWith(replacedFilename))
+ 
++-- the security manager can replace NAME with any object: its string value
++-- is used as the name.  An object that is not a string used to crash the
++-- interpreter, so this runs in a child process.
++::method test_requires_handle_name_not_a_string
++  -- the requires file must exist: it is looked for before the security
++  -- manager is asked
++  required = .TemporaryTestFile~new(self, "requires_name_present.tmp.cls")~create(.array~of("return"))
++  source = .array~of( -
++    "r = .Routine~new('', ""signal on syntax; return .Package~new('', '')~loadPackage('" || required~fullName || "')~name; syntax: return condition('o')~code condition('o')~message"")", -
++    "r~setSecurityManager(.mgr~new)", -
++    "say r~call", -
++    "::class mgr", -
++    "::method unknown", -
++    "  use arg name, args", -
++    "  if name \= 'REQUIRES' then return 0", -
++    "  args[1]['NAME'] = .object~new", -
++    "  return 1")
++  program = .TemporaryTestFile~new(self, "requires_name.tmp.rex")~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName, output)
++  self~assertSame(1, output~items, "rexx ended with rc" theRC "after" output~items "lines")
++  self~assertSame("3.1", output[1]~word(1), output[1])
++  self~assertTrue(output[1]~pos('"an Object"') > 0, output[1])
++
+ -- we handle the REQUIRES event by setting a security manager for the loaded package
+ ::method test_requires_handle_security_manager
+   filename = self~createRequires("handle_security_manager")
