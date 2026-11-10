@@ -1,0 +1,72 @@
+name: symbols
+
+# Builds an ooRexx release from SVN with the MSVC toolset the release used,
+# with optimization unchanged and a PDB, so that addresses in a dump from the
+# release binaries can be matched to functions.
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: SVN URL of the source (main), with a peg revision
+        default: "https://svn.code.sf.net/p/oorexx/code-0/main/branches/5.2.0/trunk@13156"
+      toolset:
+        description: MSVC toolset version (vcvars_ver)
+        default: "14.43"
+      component:
+        description: Visual Studio component that installs the toolset
+        default: "Microsoft.VisualStudio.Component.VC.14.43.17.13.x86.x64"
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - name: Export the source
+        shell: bash
+        run: svn export -q "${{ inputs.url }}" src
+      - name: Install the toolset if needed
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          Write-Output "VS: $vs"
+          Get-ChildItem "$vs\VC\Tools\MSVC" | ForEach-Object { Write-Output "toolset: $($_.Name)" }
+          if (-not (Get-ChildItem "$vs\VC\Tools\MSVC" | Where-Object { $_.Name -like "${{ inputs.toolset }}.*" })) {
+            $p = Start-Process -Wait -PassThru -FilePath "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vs_installer.exe" -ArgumentList "modify", "--installPath", "`"$vs`"", "--add", "${{ inputs.component }}", "--quiet", "--norestart", "--nocache"
+            Write-Output "installer exit: $($p.ExitCode)"
+            Get-ChildItem "$vs\VC\Tools\MSVC" | ForEach-Object { Write-Output "toolset: $($_.Name)" }
+          }
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          toolset: ${{ inputs.toolset }}
+      - name: Build
+        shell: cmd
+        run: |
+          cl 2>&1 | findstr /c:"Version"
+          link 2>&1 | findstr /c:"Version"
+          mkdir build
+          cd build
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ^
+            "-DCMAKE_C_FLAGS_RELEASE=/O2 /Ob2 /DNDEBUG /Zi" ^
+            "-DCMAKE_CXX_FLAGS_RELEASE=/O2 /Ob2 /DNDEBUG /Zi" ^
+            "-DCMAKE_SHARED_LINKER_FLAGS_RELEASE=/DEBUG /OPT:REF /OPT:ICF /INCREMENTAL:NO" ^
+            "-DCMAKE_EXE_LINKER_FLAGS_RELEASE=/DEBUG /OPT:REF /OPT:ICF /INCREMENTAL:NO" ^
+            ..\src > ..\cmake.log 2>&1 || (type ..\cmake.log & exit /b 1)
+          ninja > ..\ninja.log 2>&1
+          set rc=%errorlevel%
+          findstr /i /c:" error " ..\ninja.log
+          exit /b %rc%
+      - name: Collect
+        shell: bash
+        run: |
+          mkdir out
+          cp build/bin/rexx.dll build/bin/rexx.pdb build/bin/rexx.exe out/ 2>/dev/null || true
+          find build -name "rexx.pdb" -o -name "rexx.dll" | head
+          cp $(find build -name "rexx.pdb" | head -1) out/ 2>/dev/null || true
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: symbols
+          path: |
+            out
+            cmake.log
+            ninja.log
