@@ -1,0 +1,57 @@
+--- a/ooRexx/base/rexxutil/SysStemCopy.testGroup
++++ b/ooRexx/base/rexxutil/SysStemCopy.testGroup
+@@ -51,6 +51,7 @@
+   Directives, Classes, or Routines.
+ \* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ ::requires 'ooTest.frm'
++::requires 'FileUtils.cls' -- for issueCmd
+ 
+ /* class: SysStemCopy.testGroup  - - - - - - - - - - - - - - - - - - - - - - -*\
+ 
+@@ -220,6 +221,46 @@
+   self~expectSyntax("40.924")
+   rv = SysStemCopy('a.',b.,,,,'o')
+ 
++-- a stem given by name is resolved through the caller's variable.  When the
++-- STRING method of a later argument dropped that variable, nothing else
++-- held the stem, and a garbage collection reclaimed it before the routine
++-- used it (SysStemCopy, SysStemDelete, SysStemInsert: SIGSEGV).  The cases
++-- run in a child process, so that a crash cannot take the test suite with
++-- it.
++::method test_stem_name_dropped_by_argument
++  source = .array~of( -
++    "call test 'copy'", -
++    "call test 'delete'", -
++    "call test 'insert'", -
++    "exit", -
++    "test: procedure", -
++    "  use arg which", -
++    "  .dropper~new~run(which)", -
++    "  return", -
++    "::class dropper", -
++    "::method run", -
++    "  expose s.", -
++    "  use arg which", -
++    "  s.0 = 2; s.1 = copies('first ', 3); s.2 = copies('second ', 3)", -
++    "  select", -
++    "    when which = 'copy'   then r = SysStemCopy('s.', 't.', self)", -
++    "    when which = 'delete' then r = SysStemDelete('s.', self)", -
++    "    when which = 'insert' then r = SysStemInsert('s.', self, 'new')", -
++    "  end", -
++    "  say r which", -
++    "::method string", -
++    "  expose s.", -
++    "  drop s.", -
++    "  do 200000; x = copies('filler ', 50); end", -
++    "  return 1")
++  program = .TemporaryTestFile~new(self, "stem_name_dropped.tmp.rex")~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName, output)
++  self~assertSame(3, output~items, "rexx ended with rc" theRC "after" output~items "lines")
++  do line over output
++    self~assertSame("0", line~word(1), line)
++  end
++
+ 
+ 
+ 

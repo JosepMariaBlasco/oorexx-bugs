@@ -1,0 +1,33 @@
+--- a/interpreter/execution/NativeActivation.cpp
++++ b/interpreter/execution/NativeActivation.cpp
+@@ -542,6 +542,10 @@
+                             {
+                                 reportStemError(inputIndex, argument);
+                             }
++                            // the stem is held only through the caller's
++                            // variable, which the STRING method of a later
++                            // argument can drop: protect it for the call
++                            createLocalReference(stem);
+                             descriptors[outputIndex].value.value_RexxStemObject = (RexxStemObject)stem;
+                             break;
+                         }
+@@ -1142,6 +1146,8 @@
+             {
+                 return false;
+             }
++            // held only through the caller's variable: protect it
++            createLocalReference(stem);
+             value->value.value_RexxStemObject = (RexxStemObject)stem;
+             return true;
+         }
+--- a/interpreter/api/CallContextStubs.cpp
++++ b/interpreter/api/CallContextStubs.cpp
+@@ -179,7 +179,7 @@
+     ApiContext context(c);
+     try
+     {
+-        return (RexxStemObject)context.context->resolveStemVariable((RexxObject *)s);
++        return (RexxStemObject)context.ret(context.context->resolveStemVariable((RexxObject *)s));
+     }
+     catch (NativeActivation *)
+     {
