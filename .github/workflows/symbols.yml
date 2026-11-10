@@ -51,7 +51,8 @@ jobs:
             "-DCMAKE_SHARED_LINKER_FLAGS_RELEASE=/DEBUG /OPT:REF /OPT:ICF /INCREMENTAL:NO" ^
             "-DCMAKE_EXE_LINKER_FLAGS_RELEASE=/DEBUG /OPT:REF /OPT:ICF /INCREMENTAL:NO" ^
             ..\src > ..\cmake.log 2>&1 || (type ..\cmake.log & exit /b 1)
-          ninja > ..\ninja.log 2>&1
+          rem only the interpreter DLL: rexx.exe writes a rexx.pdb of its own over it
+          ninja rexx > ..\ninja.log 2>&1
           set rc=%errorlevel%
           findstr /i /c:" error " ..\ninja.log
           exit /b %rc%
@@ -59,9 +60,7 @@ jobs:
         shell: bash
         run: |
           mkdir out
-          cp build/bin/rexx.dll build/bin/rexx.pdb build/bin/rexx.exe out/ 2>/dev/null || true
-          find build -name "rexx.pdb" -o -name "rexx.dll" | head
-          cp $(find build -name "rexx.pdb" | head -1) out/ 2>/dev/null || true
+          cp build/bin/rexx.dll build/bin/rexx.pdb out/
           ls -la out
       - uses: actions/upload-artifact@v4
         with:
