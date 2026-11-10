@@ -1,0 +1,50 @@
+--- a/ooRexx/base/keyword/FORWARD.testGroup
++++ b/ooRexx/base/keyword/FORWARD.testGroup
+@@ -47,6 +47,7 @@
+ 
+ 
+ ::requires 'ooTest.frm' -- load the ooRexxUnit classes
++::requires 'FileUtils.cls' -- for issueCmd
+ 
+ ::class "FORWARD.testGroup" subclass ooTestCase public
+ 
+@@ -102,6 +103,39 @@
+ 
+ 
+ 
++-- a FORWARD without CONTINUE that resolves back to its own method recurses
++-- until the control stack is full.  The 11.1 crashed the interpreter: the
++-- forwarded frames were removed from the stack (and so no longer marked)
++-- before the exception object was built from them, and a garbage collection
++-- while it was being built reclaimed them.  The cases run in a child
++-- process, so that a crash cannot take the test suite with it.
++::method test_forward_self_recursion
++  source = .array~of( -
++    "call test 'plain'", -
++    "call test 'toSelf'", -
++    "call test 'message'", -
++    "exit", -
++    "test: procedure", -
++    "  use arg name", -
++    "  signal on syntax", -
++    "  .forwardSelf~new~send(name)", -
++    "  say 'no error' name", -
++    "  return", -
++    "syntax: say condition('o')~code name", -
++    "  return", -
++    "::class forwardSelf", -
++    "::method plain; forward", -
++    "::method toSelf; forward to (self)", -
++    "::method message; forward message ('MESSAGE')")
++  program = .TemporaryTestFile~new(self, "forward_self.tmp.rex")~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName, output)
++  self~assertSame(3, output~items, "rexx ended with rc" theRC "after" output~items "lines")
++  do line over output
++    self~assertSame("11.1", line~word(1), line)
++  end
++
++
+ ::class nixinoxi     -- has info method, but class is on its own
+ ::method clzInfo class
+   return "nixinoxi_class"
