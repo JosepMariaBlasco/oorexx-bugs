@@ -1,7 +1,7 @@
 Index: ooRexx/base/keyword/CATCH.testGroup
 ===================================================================
---- ooRexx/base/keyword/CATCH.testGroup	(nonexistent)
-+++ ooRexx/base/keyword/CATCH.testGroup	(working copy)
+--- a/ooRexx/base/keyword/CATCH.testGroup	(nonexistent)
++++ b/ooRexx/base/keyword/CATCH.testGroup	(working copy)
 @@ -0,0 +1,540 @@
 +#!/usr/bin/env rexx
 +/*----------------------------------------------------------------------------*/
