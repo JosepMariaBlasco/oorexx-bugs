@@ -1,0 +1,149 @@
+name: windows-installer
+
+# Builds a Windows (x86_64) NSIS installer of ooRexx trunk with a patch set
+# applied, the same way the ooRexx release installer is built (target
+# nsis_template_installer), and runs one test group with the build.
+
+on:
+  workflow_dispatch:
+    inputs:
+      rev:
+        description: ooRexx SVN revision
+        default: "13472"
+      patchset:
+        description: directory under patches/
+        default: rfe-31-catch
+      suffix:
+        description: added to the installer's file name
+        default: catch-rfe31
+      group:
+        description: test group to run with the build (path under test/trunk)
+        default: ooRexx/base/keyword/CATCH.testGroup
+      docs:
+        description: folder under oorexx-docs/ on SourceForge for the PDFs
+        default: 5.3.0beta
+
+env:
+  REV: ${{ inputs.rev }}
+  PATCHSET: ${{ inputs.patchset }}
+  SUFFIX: ${{ inputs.suffix }}
+  GROUP: ${{ inputs.group }}
+  DOCS: ${{ inputs.docs }}
+
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export trunk and apply the patch set
+        run: |
+          for try in 1 2 3; do
+            sudo apt-get update -qq > /dev/null && sudo apt-get install -y -qq subversion > /dev/null && break
+            sleep 20
+          done
+          base=https://svn.code.sf.net/p/oorexx/code-0
+          svn export -q -r $REV $base/main/trunk src/main
+          svn export -q -r $REV $base/test/trunk src/test
+          if [ -f patches/$PATCHSET/main.patch ]; then (cd src/main && patch -p1 < $GITHUB_WORKSPACE/patches/$PATCHSET/main.patch); fi
+          if [ -f patches/$PATCHSET/test.patch ]; then (cd src/test && patch -p1 < $GITHUB_WORKSPACE/patches/$PATCHSET/test.patch); fi
+          # an export has no working copy, so CMake would set the build level
+          # to 0: give it the revision a checkout would report
+          lvl=$(svn info -r $REV $base/main/trunk --show-item last-changed-revision)
+          echo "build level $lvl"
+          sed -i "s/^set (ORX_BLD_LVL 0)/set (ORX_BLD_LVL $lvl)/" src/main/CMakeLists.txt
+          grep -n "^set (ORX_BLD_LVL" src/main/CMakeLists.txt
+          tar czf src.tgz src
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sources-installer
+          path: src.tgz
+          retention-days: 1
+
+  installer:
+    needs: source
+    runs-on: windows-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: sources-installer
+      - name: Unpack
+        shell: bash
+        run: tar xzf src.tgz
+      - name: NSIS (ooRexx build utilities) and the PDF documentation
+        shell: bash
+        run: |
+          get() { curl -sSL --retry 3 --fail -o "$2" "https://sourceforge.net/projects/oorexx/files/$1/download"; }
+          # the NSIS build with long-string support and the plugins the
+          # ooRexx installer needs, as the ooRexx build documentation says
+          get oorexx-buildutils/Windows/1.2.0/Nsis_longStrings.zip nsis.zip
+          get oorexx-buildutils/Windows/1.2.0/ooRexx-build-utils-1.2.0-windows.zip buildutils.zip
+          get oorexx-docs/$DOCS/ooRexx-$DOCS-pdf.zip docs.zip
+          mkdir nsis buildutils docs
+          (cd nsis && unzip -q ../nsis.zip)
+          (cd buildutils && unzip -q ../buildutils.zip)
+          (cd docs && unzip -q ../docs.zip)
+          makensis=$(find nsis -iname makensis.exe | head -1)
+          nsisdir=$(dirname "$makensis")
+          echo "makensis: $makensis"
+          # add ooRexxProcess.dll if this NSIS does not carry it
+          for d in $(find nsis -type d -iname plugins); do
+            ls "$d" | tr '\n' ' '; echo " <- $d"
+            if ! ls "$d" | grep -qi oorexxprocess; then
+              find buildutils -iname ooRexxProcess.dll -exec cp {} "$d"/ \;
+            fi
+          done
+          docdir=$(dirname "$(find docs -iname rexxref.pdf | head -1)")
+          echo "docs: $docdir"; ls "$docdir"
+          echo "MAKENSIS=$(cygpath -w "$GITHUB_WORKSPACE/$makensis")" >> $GITHUB_ENV
+          echo "DOCDIR=$(cygpath -w "$GITHUB_WORKSPACE/$docdir")" >> $GITHUB_ENV
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Build
+        shell: cmd
+        run: |
+          mkdir build
+          cd build
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DDOC_SOURCE_DIR="%DOCDIR%" -DNSIS_EXECUTABLE="%MAKENSIS%" ..\src\main > ..\cmake.log 2>&1 || (type ..\cmake.log & exit /b 1)
+          findstr /c:"Revision Number" /c:"NSIS" ..\cmake.log
+          ninja > ..\ninja.log 2>&1
+          set rc=%errorlevel%
+          findstr /i /c:"error" /c:"warning C4" ..\ninja.log
+          exit /b %rc%
+      - name: Test group
+        shell: cmd
+        continue-on-error: true
+        run: |
+          set PATH=%GITHUB_WORKSPACE%\build\bin;%PATH%
+          rexx -v
+          cd src\test
+          rexx testOORexx.rex -s -S -f %GROUP% < NUL > %GITHUB_WORKSPACE%\group.log 2>&1
+          type %GITHUB_WORKSPACE%\group.log
+      - name: Installer
+        shell: cmd
+        run: |
+          cd build
+          ninja nsis_template_installer > ..\nsis.log 2>&1
+          set rc=%errorlevel%
+          type ..\nsis.log | findstr /i /c:"error" /c:"warning" /c:"Output:" /c:"Total size"
+          exit /b %rc%
+      - name: Name the installer
+        shell: bash
+        run: |
+          exe=$(ls build/NSIS/*.exe | head -1)
+          echo "built: $exe"
+          mkdir out
+          cp "$exe" "out/$(basename "$exe" .exe).$SUFFIX.exe"
+          ls -l out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer
+          path: out/*.exe
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs-installer
+          path: |
+            cmake.log
+            ninja.log
+            group.log
+            nsis.log

@@ -1,0 +1,556 @@
+Index: ooRexx/base/keyword/CATCH.testGroup
+===================================================================
+--- ooRexx/base/keyword/CATCH.testGroup	(nonexistent)
++++ ooRexx/base/keyword/CATCH.testGroup	(working copy)
+@@ -0,0 +1,540 @@
++#!/usr/bin/env rexx
++/*----------------------------------------------------------------------------*/
++/*                                                                            */
++/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
++/*                                                                            */
++/* This program and the accompanying materials are made available under       */
++/* the terms of the Common Public License v1.0 which accompanies this         */
++/* distribution. A copy is also available at the following address:           */
++/* https://www.oorexx.org/license.html                                        */
++/*                                                                            */
++/* Redistribution and use in source and binary forms, with or                 */
++/* without modification, are permitted provided that the following            */
++/* conditions are met:                                                        */
++/*                                                                            */
++/* Redistributions of source code must retain the above copyright             */
++/* notice, this list of conditions and the following disclaimer.              */
++/* Redistributions in binary form must reproduce the above copyright          */
++/* notice, this list of conditions and the following disclaimer in            */
++/* the documentation and/or other materials provided with the distribution.   */
++/*                                                                            */
++/* Neither the name of Rexx Language Association nor the names                */
++/* of its contributors may be used to endorse or promote products             */
++/* derived from this software without specific prior written permission.      */
++/*                                                                            */
++/* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS        */
++/* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT          */
++/* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS          */
++/* FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT   */
++/* OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,      */
++/* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED   */
++/* TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,        */
++/* OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY     */
++/* OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING    */
++/* NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS         */
++/* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.               */
++/*                                                                            */
++/*----------------------------------------------------------------------------*/
++  parse source . . s
++  group = .TestGroup~new(s)
++  group~add(.CATCH.testGroup)
++
++  if group~isAutomatedTest then return group
++
++  testResult = group~suite~execute~~print
++
++return testResult
++
++
++
++::requires 'ooTest.frm' -- load the ooRexxUnit classes
++::requires 'FileUtils.cls' -- for issueCmd
++
++-- CATCH clauses of DO, LOOP and SELECT (prototype for RFE #31)
++::class "CATCH.testGroup" subclass ooTestCase public
++
++-- a caught condition ends the whole loop; the control variable keeps its value
++::method test_loop_ends
++  out = ''
++  do i = 1 to 5
++    out = out i
++    if i = 3 then x = 1/0
++  catch syntax
++    out = out 'c'
++  end
++  self~assertEquals(' 1 2 3 c 3', out i)
++
++-- no condition: the body runs into CATCH and the loop goes on
++::method test_no_condition
++  out = ''
++  loop i = 1 to 3
++    out = out i
++  catch syntax
++    out = out 'no'
++  end
++  self~assertEquals(' 1 2 3', out)
++
++::method test_simple_do_no_condition
++  out = 'body'
++  do
++    nop
++  catch syntax
++    out = 'catch'
++  end
++  self~assertEquals('body', out)
++
++-- several clauses, condition lists, the first match wins
++::method test_clauses
++  out = ''
++  do
++    call raiseUserTwo
++  catch user one, notready
++    out = 'one'
++  catch user two, user three
++    out = 'two'
++  catch any
++    out = 'any'
++  end
++  self~assertEquals('two', out)
++
++::method test_any
++  do
++    x = 1/0
++  catch any
++    out = condition('C')
++  end
++  self~assertEquals('SYNTAX', out)
++
++-- SIGL, RC, CONDITION() as after SIGNAL ON
++::method test_condition_info
++  do
++    line = .context~line; x = 1/0
++  catch syntax
++    out = condition('C') condition('I') rc condition('O')~code sigl
++  end
++  self~assertEquals('SYNTAX CATCH 42 42.3' line, out)
++
++-- SELECT
++::method test_select_when
++  select
++    when 1 then x = 1/0
++  catch syntax
++    out = condition('O')~code
++  end
++  self~assertEquals('42.3', out)
++
++::method test_select_otherwise
++  select
++    when 0 then nop
++    otherwise x = 1/0
++  catch syntax
++    out = 'otherwise'
++  end
++  self~assertEquals('otherwise', out)
++
++::method test_select_otherwise_no_condition
++  out = ''
++  select
++    when 0 then nop
++    otherwise out = 'otherwise'
++  catch syntax
++    out = 'catch'
++  end
++  self~assertEquals('otherwise', out)
++
++::method test_select_no_when_true
++  select
++    when 0 then nop
++  catch syntax
++    out = condition('O')~code
++  end
++  self~assertEquals('7.3', out)
++
++::method test_select_case
++  select case 1/0
++    when 1 then nop
++  catch syntax
++    out = 'case'
++  end
++  self~assertEquals('case', out)
++
++-- the clauses also cover the loop's own clause
++::method test_loop_control
++  do i = 1 to 1/0
++    nop
++  catch syntax
++    out = 'control'
++  end
++  self~assertEquals('control', out)
++
++-- blocks entered in the body are ended; an outer loop goes on
++::method test_nested
++  out = ''
++  do i = 1 to 3
++    do
++      do j = 1 to 2
++        if i = 2 then x = 1/0
++      end
++    catch syntax
++      out = out 'c'i
++    end
++    out = out i
++  end
++  self~assertEquals(' 1 c2 2 3', out)
++
++-- a condition raised in a CATCH clause goes to an outer block
++::method test_condition_in_clause
++  do
++    do
++      x = 1/0
++    catch syntax
++      out = 'inner'
++      y = 1/0
++    end
++  catch syntax
++    out = out 'outer'
++  end
++  self~assertEquals('inner outer', out)
++
++-- a SIGNAL ON enabled before the block is hidden by CATCH
++::method test_trap_before_block
++  signal on syntax name before
++  do
++    x = 1/0
++  catch syntax
++    out = 'catch'
++  end
++  signal off syntax
++  self~assertEquals('catch', out)
++  return
++before:
++  self~fail('the SIGNAL ON trap was used')
++
++-- a SIGNAL ON enabled inside the block hides CATCH
++::method test_trap_inside_block
++  out = ''
++  do
++    signal on syntax name inside
++    x = 1/0
++  catch syntax
++    out = 'catch'
++  end
++inside:
++  self~assertEquals('', out)
++
++-- SIGNAL OFF inside the block makes CATCH visible again
++::method test_signal_off_inside_block
++  do
++    signal on syntax name inside
++    signal off syntax
++    x = 1/0
++  catch syntax
++    out = 'catch'
++  end
++  self~assertEquals('catch', out)
++  return
++inside:
++  self~fail('the SIGNAL ON trap was used')
++
++-- a CALL ON enabled inside the block hides CATCH
++::method test_call_on_inside_block
++  out = ''
++  do
++    call on user u5 name called
++    call raiseUserU5
++    out = out 'resumed'
++  catch user u5
++    out = out 'catch'
++  end
++  call off user u5
++  self~assertEquals(' called resumed', out)
++  return
++called:
++  out = out 'called'
++  return
++
++-- internal routines are covered; SIGL is the line of the CALL
++::method test_internal_routine
++  do
++    line = .context~line; call divide
++  catch syntax
++    out = 'caught' sigl
++  end
++  self~assertEquals('caught' line, out)
++  return
++divide:
++  x = 1/0
++  return
++
++-- a trap of the internal routine itself wins
++::method test_internal_routine_trap
++  do
++    call trapping
++  catch syntax
++    out = 'catch'
++  end
++  self~assertEquals('routine', out)
++  return
++trapping:
++  signal on syntax name routineTrap
++  x = 1/0
++  return
++routineTrap:
++  out = 'routine'
++  return
++
++-- methods: SYNTAX propagates, NOTREADY does not
++::method test_method_syntax
++  do
++    .CatchHelper~new~divide
++  catch syntax
++    out = 'syntax'
++  end
++  self~assertEquals('syntax', out)
++
++::method test_method_notready
++  out = 'not caught'
++  do
++    .CatchHelper~new~notready
++  catch notready
++    out = 'caught'
++  end
++  self~assertEquals('not caught', out)
++
++-- INTERPRET
++::method test_interpret_parent_block
++  do
++    interpret 'x = 1/0'
++  catch syntax
++    out = 'parent'
++  end
++  self~assertEquals('parent', out)
++
++::method test_interpret_own_block
++  interpret 'do; x = 1/0; catch syntax; out = "inside"; end'
++  self~assertEquals('inside', out)
++
++-- LEAVE and ITERATE in a CATCH clause
++::method test_leave_unnamed_in_loop_clause
++  self~expectSyntax(28.6)
++  do i = 1 to 2
++    x = 1/0
++  catch syntax
++    leave
++  end
++
++::method test_iterate_owner
++  self~expectSyntax(28.7)
++  loop j = 1 to 2
++    x = 1/0
++  catch syntax
++    iterate j
++  end
++
++::method test_leave_owner_label
++  self~expectSyntax(28.6)
++  do label blk
++    x = 1/0
++  catch syntax
++    leave blk
++  end
++
++::method test_leave_outer
++  out = ''
++  do i = 1 to 3
++    do j = 1 to 3
++      if j = 2 then x = 1/0
++    catch syntax
++      out = out i'.'j
++      leave i
++    end
++  end
++  self~assertEquals(' 1.2 1', out i)
++
++::method test_leave_from_simple_do_clause
++  out = ''
++  do i = 1 to 3
++    do
++      if i = 2 then x = 1/0
++    catch syntax
++      leave
++    end
++    out = out i
++  end
++  self~assertEquals(' 1 2', out i)
++
++-- NOVALUE, LOSTDIGITS, NOSTRING are raised while a CATCH is active
++::method test_novalue
++  do
++    x = undefinedVariable
++  catch novalue
++    out = condition('D')
++  end
++  self~assertEquals('UNDEFINEDVARIABLE', out)
++
++::method test_lostdigits
++  do
++    numeric digits 5
++    x = 1234567 + 1
++  catch lostdigits
++    out = 'lostdigits'
++  end
++  self~assertEquals('lostdigits', out)
++
++::method test_nostring
++  do
++    x = .object~new || 'a'
++  catch nostring
++    out = 'nostring'
++  end
++  self~assertEquals('nostring', out)
++
++-- ::OPTIONS NOTREADY SYNTAX: CATCH NOTREADY wins, the option applies after the block
++::method test_options_syntax
++  src = .array~of( -
++    "do", -
++    "  x = linein('nonexistent.file.CATCH.testGroup')", -
++    "catch notready", -
++    "  out = 'notready'", -
++    "end", -
++    "signal on syntax", -
++    "x = linein('nonexistent.file.CATCH.testGroup')", -
++    "return out 'no syntax'", -
++    "syntax: return out condition('O')~code", -
++    "::options notready syntax")
++  self~assertEquals('notready 98.974', .routine~new('t', src)~call)
++
++-- compiled programs keep the clauses (rexxc, encoded)
++::method test_compiled
++  src = .array~of( -
++    "do i = 1 to 3", -
++    "  if i = 2 then x = 1/0", -
++    "catch notready, syntax", -
++    "  return condition('C') i", -
++    "end")
++  source = SysTempFileName(.File~temporaryPath || .File~separator || 'catch-????.rex')
++  compiled = SysTempFileName(.File~temporaryPath || .File~separator || 'catch-????.rxc')
++  .stream~new(source)~~open("write replace")~~arrayout(src)~~close
++  address system 'rexxc "'source'" "'compiled'" -s -e'
++  s = .stream~new(compiled)~~open("read")
++  code = s~arrayin
++  s~close
++  call SysFileDelete source
++  call SysFileDelete compiled
++  self~assertEquals('SYNTAX 2', .routine~new('t', code)~call)
++
++-- CATCH is still an ordinary symbol elsewhere
++::method test_assignment
++  catch = 1
++  self~assertSame(1, catch)
++
++-- translation errors
++::method test_stray_catch
++  self~assertSyntaxError(10.8, .array~of("say 1", "catch syntax"))
++
++::method test_catch_after_then
++  self~assertSyntaxError(10.8, .array~of("do", "if 1 then", "catch syntax", "end"))
++
++::method test_no_condition_name
++  self~assertSyntaxError(20.936, .array~of("do", "nop", "catch", "end"))
++
++::method test_bad_condition_name
++  self~assertSyntaxError(25.939, .array~of("do", "nop", "catch foo", "end"))
++
++::method test_missing_comma
++  self~assertSyntaxError(21.904, .array~of("do", "nop", "catch syntax notready", "end"))
++
++::method test_user_without_name
++  self~assertSyntaxError(20.915, .array~of("do", "nop", "catch user", "end"))
++
++::method test_unclosed_do
++  self~assertSyntaxError(14.1, .array~of("do", "nop", "catch syntax", "say 1"))
++
++::method test_unclosed_select
++  self~assertSyntaxError(14.2, .array~of("select", "when 1 then nop", "catch syntax", "say 1"))
++
++::method test_label_in_clause
++  self~assertSyntaxError(47.2, .array~of("do", "nop", "catch syntax", "lab:", "end"))
++
++
++-- Child processes: the condition crosses stack frames (internal routines,
++-- a routine, INTERPRET) and a garbage collection runs between the catch and
++-- the code of the clause, so that a crash cannot take the test suite with it.
++::method test_child_internal_routine_gc
++  source = .array~of( -
++    "n = 0", -
++    "do i = 1 to 50", -
++    "  do", -
++    "    call sub i", -
++    "  catch syntax", -
++    "    call gc", -
++    "    if condition('O')~code = 42.3 then n += 1", -
++    "  end", -
++    "end", -
++    "say 'n='n", -
++    "exit", -
++    "sub: procedure", -
++    "  call deeper arg(1)", -
++    "  return", -
++    "deeper:", -
++    "  do j = 1 to 3", -
++    "    if j = 2 then x = arg(1) / 0", -
++    "  end", -
++    "  return")
++  program = .TemporaryTestFile~new(self, "catch_internal.tmp.rex")~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName, output)
++  self~assertSame(0, theRC, "rexx ended with rc" theRC "after" output~items "lines")
++  self~assertSame("n=50", output~lastItem)
++
++::method test_child_interpret_routine_gc
++  source = .array~of( -
++    "m = 0", -
++    "do i = 1 to 50", -
++    "  do", -
++    "    interpret 'call raiser i'", -
++    "  catch user bad", -
++    "    call gc", -
++    "    if condition('D') = 'boom' i then m += 1", -
++    "  end", -
++    "end", -
++    "say 'm='m", -
++    "exit", -
++    "::routine raiser", -
++    "  raise user bad description ('boom' arg(1))")
++  program = .TemporaryTestFile~new(self, "catch_interpret.tmp.rex")~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName, output)
++  self~assertSame(0, theRC, "rexx ended with rc" theRC "after" output~items "lines")
++  self~assertSame("m=50", output~lastItem)
++
++::method test_child_interpret_own_block_method
++  source = .array~of( -
++    "k = 0", -
++    "do i = 1 to 50", -
++    "  interpret 'do; .h~new~m; catch syntax; call gc; k += 1; end'", -
++    "end", -
++    "say 'k='k", -
++    "::class h", -
++    "::method m", -
++    "  loop 3", -
++    "    x = .nil~noSuchMethod", -
++    "  end")
++  program = .TemporaryTestFile~new(self, "catch_interpret_method.tmp.rex")~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName, output)
++  self~assertSame(0, theRC, "rexx ended with rc" theRC "after" output~items "lines")
++  self~assertSame("k=50", output~lastItem)
++
++
++::routine raiseUserTwo
++  raise user two
++
++::routine raiseUserU5
++  raise user u5
++
++::class CatchHelper
++::method divide
++  x = 1/0
++::method notready
++  call stream 'nonexistent.file.CATCH.testGroup', 'C', 'OPEN READ'
+
+Property changes on: ooRexx/base/keyword/CATCH.testGroup
+___________________________________________________________________
+Added: svn:eol-style
+## -0,0 +1 ##
++native
+\ No newline at end of property
+Added: svn:executable
+## -0,0 +1 ##
++*
+\ No newline at end of property
