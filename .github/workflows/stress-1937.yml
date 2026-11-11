@@ -29,7 +29,13 @@ jobs:
     steps:
       - name: Export trunk at each revision
         run: |
-          sudo apt-get install -y -qq subversion > /dev/null
+          # the runner image's package index can be stale or point to a mirror
+          # that does not resolve: refresh it and retry
+          for try in 1 2 3; do
+            sudo apt-get update -qq > /dev/null && sudo apt-get install -y -qq subversion > /dev/null && break
+            sleep 20
+          done
+          svn --version --quiet
           for r in 13113 13114 13183 13184 13421; do
             svn export -q -r $r https://svn.code.sf.net/p/oorexx/code-0/main/trunk src
             tar czf src-$r.tgz src && rm -rf src

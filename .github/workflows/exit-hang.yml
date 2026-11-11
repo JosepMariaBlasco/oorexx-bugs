@@ -19,7 +19,13 @@ jobs:
     steps:
       - name: Export trunk
         run: |
-          sudo apt-get install -y -qq subversion > /dev/null
+          # the runner image's package index can be stale or point to a mirror
+          # that does not resolve: refresh it and retry
+          for try in 1 2 3; do
+            sudo apt-get update -qq > /dev/null && sudo apt-get install -y -qq subversion > /dev/null && break
+            sleep 20
+          done
+          svn --version --quiet
           svn export -q -r ${{ inputs.rev }} https://svn.code.sf.net/p/oorexx/code-0/main/trunk src/main
           svn export -q -r ${{ inputs.rev }} https://svn.code.sf.net/p/oorexx/code-0/test/trunk src/test
           tar czf src.tgz src
