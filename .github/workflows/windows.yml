@@ -29,8 +29,10 @@ jobs:
         run: |
           # the runner image's package index can be stale or point to a mirror
           # that does not resolve: refresh it and retry
+          # the runner's Azure mirror sometimes does not resolve: use the main archive
+          sudo sed -i 's|azure\.archive\.ubuntu\.com|archive.ubuntu.com|g' /etc/apt/sources.list.d/*.sources /etc/apt/sources.list 2>/dev/null || true
           for try in 1 2 3; do
-            sudo apt-get update -qq > /dev/null && sudo apt-get install -y -qq subversion > /dev/null && break
+            timeout 300 sudo apt-get update -qq > /dev/null && timeout 300 sudo apt-get install -y -qq subversion > /dev/null && break
             sleep 20
           done
           svn --version --quiet
