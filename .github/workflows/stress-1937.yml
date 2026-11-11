@@ -25,7 +25,7 @@ env:
 
 jobs:
   source:
-    runs-on: ubuntu-24.04   # ubuntu-latest (26.04) mirrors only security.ubuntu.com, which did not resolve (11/11/2026)
+    runs-on: ubuntu-latest
     steps:
       - name: Export trunk at each revision
         run: |
