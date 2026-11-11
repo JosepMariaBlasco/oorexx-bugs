@@ -23,16 +23,14 @@ env:
 jobs:
   source:
     runs-on: ubuntu-latest
+    # Debian's packages, not Ubuntu's: ubuntu.com's archives are sometimes down
+    container: debian:bookworm
     steps:
       - uses: actions/checkout@v4
       - name: Export trunk and apply the patch set
         run: |
-          # the runner image's package index can be stale or point to a mirror
-          # that does not resolve: refresh it and retry
-          # the runner's Azure mirror sometimes does not resolve: use the main archive
-          sudo sed -i 's|azure\.archive\.ubuntu\.com|archive.ubuntu.com|g' /etc/apt/sources.list.d/*.sources /etc/apt/sources.list 2>/dev/null || true
           for try in 1 2 3; do
-            timeout 300 sudo apt-get update -qq > /dev/null && timeout 300 sudo apt-get install -y -qq subversion > /dev/null && break
+            timeout 300 apt-get update -qq > /dev/null && timeout 300 apt-get install -y -qq subversion patch ca-certificates > /dev/null && break
             sleep 20
           done
           svn --version --quiet
