@@ -323,20 +323,30 @@ Index: interpreter/execution/RexxActivation.cpp
  
      // We're holding a pointer back to our arguments directly where they
      // are created.  Since in some places, this argument list comes
-@@ -833,6 +859,12 @@
+@@ -833,11 +859,20 @@
                  stack.clear();
                  settings.timeStamp.valid = false;
  
 +                // a condition caught by a CATCH clause of one of our blocks
++                // (also of a block typed at a debug pause)
 +                if (catchBlock != OREF_NULL)
 +                {
 +                    processCatch();
 +                }
-+
                  // if we were in a debug pause, we had a error interpreting the
                  // line typed at the pause.  We're just going to terminate this
-                 // like it was a return
-@@ -1100,7 +1132,7 @@
+-                // like it was a return
+-                if (debugPause)
++                // like it was a return.  (Not when a FINALLY clause of a block
++                // typed at the pause runs first: the error comes back when the
++                // clause ends.)
++                else if (debugPause && debugError)
+                 {
++                    debugError = false;
+                     stopExecution(RETURNED);
+                 }
+ 
+@@ -1100,7 +1135,7 @@
   *
   * @param resultObj the return result object.
   */
@@ -345,7 +355,7 @@ Index: interpreter/execution/RexxActivation.cpp
  {
      // already had a reply and trying to return a result?  There is nobody
      // to receive this result, so this is an error.
-@@ -1108,12 +1140,24 @@
+@@ -1108,12 +1143,24 @@
      {
          reportException(Error_Execution_reply_return);
      }
@@ -371,7 +381,7 @@ Index: interpreter/execution/RexxActivation.cpp
      }
      // normal termination.
      else
-@@ -1139,60 +1183,61 @@
+@@ -1139,60 +1186,61 @@
   */
  void RexxActivation::iterate(RexxString *name)
  {
@@ -471,7 +481,7 @@ Index: interpreter/execution/RexxActivation.cpp
  }
  
  
-@@ -1203,49 +1248,52 @@
+@@ -1203,49 +1251,52 @@
   */
  void RexxActivation::leaveLoop(RexxString *name)
  {
@@ -552,7 +562,7 @@ Index: interpreter/execution/RexxActivation.cpp
  }
  
  
-@@ -1401,6 +1449,27 @@
+@@ -1401,6 +1452,27 @@
          {
              reportException(Error_Execution_reply_exit);
          }
@@ -580,7 +590,7 @@ Index: interpreter/execution/RexxActivation.cpp
          // poof, we just became invisible
          settings.setForwarded(true);
          // we terminate the execution loop for this activation
-@@ -1434,6 +1503,15 @@
+@@ -1434,6 +1506,15 @@
   */
  void RexxActivation::exitFrom(RexxObject *resultObj)
  {
@@ -596,7 +606,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // stop the loop execution
      stopExecution(RETURNED);
      result = resultObj;
-@@ -1466,6 +1544,12 @@
+@@ -1466,6 +1547,12 @@
              ActivityManager::currentActivity.load()->popStackFrame(false);
              //. go to the next level
              activation = ActivityManager::currentActivity.load()->getCurrentRexxFrame();
@@ -609,7 +619,7 @@ Index: interpreter/execution/RexxActivation.cpp
          }
          while (!activation->isTopLevel());
  
-@@ -1784,6 +1868,35 @@
+@@ -1784,6 +1871,35 @@
          return;
      }
  
@@ -645,7 +655,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // are we at the top level?  This is basically an
      // exit instruction because there's nobody able to handle this.
      if (parent == OREF_NULL)
-@@ -1801,6 +1914,11 @@
+@@ -1801,6 +1917,11 @@
          // terminate the activation and remove from the stack
          termination();
          activity->popStackFrame(false);
@@ -657,7 +667,7 @@ Index: interpreter/execution/RexxActivation.cpp
          // propagate to the parent
          parent->raiseExit(condition, rc, description, additional, resultObj, conditionobj);
      }
-@@ -1826,6 +1944,37 @@
+@@ -1826,6 +1947,37 @@
  
      Protected<DirectoryClass> p = conditionobj;
  
@@ -695,7 +705,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // are we propagating an existing condition?
      if (condition->strCompare(GlobalNames::PROPAGATE))
      {
-@@ -1929,7 +2078,7 @@
+@@ -1929,7 +2081,7 @@
          }
  
          // process the return part, then unwind the call stack
@@ -704,7 +714,7 @@ Index: interpreter/execution/RexxActivation.cpp
          throw this;
      }
  }
-@@ -2125,14 +2274,28 @@
+@@ -2125,14 +2277,28 @@
   *
   * @param target The target of the signal instruction.
   */
@@ -735,7 +745,7 @@ Index: interpreter/execution/RexxActivation.cpp
      }
      // need to clean up some things in a SIGNAL.  Start with
      // setting the SIGL variable to the current linenumber, then
-@@ -2501,6 +2664,11 @@
+@@ -2501,6 +2667,11 @@
          // we are not really here, so we can't handle this
          return false;
      }
@@ -747,8 +757,23 @@ Index: interpreter/execution/RexxActivation.cpp
      // do we need to notify a message object of a syntax error?
      // send it the notification message.
      if (notifyObject != OREF_NULL && condition->strCompare(GlobalNames::SYNTAX))
-@@ -2520,27 +2688,36 @@
+@@ -2508,8 +2679,9 @@
+         notifyObject->error(exceptionObject);
+     }
+ 
+-    // are we in a debug pause?  ignore any condition other than a syntax error.
+-    if (debugPause)
++    // are we in a debug pause?  ignore any condition other than a syntax error,
++    // unless a CATCH clause of a block typed at the pause catches it
++    if (debugPause && !catches(condition))
+     {
+         if (!condition->strCompare(GlobalNames::SYNTAX))
+         {
+@@ -2518,29 +2690,40 @@
+         // display the errors encountered during debug, then do the
+         // error unwind to terminate the debug pause activation.
          activity->displayDebug(exceptionObject);
++        debugError = true;
          throw this;
      }
 -    // no trap table set yet?  can't handle this
@@ -756,11 +781,13 @@ Index: interpreter/execution/RexxActivation.cpp
 -    {
 -        return false;
 -    }
--
-     // see if we have a handler for this condition
--    TrapHandler *trapHandler = (TrapHandler *)settings.traps->get(condition);
-+    TrapHandler *trapHandler = findTrapHandler(condition);
++    // see if we have a handler for this condition (the traps of the
++    // program are ignored at a debug pause)
++    TrapHandler *trapHandler = debugPause ? OREF_NULL : findTrapHandler(condition);
  
+-    // see if we have a handler for this condition
+-    TrapHandler *trapHandler = (TrapHandler *)settings.traps->get(condition);
+-
 -    // nothing there for the specific condition.  We could have an ANY
 -    // trap enabled, so check that.
 -    if (trapHandler == OREF_NULL)
@@ -799,7 +826,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // if the condition is being trapped, do the CALL or SIGNAL
      if (trapHandler != OREF_NULL)
      {
-@@ -2606,6 +2783,519 @@
+@@ -2606,6 +2789,516 @@
  
  
  /**
@@ -1118,15 +1145,12 @@ Index: interpreter/execution/RexxActivation.cpp
 + */
 +void RexxActivation::finallyBeforeTrap(RexxString *condition, DirectoryClass *exceptionObject)
 +{
-+    if (debugPause)
-+    {
-+        return;
-+    }
-+
 +    // the activation that is going to handle the condition
 +    RexxActivation *handler = OREF_NULL;
 +
-+    TrapHandler *trapHandler = findTrapHandler(condition);
++    // the traps of the program are ignored at a debug pause, but the
++    // clauses of a block typed there work
++    TrapHandler *trapHandler = debugPause ? OREF_NULL : findTrapHandler(condition);
 +    RexxActivation *catchOwner;
 +    DoBlock *catchingBlock;
 +    RexxInstructionCatch *clause;
@@ -1200,15 +1224,6 @@ Index: interpreter/execution/RexxActivation.cpp
 +    for (RexxActivation *activation = this; activation != OREF_NULL;
 +         activation = activation->isInternalLevelCall() ? activation->parent : OREF_NULL)
 +    {
-+        // a line typed at an interactive trace pause runs as an INTERPRET
-+        // of the paused code, but the blocks of that code are not active
-+        // for it: an error there is shown at the pause, as without CATCH.
-+        // Stop at the pause, before its own blocks: they cannot catch
-+        // either, as the pause shows an error raised in them directly
-+        if (activation->debugPause)
-+        {
-+            break;
-+        }
 +        for (DoBlock *doblock = activation->doStack; doblock != OREF_NULL; doblock = doblock->getPrevious())
 +        {
 +            if (!doblock->isInCatch() && doblock->getCatches() != OREF_NULL)
@@ -1222,6 +1237,15 @@ Index: interpreter/execution/RexxActivation.cpp
 +                    return true;
 +                }
 +            }
++        }
++        // a line typed at an interactive trace pause runs as an INTERPRET
++        // of the paused code, but the blocks of that code are not active
++        // for it: an error there is shown at the pause, as without CATCH.
++        // The blocks typed in the line itself do catch, as those of an
++        // INTERPRET do: stop at the pause, after its own blocks
++        if (activation->debugPause)
++        {
++            break;
 +        }
 +    }
 +    return false;
@@ -1319,7 +1343,19 @@ Index: interpreter/execution/RexxActivation.cpp
   * Check the activation to see if this is trapping a condition.
   * This does not process the trap, but merely indicates that
   * this activation WILL trap the condition.  This is a
-@@ -2653,6 +3343,15 @@
+@@ -2643,8 +3336,9 @@
+         return false;
+     }
+ 
+-    // are we in a debug pause?  ignore any condition other than a syntax error.
+-    if (debugPause)
++    // are we in a debug pause?  ignore any condition other than a syntax error,
++    // unless a CATCH clause of a block typed at the pause catches it
++    if (debugPause && !catches(condition))
+     {
+         if (!condition->strCompare(GlobalNames::SYNTAX))
+         {
+@@ -2653,6 +3347,15 @@
          return true;
      }
  
@@ -1335,7 +1371,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // no trap table set yet?  can't handle this
      if (settings.traps == OREF_NULL)
      {
-@@ -2690,8 +3389,12 @@
+@@ -2690,8 +3393,12 @@
   */
  RexxObject* RexxActivation::handleNovalueEvent(RexxString *name, RexxObject *defaultValue, RexxVariable *variable)
  {
@@ -1349,7 +1385,7 @@ Index: interpreter/execution/RexxActivation.cpp
      {
          reportException(Error_Execution_unassigned_variable, name);
      }
-@@ -2711,7 +3414,7 @@
+@@ -2711,7 +3418,7 @@
          return value;
      }
      // raise novalue?
@@ -1440,7 +1476,15 @@ Index: interpreter/execution/RexxActivation.hpp
     inline void removeBlockInstruction()
     {
         blockNest--;
-@@ -653,5 +685,11 @@
+@@ -633,6 +665,7 @@
+     RexxInstruction     *current;       // current execution pointer
+     RexxInstruction     *next;          // next instruction to execute
+     bool                 debugPause;    // executing a debug pause
++    bool                 debugError;    // the line typed at a debug pause ended in an error
+     bool                 clauseBoundary;// special flag for clause boundary checks
+     bool                 traceEntryAllowed; // true if first instruction (other than expose)
+     bool                 traceEntryDone;// true if the entry in a routine or method has been traced
+@@ -653,5 +686,11 @@
      size_t               blockNest;     // block instruction nesting level
      size_t               instructionCount;  // The number of instructions since we last yielded control
      uint32_t             idntfr;        // idntfr for concurrency trace
