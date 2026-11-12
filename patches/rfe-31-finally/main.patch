@@ -1,6 +1,6 @@
 Index: CMakeLists.txt
 ===================================================================
---- a/CMakeLists.txt	(revision 13484)
+--- a/CMakeLists.txt	(revision 13491)
 +++ b/CMakeLists.txt	(working copy)
 @@ -869,6 +869,8 @@
              ${build_instructions_dir}/NumericInstruction.cpp
@@ -13,19 +13,23 @@ Index: CMakeLists.txt
              ${build_instructions_dir}/ParseTrigger.cpp
 Index: api/oorexxerrors.h
 ===================================================================
---- a/api/oorexxerrors.h	(revision 13484)
+--- a/api/oorexxerrors.h	(revision 13491)
 +++ b/api/oorexxerrors.h	(working copy)
-@@ -89,6 +89,9 @@
+@@ -89,6 +89,13 @@
  #define Rexx_Error_Unexpected_end_then                                    10005
  #define Rexx_Error_Unexpected_end_else                                    10006
  #define Rexx_Error_Unexpected_end_select_nolabel                          10007
 +#define Rexx_Error_Unexpected_end_catch                                   10008
-+#define Rexx_Error_Unexpected_end_finally                                 10009
-+#define Rexx_Error_Unexpected_end_after_finally                           10010
++#define Rexx_Error_Unexpected_end_catch_then                              10009
++#define Rexx_Error_Unexpected_end_catch_else                              10011
++#define Rexx_Error_Unexpected_end_finally                                 10012
++#define Rexx_Error_Unexpected_end_finally_then                            10013
++#define Rexx_Error_Unexpected_end_finally_else                            10014
++#define Rexx_Error_Unexpected_end_after_finally                           10015
  #define Rexx_Error_Control_stack                                          11000
  #define Rexx_Error_Control_stack_full                                     11001
  #define Rexx_Error_Control_stack_user_defined                             11900
-@@ -185,6 +188,7 @@
+@@ -185,6 +192,7 @@
  #define Rexx_Error_Symbol_expected_address_with                           20933
  #define Rexx_Error_Symbol_expected_counter                                20934
  #define Rexx_Error_Symbol_expected_numeric_subdirective                   20935
@@ -33,15 +37,7 @@ Index: api/oorexxerrors.h
  #define Rexx_Error_Invalid_data                                           21000
  #define Rexx_Error_Invalid_data_user_defined                              21900
  #define Rexx_Error_Invalid_data_nop                                       21901
-@@ -200,6 +204,7 @@
- #define Rexx_Error_Invalid_data_guard_off                                 21912
- #define Rexx_Error_Invalid_data_constant_dir                              21913
- #define Rexx_Error_Invalid_data_resource_dir                              21914
-+#define Rexx_Error_Invalid_data_finally                                   21915
- #define Rexx_Error_Invalid_character_string                               22000
- #define Rexx_Error_Invalid_character_string_char                          22001
- #define Rexx_Error_Invalid_character_string_user_defined                  22900
-@@ -256,6 +261,7 @@
+@@ -256,6 +264,7 @@
  #define Rexx_Error_Invalid_subkeyword_duplicate                           25936
  #define Rexx_Error_Invalid_subkeyword_conflict                            25937
  #define Rexx_Error_Invalid_subkeyword_options_form                        25938
@@ -49,7 +45,7 @@ Index: api/oorexxerrors.h
  #define Rexx_Error_Invalid_whole_number                                   26000
  #define Rexx_Error_Invalid_whole_number_repeat                            26002
  #define Rexx_Error_Invalid_whole_number_for                               26003
-@@ -284,6 +290,8 @@
+@@ -284,6 +293,8 @@
  #define Rexx_Error_Invalid_leave_leavevar                                 28003
  #define Rexx_Error_Invalid_leave_iteratevar                               28004
  #define Rexx_Error_Invalid_leave_iterate_name                             28005
@@ -58,7 +54,7 @@ Index: api/oorexxerrors.h
  #define Rexx_Error_Environment_name                                       29000
  #define Rexx_Error_Environment_name_name                                  29001
  #define Rexx_Error_Name_too_long                                          30000
-@@ -639,6 +647,7 @@
+@@ -639,6 +650,7 @@
  #define Rexx_Error_Execution_authorization                                98948
  #define Rexx_Error_Execution_no_concurrency                               98951
  #define Rexx_Error_Execution_circular_requires                            98952
@@ -66,7 +62,7 @@ Index: api/oorexxerrors.h
  #define Rexx_Error_Execution_error_syntax                                 98970
  #define Rexx_Error_Execution_failure_syntax                               98971
  #define Rexx_Error_Execution_lostdigits_syntax                            98972
-@@ -719,6 +728,7 @@
+@@ -719,6 +731,7 @@
  #define Rexx_Error_Translation_use_local_compound                         99948
  #define Rexx_Error_Translation_bad_class                                  99949
  #define Rexx_Error_Translation_use_arg_reference_no_default               99950
@@ -76,7 +72,7 @@ Index: api/oorexxerrors.h
  #endif
 Index: interpreter/behaviour/ClassTypeCodes.h
 ===================================================================
---- a/interpreter/behaviour/ClassTypeCodes.h	(revision 13484)
+--- a/interpreter/behaviour/ClassTypeCodes.h	(revision 13491)
 +++ b/interpreter/behaviour/ClassTypeCodes.h	(working copy)
 @@ -238,44 +238,46 @@
      T_CommandIOConfiguration = 176,
@@ -161,7 +157,7 @@ Index: interpreter/behaviour/ClassTypeCodes.h
  
 Index: interpreter/behaviour/PrimitiveBehaviourNames.h
 ===================================================================
---- a/interpreter/behaviour/PrimitiveBehaviourNames.h	(revision 13484)
+--- a/interpreter/behaviour/PrimitiveBehaviourNames.h	(revision 13491)
 +++ b/interpreter/behaviour/PrimitiveBehaviourNames.h	(working copy)
 @@ -228,6 +228,8 @@
  #define TheCommandIOConfigurationBehaviour      (&RexxBehaviour::primitiveBehaviours[T_CommandIOConfiguration])
@@ -174,7 +170,7 @@ Index: interpreter/behaviour/PrimitiveBehaviourNames.h
  #define ThePushThroughStackBehaviour      (&RexxBehaviour::primitiveBehaviours[T_PushThroughStack])
 Index: interpreter/behaviour/PrimitiveBehaviours.cpp
 ===================================================================
---- a/interpreter/behaviour/PrimitiveBehaviours.cpp	(revision 13484)
+--- a/interpreter/behaviour/PrimitiveBehaviours.cpp	(revision 13491)
 +++ b/interpreter/behaviour/PrimitiveBehaviours.cpp	(working copy)
 @@ -238,6 +238,8 @@
      RexxBehaviour(T_CommandIOConfiguration, (PCPPM *)RexxObject::operatorMethods),
@@ -187,7 +183,7 @@ Index: interpreter/behaviour/PrimitiveBehaviours.cpp
      RexxBehaviour(T_PushThroughStack, (PCPPM *)RexxObject::operatorMethods),
 Index: interpreter/behaviour/PrimitiveClasses.xml
 ===================================================================
---- a/interpreter/behaviour/PrimitiveClasses.xml	(revision 13484)
+--- a/interpreter/behaviour/PrimitiveClasses.xml	(revision 13491)
 +++ b/interpreter/behaviour/PrimitiveClasses.xml	(working copy)
 @@ -225,6 +225,8 @@
  <Class id="CommandIOConfiguration" class="CommandIOConfiguration" include="CommandIOConfiguration.hpp"/>
@@ -200,7 +196,7 @@ Index: interpreter/behaviour/PrimitiveClasses.xml
  <Class id="Memory" class="MemoryObject" include="RexxMemory.hpp" objectvirtual="true"/>
 Index: interpreter/behaviour/VirtualFunctionTable.cpp
 ===================================================================
---- a/interpreter/behaviour/VirtualFunctionTable.cpp	(revision 13484)
+--- a/interpreter/behaviour/VirtualFunctionTable.cpp	(revision 13491)
 +++ b/interpreter/behaviour/VirtualFunctionTable.cpp	(working copy)
 @@ -160,6 +160,8 @@
  #include "CommandIOConfiguration.hpp"
@@ -228,7 +224,7 @@ Index: interpreter/behaviour/VirtualFunctionTable.cpp
     virtualFunctionTable[T_Memory] = getVftPointer(objectLoc);
 Index: interpreter/concurrency/Activity.cpp
 ===================================================================
---- a/interpreter/concurrency/Activity.cpp	(revision 13484)
+--- a/interpreter/concurrency/Activity.cpp	(revision 13491)
 +++ b/interpreter/concurrency/Activity.cpp	(working copy)
 @@ -596,7 +596,9 @@
  void Activity::checkConditionSyntaxOptions(RexxString *condition, RexxObject *description, RexxObject *result)
@@ -243,7 +239,7 @@ Index: interpreter/concurrency/Activity.cpp
          {
 Index: interpreter/execution/RexxActivation.cpp
 ===================================================================
---- a/interpreter/execution/RexxActivation.cpp	(revision 13484)
+--- a/interpreter/execution/RexxActivation.cpp	(revision 13491)
 +++ b/interpreter/execution/RexxActivation.cpp	(working copy)
 @@ -84,6 +84,8 @@
  #include "CommandIOContext.hpp"
@@ -265,37 +261,49 @@ Index: interpreter/execution/RexxActivation.cpp
  RexxActivation::RexxActivation()
  {
      setHasNoReferences();          // nothing referenced from this either
-@@ -140,6 +146,9 @@
+@@ -140,6 +146,10 @@
      settings.intermediateTrace = false;
      activationContext = METHODCALL;  // the context is a method call
      parent = OREF_NULL;              // we don't have a parent stack frame when invoked as a method
 +    catchBlock = OREF_NULL;
 +    catchClause = OREF_NULL;
 +    catchCondition = OREF_NULL;
++    entrySequence = 0;
      executionState = ACTIVE;         // we are now in active execution
      objectScope = SCOPE_RELEASED;    // scope not reserved yet
  
-@@ -221,6 +230,9 @@
+@@ -221,6 +231,10 @@
  
      // the sender is our parent activity
      parent = _parent;
 +    catchBlock = OREF_NULL;
 +    catchClause = OREF_NULL;
 +    catchCondition = OREF_NULL;
++    entrySequence = 0;
      executionState = ACTIVE;      // we are now in active execution
      objectScope = SCOPE_RELEASED; // internal calls don't have a scope
  
-@@ -290,6 +302,9 @@
+@@ -241,6 +255,8 @@
+     // settings as well.
+     if (context == INTERNALCALL)
+     {
++        // the traps enabled from now on are this routine's own (RFE #31)
++        entrySequence = nextSequence();
+         settings.setTrapsCopied(false);
+         settings.setIOConfigCopied(false);
+         settings.setReplyIssued(false);
+@@ -290,6 +306,10 @@
      activationContext = context;
      settings.intermediateTrace = false;
      parent = OREF_NULL;            // there's no parent for a top level call
 +    catchBlock = OREF_NULL;
 +    catchClause = OREF_NULL;
 +    catchCondition = OREF_NULL;
++    entrySequence = 0;
      executionState = ACTIVE;       // we are now in active execution
      objectScope = SCOPE_RELEASED;  // scope not reserved yet
  
-@@ -371,6 +386,9 @@
+@@ -371,6 +391,9 @@
      memory_mark(environmentList);
      memory_mark(conditionQueue);
      memory_mark(contextObject);
@@ -305,7 +313,7 @@ Index: interpreter/execution/RexxActivation.cpp
  
      // We're holding a pointer back to our arguments directly where they
      // are created.  Since in some places, this argument list comes
-@@ -406,6 +424,9 @@
+@@ -406,6 +429,9 @@
      memory_mark_general(environmentList);
      memory_mark_general(conditionQueue);
      memory_mark_general(contextObject);
@@ -315,7 +323,7 @@ Index: interpreter/execution/RexxActivation.cpp
  
      // We're holding a pointer back to our arguments directly where they
      // are created.  Since in some places, this argument list comes
-@@ -833,6 +854,12 @@
+@@ -833,6 +859,12 @@
                  stack.clear();
                  settings.timeStamp.valid = false;
  
@@ -328,7 +336,7 @@ Index: interpreter/execution/RexxActivation.cpp
                  // if we were in a debug pause, we had a error interpreting the
                  // line typed at the pause.  We're just going to terminate this
                  // like it was a return
-@@ -1100,7 +1127,7 @@
+@@ -1100,7 +1132,7 @@
   *
   * @param resultObj the return result object.
   */
@@ -337,7 +345,7 @@ Index: interpreter/execution/RexxActivation.cpp
  {
      // already had a reply and trying to return a result?  There is nobody
      // to receive this result, so this is an error.
-@@ -1108,12 +1135,24 @@
+@@ -1108,12 +1140,24 @@
      {
          reportException(Error_Execution_reply_return);
      }
@@ -363,7 +371,7 @@ Index: interpreter/execution/RexxActivation.cpp
      }
      // normal termination.
      else
-@@ -1139,60 +1178,61 @@
+@@ -1139,60 +1183,61 @@
   */
  void RexxActivation::iterate(RexxString *name)
  {
@@ -463,7 +471,7 @@ Index: interpreter/execution/RexxActivation.cpp
  }
  
  
-@@ -1203,49 +1243,52 @@
+@@ -1203,49 +1248,52 @@
   */
  void RexxActivation::leaveLoop(RexxString *name)
  {
@@ -544,7 +552,7 @@ Index: interpreter/execution/RexxActivation.cpp
  }
  
  
-@@ -1401,6 +1444,27 @@
+@@ -1401,6 +1449,27 @@
          {
              reportException(Error_Execution_reply_exit);
          }
@@ -572,7 +580,7 @@ Index: interpreter/execution/RexxActivation.cpp
          // poof, we just became invisible
          settings.setForwarded(true);
          // we terminate the execution loop for this activation
-@@ -1434,6 +1498,15 @@
+@@ -1434,6 +1503,15 @@
   */
  void RexxActivation::exitFrom(RexxObject *resultObj)
  {
@@ -588,7 +596,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // stop the loop execution
      stopExecution(RETURNED);
      result = resultObj;
-@@ -1466,6 +1539,12 @@
+@@ -1466,6 +1544,12 @@
              ActivityManager::currentActivity.load()->popStackFrame(false);
              //. go to the next level
              activation = ActivityManager::currentActivity.load()->getCurrentRexxFrame();
@@ -601,7 +609,7 @@ Index: interpreter/execution/RexxActivation.cpp
          }
          while (!activation->isTopLevel());
  
-@@ -1784,6 +1863,35 @@
+@@ -1784,6 +1868,35 @@
          return;
      }
  
@@ -637,7 +645,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // are we at the top level?  This is basically an
      // exit instruction because there's nobody able to handle this.
      if (parent == OREF_NULL)
-@@ -1801,6 +1909,11 @@
+@@ -1801,6 +1914,11 @@
          // terminate the activation and remove from the stack
          termination();
          activity->popStackFrame(false);
@@ -649,7 +657,7 @@ Index: interpreter/execution/RexxActivation.cpp
          // propagate to the parent
          parent->raiseExit(condition, rc, description, additional, resultObj, conditionobj);
      }
-@@ -1826,6 +1939,37 @@
+@@ -1826,6 +1944,37 @@
  
      Protected<DirectoryClass> p = conditionobj;
  
@@ -687,7 +695,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // are we propagating an existing condition?
      if (condition->strCompare(GlobalNames::PROPAGATE))
      {
-@@ -1929,7 +2073,7 @@
+@@ -1929,7 +2078,7 @@
          }
  
          // process the return part, then unwind the call stack
@@ -696,7 +704,7 @@ Index: interpreter/execution/RexxActivation.cpp
          throw this;
      }
  }
-@@ -2125,14 +2269,28 @@
+@@ -2125,14 +2274,28 @@
   *
   * @param target The target of the signal instruction.
   */
@@ -727,7 +735,7 @@ Index: interpreter/execution/RexxActivation.cpp
      }
      // need to clean up some things in a SIGNAL.  Start with
      // setting the SIGL variable to the current linenumber, then
-@@ -2501,6 +2659,11 @@
+@@ -2501,6 +2664,11 @@
          // we are not really here, so we can't handle this
          return false;
      }
@@ -739,7 +747,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // do we need to notify a message object of a syntax error?
      // send it the notification message.
      if (notifyObject != OREF_NULL && condition->strCompare(GlobalNames::SYNTAX))
-@@ -2520,27 +2683,33 @@
+@@ -2520,27 +2688,36 @@
          activity->displayDebug(exceptionObject);
          throw this;
      }
@@ -757,13 +765,16 @@ Index: interpreter/execution/RexxActivation.cpp
 -    // trap enabled, so check that.
 -    if (trapHandler == OREF_NULL)
 +    // a CATCH clause of an active block (here, or in the code that runs
-+    // this internal routine or INTERPRET) wins over a trap enabled before
-+    // the block was entered (RFE #31)
++    // this internal routine or INTERPRET) wins over a trap, wherever the
++    // trap was enabled: the clause has the scope of its block, a trap
++    // belongs to the activation.  The exception is the trap that an
++    // internal routine called from the block has enabled for itself
++    // (RFE #31)
 +    RexxActivation *catchOwner;
 +    DoBlock *catchingBlock;
 +    RexxInstructionCatch *clause;
 +    if (findCatch(condition, catchOwner, catchingBlock, clause) &&
-+        (trapHandler == OREF_NULL || catchingBlock->getSequence() > trapHandler->getSequence()))
++        (trapHandler == OREF_NULL || !enabledBelow(trapHandler, catchOwner)))
      {
 -
 -        trapHandler = (TrapHandler *)settings.traps->get(GlobalNames::ANY);
@@ -788,7 +799,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // if the condition is being trapped, do the CALL or SIGNAL
      if (trapHandler != OREF_NULL)
      {
-@@ -2606,6 +2775,482 @@
+@@ -2606,6 +2783,508 @@
  
  
  /**
@@ -1122,7 +1133,7 @@ Index: interpreter/execution/RexxActivation.cpp
 +    // a CATCH clause, here or in the code that runs this internal routine
 +    // or INTERPRET
 +    if (findCatch(condition, catchOwner, catchingBlock, clause) &&
-+        (trapHandler == OREF_NULL || catchingBlock->getSequence() > trapHandler->getSequence()))
++        (trapHandler == OREF_NULL || !enabledBelow(trapHandler, catchOwner)))
 +    {
 +        handler = catchOwner;
 +    }
@@ -1209,6 +1220,32 @@ Index: interpreter/execution/RexxActivation.cpp
 +
 +
 +/**
++ * Test if a trap was enabled by an internal routine that runs, directly
++ * or not, for an activation: by this one, or by one of those that
++ * called it.  Such a trap is further in than the blocks of that
++ * activation, so it wins over their CATCH clauses; the traps that the
++ * routine inherited from its caller do not (RFE #31).
++ *
++ * @param trap   The trap handler.
++ * @param owner  The activation that owns the block.
++ *
++ * @return true if an internal routine below the owner enabled the trap.
++ */
++bool RexxActivation::enabledBelow(TrapHandler *trap, RexxActivation *owner)
++{
++    for (RexxActivation *activation = this; activation != OREF_NULL && activation != owner; activation = activation->parent)
++    {
++        // an INTERPRET shares the traps of the code that runs it
++        if (activation->isInternalCall() && trap->getSequence() > activation->entrySequence)
++        {
++            return true;
++        }
++    }
++    return false;
++}
++
++
++/**
 + * Test if an active CATCH clause catches a condition (RFE #31).
 + *
 + * @param condition The condition name.
@@ -1271,7 +1308,7 @@ Index: interpreter/execution/RexxActivation.cpp
   * Check the activation to see if this is trapping a condition.
   * This does not process the trap, but merely indicates that
   * this activation WILL trap the condition.  This is a
-@@ -2653,6 +3298,15 @@
+@@ -2653,6 +3332,15 @@
          return true;
      }
  
@@ -1287,7 +1324,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // no trap table set yet?  can't handle this
      if (settings.traps == OREF_NULL)
      {
-@@ -2690,8 +3344,12 @@
+@@ -2690,8 +3378,12 @@
   */
  RexxObject* RexxActivation::handleNovalueEvent(RexxString *name, RexxObject *defaultValue, RexxVariable *variable)
  {
@@ -1301,7 +1338,7 @@ Index: interpreter/execution/RexxActivation.cpp
      {
          reportException(Error_Execution_unassigned_variable, name);
      }
-@@ -2711,7 +3369,7 @@
+@@ -2711,7 +3403,7 @@
          return value;
      }
      // raise novalue?
@@ -1312,7 +1349,7 @@ Index: interpreter/execution/RexxActivation.cpp
      }
 Index: interpreter/execution/RexxActivation.hpp
 ===================================================================
---- a/interpreter/execution/RexxActivation.hpp	(revision 13484)
+--- a/interpreter/execution/RexxActivation.hpp	(revision 13491)
 +++ b/interpreter/execution/RexxActivation.hpp	(working copy)
 @@ -72,6 +72,8 @@
  /**
@@ -1332,7 +1369,7 @@ Index: interpreter/execution/RexxActivation.hpp
     void              exitFrom(RexxObject *);
     void              procedureExpose(RexxVariableBase **variables, size_t count);
     void              expose(RexxVariableBase **variables, size_t count);
-@@ -200,12 +202,31 @@
+@@ -200,12 +202,32 @@
     ActivationBase  * senderActivation(RexxString *conditionName);
     RexxActivation  * external();
     void              interpret(RexxString *);
@@ -1346,6 +1383,7 @@ Index: interpreter/execution/RexxActivation.hpp
 +   bool              findCatch(RexxString *condition, RexxActivation *&owner, DoBlock *&block, RexxInstructionCatch *&clause);
 +   void              processCatch();
 +   bool              catches(RexxString *condition);
++   bool              enabledBelow(TrapHandler *trap, RexxActivation *owner);
 +   // FINALLY clauses (RFE #31)
 +   typedef enum
 +   {
@@ -1365,24 +1403,24 @@ Index: interpreter/execution/RexxActivation.hpp
     void              trapOn(RexxString *, RexxInstructionTrapBase *, bool);
     void              trapOff(RexxString *, bool);
     void              setAddress(RexxString *, CommandIOConfiguration *config);
-@@ -220,6 +241,9 @@
+@@ -220,6 +242,10 @@
     RexxObject      * internalCallTrap(RexxString *, RexxInstruction *, DirectoryClass *, ProtectedObject &);
     bool              callMacroSpaceFunction(RexxString *, RexxObject **, size_t, RexxString *, int, ProtectedObject &);
     static RoutineClass* getMacroCode(RexxString *macroName);
-+   // a counter that orders trap activations and block entries (RFE #31)
++   // a counter that orders trap activations and the entries to internal
++   // routines (RFE #31)
 +   static inline uint64_t nextSequence() { return ++sequenceCounter; }
 +   static uint64_t sequenceCounter;
     RexxString       *resolveProgramName(RexxString *name, ResolveType type);
     RexxClass        *findClass(RexxString *name);
     RexxObject       *resolveDotVariable(RexxString *name, RexxObject *&);
-@@ -308,7 +332,14 @@
+@@ -308,7 +334,13 @@
     inline DoBlock *topBlockInstruction() { return doStack; }
     inline void terminateBlockInstruction(size_t _indent) { popBlockInstruction(); settings.traceIndent = _indent; }
     inline void terminateBlockInstruction() { popBlockInstruction();  }
 -   inline void newBlockInstruction(DoBlock *block) { pushBlockInstruction(block); blockNest++; settings.traceIndent++;}
 +   inline void newBlockInstruction(DoBlock *block)
 +   {
-+       block->setSequence(nextSequence());
 +       pushBlockInstruction(block);
 +       blockNest++;
 +       block->setNest(blockNest);
@@ -1391,7 +1429,7 @@ Index: interpreter/execution/RexxActivation.hpp
     inline void removeBlockInstruction()
     {
         blockNest--;
-@@ -653,5 +684,10 @@
+@@ -653,5 +685,11 @@
      size_t               blockNest;     // block instruction nesting level
      size_t               instructionCount;  // The number of instructions since we last yielded control
      uint32_t             idntfr;        // idntfr for concurrency trace
@@ -1400,11 +1438,12 @@ Index: interpreter/execution/RexxActivation.hpp
 +    DoBlock             *catchBlock;    // the block that caught it
 +    RexxInstructionCatch *catchClause;  // the CATCH clause that caught it
 +    DirectoryClass      *catchCondition;// the condition object
++    uint64_t             entrySequence; // when this internal routine was entered (see TrapHandler)
   };
   #endif
 Index: interpreter/execution/TrapHandler.cpp
 ===================================================================
---- a/interpreter/execution/TrapHandler.cpp	(revision 13484)
+--- a/interpreter/execution/TrapHandler.cpp	(revision 13491)
 +++ b/interpreter/execution/TrapHandler.cpp	(working copy)
 @@ -47,6 +47,7 @@
  #include "CallInstruction.hpp"
@@ -1424,7 +1463,7 @@ Index: interpreter/execution/TrapHandler.cpp
  
 Index: interpreter/execution/TrapHandler.hpp
 ===================================================================
---- a/interpreter/execution/TrapHandler.hpp	(revision 13484)
+--- a/interpreter/execution/TrapHandler.hpp	(revision 13491)
 +++ b/interpreter/execution/TrapHandler.hpp	(working copy)
 @@ -72,6 +72,7 @@
      RexxString *getState();
@@ -1434,18 +1473,19 @@ Index: interpreter/execution/TrapHandler.hpp
  
  protected:
  
-@@ -86,6 +87,8 @@
+@@ -86,6 +87,9 @@
      RexxInstructionTrapBase *handler;   // the instruction that handles this condition trap
      TrapState state;                    // current state of the trap
      DirectoryClass *conditionObject;    // an object associated with a active trap
-+    uint64_t sequence;                  // when the trap was enabled: a CATCH clause
-+                                        // of a block entered later hides it (RFE #31)
++    uint64_t sequence;                  // when the trap was enabled: tells the traps an
++                                        // internal routine enabled itself, which win over
++                                        // the CATCH clauses of its callers (RFE #31)
  };
  
  #endif
 Index: interpreter/instructions/BaseDoInstruction.cpp
 ===================================================================
---- a/interpreter/instructions/BaseDoInstruction.cpp	(revision 13484)
+--- a/interpreter/instructions/BaseDoInstruction.cpp	(revision 13491)
 +++ b/interpreter/instructions/BaseDoInstruction.cpp	(working copy)
 @@ -115,6 +115,9 @@
          // if we have a doblock for this, do termination cleanup
@@ -1931,7 +1971,7 @@ Added: svn:eol-style
 \ No newline at end of property
 Index: interpreter/instructions/DoBlock.cpp
 ===================================================================
---- a/interpreter/instructions/DoBlock.cpp	(revision 13484)
+--- a/interpreter/instructions/DoBlock.cpp	(revision 13491)
 +++ b/interpreter/instructions/DoBlock.cpp	(working copy)
 @@ -46,6 +46,7 @@
  #include "DoBlock.hpp"
@@ -1941,7 +1981,7 @@ Index: interpreter/instructions/DoBlock.cpp
  
  /**
   * Allocate a new DoBlock object.
-@@ -69,6 +70,19 @@
+@@ -69,6 +70,18 @@
  {
      parent = _parent;
      indent = context->getIndent();
@@ -1956,12 +1996,11 @@ Index: interpreter/instructions/DoBlock.cpp
 +    pendingInstruction = OREF_NULL;
 +    pendingBlock = OREF_NULL;
 +    pendingCurrent = OREF_NULL;
-+    sequence = 0;
 +    nest = 0;
      countVariable = parent->getCountVariable();
      // if we have a count variable, then we need to set the initial value
      // to zero before we do the loop termination tests.
-@@ -93,6 +107,12 @@
+@@ -93,6 +106,12 @@
      memory_mark(to);
      memory_mark(by);
      memory_mark(countVariable);
@@ -1974,7 +2013,7 @@ Index: interpreter/instructions/DoBlock.cpp
  }
  
  
-@@ -111,6 +131,12 @@
+@@ -111,6 +130,12 @@
      memory_mark_general(to);
      memory_mark_general(by);
      memory_mark_general(countVariable);
@@ -1989,7 +2028,7 @@ Index: interpreter/instructions/DoBlock.cpp
  
 Index: interpreter/instructions/DoBlock.hpp
 ===================================================================
---- a/interpreter/instructions/DoBlock.hpp	(revision 13484)
+--- a/interpreter/instructions/DoBlock.hpp	(revision 13491)
 +++ b/interpreter/instructions/DoBlock.hpp	(working copy)
 @@ -49,8 +49,30 @@
  
@@ -2022,7 +2061,7 @@ Index: interpreter/instructions/DoBlock.hpp
   * A container for state of active block instructions (DO LOOP, or SELECT)
   */
  class DoBlock : public RexxInternalObject
-@@ -87,7 +109,38 @@
+@@ -87,7 +109,36 @@
      inline void newIteration() { counter++; };
      void setCounter(RexxActivation *context);
  
@@ -2031,8 +2070,6 @@ Index: interpreter/instructions/DoBlock.hpp
 +    inline RexxInstructionCatch *getCatches() { return catches; }
 +    inline void setInCatch(bool v) { inCatch = v; }
 +    inline bool isInCatch() { return inCatch; }
-+    inline void setSequence(uint64_t s) { sequence = s; }
-+    inline uint64_t getSequence() { return sequence; }
 +    inline void setNest(size_t n) { nest = n; }
 +    inline size_t getNest() { return nest; }
  
@@ -2061,14 +2098,13 @@ Index: interpreter/instructions/DoBlock.hpp
  protected:
  
      DoBlock           *previous;         // previous stacked Do Block
-@@ -105,5 +158,18 @@
+@@ -105,5 +156,17 @@
      TokenSubclass      compare;          // type of comparison
      RexxVariableBase  *countVariable;    // control variable for counter
      uint64_t           counter;          // the loop iteration counter
 +
 +    RexxInstructionCatch *catches;       // first CATCH clause of the block, if any
 +    bool               inCatch;          // the code of a CATCH clause is running
-+    uint64_t           sequence;         // when the block was entered (see TrapHandler)
 +    size_t             nest;             // block nesting level of the block's body
 +
 +    RexxInstructionCatch *finallyClause; // FINALLY clause of the block, if any
@@ -2082,7 +2118,7 @@ Index: interpreter/instructions/DoBlock.hpp
  #endif
 Index: interpreter/instructions/EndIf.cpp
 ===================================================================
---- a/interpreter/instructions/EndIf.cpp	(revision 13484)
+--- a/interpreter/instructions/EndIf.cpp	(revision 13491)
 +++ b/interpreter/instructions/EndIf.cpp	(working copy)
 @@ -136,6 +136,11 @@
      // END.
@@ -2098,7 +2134,7 @@ Index: interpreter/instructions/EndIf.cpp
          // branch to the END of the SELECT.
 Index: interpreter/instructions/EndInstruction.cpp
 ===================================================================
---- a/interpreter/instructions/EndInstruction.cpp	(revision 13484)
+--- a/interpreter/instructions/EndInstruction.cpp	(revision 13491)
 +++ b/interpreter/instructions/EndInstruction.cpp	(working copy)
 @@ -157,6 +157,23 @@
          }
@@ -2128,7 +2164,7 @@ Index: interpreter/instructions/FinallyInstruction.cpp
 ===================================================================
 --- a/interpreter/instructions/FinallyInstruction.cpp	(nonexistent)
 +++ b/interpreter/instructions/FinallyInstruction.cpp	(working copy)
-@@ -0,0 +1,102 @@
+@@ -0,0 +1,106 @@
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
 +/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
@@ -2173,6 +2209,7 @@ Index: interpreter/instructions/FinallyInstruction.cpp
 +#include "RexxCore.h"
 +#include "RexxActivation.hpp"
 +#include "FinallyInstruction.hpp"
++#include "Token.hpp"
 +#include "DoInstruction.hpp"
 +#include "DoBlock.hpp"
 +#include "EndInstruction.hpp"
@@ -2181,8 +2218,11 @@ Index: interpreter/instructions/FinallyInstruction.cpp
 +/**
 + * Construct a FINALLY clause.
 + */
-+RexxInstructionFinally::RexxInstructionFinally() : RexxInstructionCatch((ArrayClass *)OREF_NULL)
++RexxInstructionFinally::RexxInstructionFinally(RexxToken *token) : RexxInstructionCatch((ArrayClass *)OREF_NULL)
 +{
++    // an instruction may follow FINALLY in the same clause, as after
++    // OTHERWISE: the clause is the keyword alone
++    setLocation(token->getLocation());
 +}
 +
 +
@@ -2303,7 +2343,7 @@ Index: interpreter/instructions/FinallyInstruction.hpp
 +{
 + public:
 +    inline RexxInstructionFinally(RESTORETYPE restoreType) : RexxInstructionCatch(restoreType) { ; };
-+    RexxInstructionFinally();
++    RexxInstructionFinally(RexxToken *);
 +
 +    void execute(RexxActivation *, ExpressionStack *) override;
 +};
@@ -2317,7 +2357,7 @@ Added: svn:eol-style
 \ No newline at end of property
 Index: interpreter/instructions/RexxInstruction.hpp
 ===================================================================
---- a/interpreter/instructions/RexxInstruction.hpp	(revision 13484)
+--- a/interpreter/instructions/RexxInstruction.hpp	(revision 13491)
 +++ b/interpreter/instructions/RexxInstruction.hpp	(working copy)
 @@ -113,6 +113,7 @@
      LABELED_SELECT_BLOCK,
@@ -2329,7 +2369,7 @@ Index: interpreter/instructions/RexxInstruction.hpp
  class DoBlock;
 Index: interpreter/instructions/SelectInstruction.cpp
 ===================================================================
---- a/interpreter/instructions/SelectInstruction.cpp	(revision 13484)
+--- a/interpreter/instructions/SelectInstruction.cpp	(revision 13491)
 +++ b/interpreter/instructions/SelectInstruction.cpp	(working copy)
 @@ -141,6 +141,8 @@
      // if we've been asked to re-execute.
@@ -2395,7 +2435,7 @@ Index: interpreter/instructions/SelectInstruction.cpp
  }
 Index: interpreter/instructions/SignalInstruction.cpp
 ===================================================================
---- a/interpreter/instructions/SignalInstruction.cpp	(revision 13484)
+--- a/interpreter/instructions/SignalInstruction.cpp	(revision 13491)
 +++ b/interpreter/instructions/SignalInstruction.cpp	(working copy)
 @@ -356,6 +356,6 @@
      // set the new condition object
@@ -2407,7 +2447,7 @@ Index: interpreter/instructions/SignalInstruction.cpp
  
 Index: interpreter/instructions/SimpleDoInstruction.cpp
 ===================================================================
---- a/interpreter/instructions/SimpleDoInstruction.cpp	(revision 13484)
+--- a/interpreter/instructions/SimpleDoInstruction.cpp	(revision 13491)
 +++ b/interpreter/instructions/SimpleDoInstruction.cpp	(working copy)
 @@ -46,6 +46,7 @@
  #include "DoBlock.hpp"
@@ -2429,7 +2469,7 @@ Index: interpreter/instructions/SimpleDoInstruction.cpp
          // control stack
 Index: interpreter/memory/GlobalNames.h
 ===================================================================
---- a/interpreter/memory/GlobalNames.h	(revision 13484)
+--- a/interpreter/memory/GlobalNames.h	(revision 13491)
 +++ b/interpreter/memory/GlobalNames.h	(working copy)
 @@ -66,6 +66,7 @@
  GLOBAL_NAME(BRACKETS, "[]")
@@ -2441,19 +2481,23 @@ Index: interpreter/memory/GlobalNames.h
  GLOBAL_NAME(CHARIN, "CHARIN")
 Index: interpreter/messages/RexxErrorCodes.h
 ===================================================================
---- a/interpreter/messages/RexxErrorCodes.h	(revision 13484)
+--- a/interpreter/messages/RexxErrorCodes.h	(revision 13491)
 +++ b/interpreter/messages/RexxErrorCodes.h	(working copy)
-@@ -91,6 +91,9 @@
+@@ -91,6 +91,13 @@
  Error_Unexpected_end_then                                    = 10005,
  Error_Unexpected_end_else                                    = 10006,
  Error_Unexpected_end_select_nolabel                          = 10007,
 +Error_Unexpected_end_catch                                   = 10008,
-+Error_Unexpected_end_finally                                 = 10009,
-+Error_Unexpected_end_after_finally                           = 10010,
++Error_Unexpected_end_catch_then                              = 10009,
++Error_Unexpected_end_catch_else                              = 10011,
++Error_Unexpected_end_finally                                 = 10012,
++Error_Unexpected_end_finally_then                            = 10013,
++Error_Unexpected_end_finally_else                            = 10014,
++Error_Unexpected_end_after_finally                           = 10015,
  Error_Control_stack                                          = 11000,
  Error_Control_stack_full                                     = 11001,
  Error_Control_stack_user_defined                             = 11900,
-@@ -187,6 +190,7 @@
+@@ -187,6 +194,7 @@
  Error_Symbol_expected_address_with                           = 20933,
  Error_Symbol_expected_counter                                = 20934,
  Error_Symbol_expected_numeric_subdirective                   = 20935,
@@ -2461,15 +2505,7 @@ Index: interpreter/messages/RexxErrorCodes.h
  Error_Invalid_data                                           = 21000,
  Error_Invalid_data_user_defined                              = 21900,
  Error_Invalid_data_nop                                       = 21901,
-@@ -202,6 +206,7 @@
- Error_Invalid_data_guard_off                                 = 21912,
- Error_Invalid_data_constant_dir                              = 21913,
- Error_Invalid_data_resource_dir                              = 21914,
-+Error_Invalid_data_finally                                   = 21915,
- Error_Invalid_character_string                               = 22000,
- Error_Invalid_character_string_char                          = 22001,
- Error_Invalid_character_string_user_defined                  = 22900,
-@@ -258,6 +263,7 @@
+@@ -258,6 +266,7 @@
  Error_Invalid_subkeyword_duplicate                           = 25936,
  Error_Invalid_subkeyword_conflict                            = 25937,
  Error_Invalid_subkeyword_options_form                        = 25938,
@@ -2477,7 +2513,7 @@ Index: interpreter/messages/RexxErrorCodes.h
  Error_Invalid_whole_number                                   = 26000,
  Error_Invalid_whole_number_repeat                            = 26002,
  Error_Invalid_whole_number_for                               = 26003,
-@@ -286,6 +292,8 @@
+@@ -286,6 +295,8 @@
  Error_Invalid_leave_leavevar                                 = 28003,
  Error_Invalid_leave_iteratevar                               = 28004,
  Error_Invalid_leave_iterate_name                             = 28005,
@@ -2486,7 +2522,7 @@ Index: interpreter/messages/RexxErrorCodes.h
  Error_Environment_name                                       = 29000,
  Error_Environment_name_name                                  = 29001,
  Error_Name_too_long                                          = 30000,
-@@ -641,6 +649,7 @@
+@@ -641,6 +652,7 @@
  Error_Execution_authorization                                = 98948,
  Error_Execution_no_concurrency                               = 98951,
  Error_Execution_circular_requires                            = 98952,
@@ -2494,7 +2530,7 @@ Index: interpreter/messages/RexxErrorCodes.h
  Error_Execution_error_syntax                                 = 98970,
  Error_Execution_failure_syntax                               = 98971,
  Error_Execution_lostdigits_syntax                            = 98972,
-@@ -721,6 +730,7 @@
+@@ -721,6 +733,7 @@
  Error_Translation_use_local_compound                         = 99948,
  Error_Translation_bad_class                                  = 99949,
  Error_Translation_use_arg_reference_no_default               = 99950,
@@ -2504,19 +2540,23 @@ Index: interpreter/messages/RexxErrorCodes.h
  Message_Translations_running                                 = 101002,
 Index: interpreter/messages/RexxErrorMessages.h
 ===================================================================
---- a/interpreter/messages/RexxErrorMessages.h	(revision 13484)
+--- a/interpreter/messages/RexxErrorMessages.h	(revision 13491)
 +++ b/interpreter/messages/RexxErrorMessages.h	(working copy)
-@@ -93,6 +93,9 @@
+@@ -93,6 +93,13 @@
      MESSAGE(Error_Unexpected_end_then, "END must not immediately follow THEN.")
      MESSAGE(Error_Unexpected_end_else, "END must not immediately follow ELSE.")
      MESSAGE(Error_Unexpected_end_select_nolabel, "END corresponding to SELECT on line &2 must not have a symbol following it because there is no LABEL; found \"&1\".")
 +    MESSAGE(Error_Unexpected_end_catch, "CATCH has no corresponding DO, LOOP, or SELECT.")
++    MESSAGE(Error_Unexpected_end_catch_then, "CATCH must not immediately follow THEN.")
++    MESSAGE(Error_Unexpected_end_catch_else, "CATCH must not immediately follow ELSE.")
 +    MESSAGE(Error_Unexpected_end_finally, "FINALLY has no corresponding DO, LOOP, or SELECT.")
++    MESSAGE(Error_Unexpected_end_finally_then, "FINALLY must not immediately follow THEN.")
++    MESSAGE(Error_Unexpected_end_finally_else, "FINALLY must not immediately follow ELSE.")
 +    MESSAGE(Error_Unexpected_end_after_finally, "A CATCH or FINALLY clause must not follow the FINALLY clause on line &1.")
      MESSAGE(Error_Control_stack, "Control stack full.")
      MESSAGE(Error_Control_stack_full, "Insufficient control stack space; cannot continue execution.")
      MESSAGE(Error_Control_stack_user_defined, "&1.")
-@@ -189,6 +192,7 @@
+@@ -189,6 +196,7 @@
      MESSAGE(Error_Symbol_expected_address_with, "Symbol expected after WITH keyword.")
      MESSAGE(Error_Symbol_expected_counter, "Symbol expected after COUNTER keyword.")
      MESSAGE(Error_Symbol_expected_numeric_subdirective, "Symbol expected after the NUMERIC subdirective keyword.")
@@ -2524,15 +2564,7 @@ Index: interpreter/messages/RexxErrorMessages.h
      MESSAGE(Error_Invalid_data, "Invalid data on end of clause.")
      MESSAGE(Error_Invalid_data_user_defined, "&1.")
      MESSAGE(Error_Invalid_data_nop, "Data must not follow the NOP keyword; found \"&1\".")
-@@ -204,6 +208,7 @@
-     MESSAGE(Error_Invalid_data_guard_off, "Data must not follow the GUARD OFF specification; found \"&1\".")
-     MESSAGE(Error_Invalid_data_constant_dir, "Data must not follow the ::CONSTANT value; found \"&1\".")
-     MESSAGE(Error_Invalid_data_resource_dir, "Data must not follow the ::RESOURCE directive; found \"&1\".")
-+    MESSAGE(Error_Invalid_data_finally, "Data must not follow the FINALLY keyword; found \"&1\".")
-     MESSAGE(Error_Invalid_character_string, "Invalid character string.")
-     MESSAGE(Error_Invalid_character_string_char, "Incorrect character string \"&1\" ('&2'X).")
-     MESSAGE(Error_Invalid_character_string_user_defined, "&1.")
-@@ -260,6 +265,7 @@
+@@ -260,6 +268,7 @@
      MESSAGE(Error_Invalid_subkeyword_duplicate, "Duplicate keyword on ::&1 directive; found \"&2\".")
      MESSAGE(Error_Invalid_subkeyword_conflict, "Keyword \"&1\" on ::&2 directive conflicts with \"&3\".")
      MESSAGE(Error_Invalid_subkeyword_options_form, "FORM must be followed by one of the keywords SCIENTIFIC or ENGINEERING; found \"&1\".")
@@ -2540,7 +2572,7 @@ Index: interpreter/messages/RexxErrorMessages.h
      MESSAGE(Error_Invalid_whole_number, "Invalid whole number.")
      MESSAGE(Error_Invalid_whole_number_repeat, "Value of repetition count expression in DO or LOOP instruction must be zero or a positive whole number; found \"&1\".")
      MESSAGE(Error_Invalid_whole_number_for, "Value of FOR expression in DO or LOOP instruction must be zero or a positive whole number; found \"&1\".")
-@@ -288,6 +294,8 @@
+@@ -288,6 +297,8 @@
      MESSAGE(Error_Invalid_leave_leavevar, "Symbol following LEAVE (\"&1\") must either match the label of a current loop or block instruction.")
      MESSAGE(Error_Invalid_leave_iteratevar, "Symbol following ITERATE (\"&1\") must either match the label of a current loop or be omitted.")
      MESSAGE(Error_Invalid_leave_iterate_name, "Symbol following ITERATE (\"&1\") does not match a repetitive block instruction.")
@@ -2549,7 +2581,7 @@ Index: interpreter/messages/RexxErrorMessages.h
      MESSAGE(Error_Environment_name, "Environment name too long.")
      MESSAGE(Error_Environment_name_name, "Environment name exceeds &1 characters; found \"&2\".")
      MESSAGE(Error_Name_too_long, "Name or symbol too long.")
-@@ -643,6 +651,7 @@
+@@ -643,6 +654,7 @@
      MESSAGE(Error_Execution_authorization, "Authorization failure:  &1.")
      MESSAGE(Error_Execution_no_concurrency, "Concurrency not supported.")
      MESSAGE(Error_Execution_circular_requires, "Circular ::REQUIRES references detected with &1.")
@@ -2557,7 +2589,7 @@ Index: interpreter/messages/RexxErrorMessages.h
      MESSAGE(Error_Execution_error_syntax, "External command \"&1\" ended with return code &2.")
      MESSAGE(Error_Execution_failure_syntax, "External command \"&1\" failed with return code &2.")
      MESSAGE(Error_Execution_lostdigits_syntax, "Number &1 has more digits than the current precision.")
-@@ -723,6 +732,7 @@
+@@ -723,6 +735,7 @@
      MESSAGE(Error_Translation_use_local_compound, "USE LOCAL cannot process compound variables; found \"&1\".")
      MESSAGE(Error_Translation_bad_class, "\"&1\" is not a valid class.")
      MESSAGE(Error_Translation_use_arg_reference_no_default, "A USE ARG default value is not allowed for variable references.")
@@ -2567,9 +2599,9 @@ Index: interpreter/messages/RexxErrorMessages.h
      MESSAGE(Message_Translations_running, "running")
 Index: interpreter/messages/RexxMessageNumbers.h
 ===================================================================
---- a/interpreter/messages/RexxMessageNumbers.h	(revision 13484)
+--- a/interpreter/messages/RexxMessageNumbers.h	(revision 13491)
 +++ b/interpreter/messages/RexxMessageNumbers.h	(working copy)
-@@ -763,6 +763,16 @@
+@@ -763,6 +763,19 @@
  #define Error_Invalid_subkeyword_options_form_msg                    843
  #define Error_Variable_reference_use_default_msg                     844
  #define Error_Incorrect_call_error_code_msg                          845
@@ -2578,29 +2610,36 @@ Index: interpreter/messages/RexxMessageNumbers.h
 +#define Error_Invalid_subkeyword_catch_msg                           848
 +#define Error_Invalid_leave_leave_catch_msg                          849
 +#define Error_Invalid_leave_iterate_catch_msg                        850
-+#define Error_Unexpected_end_finally_msg                             851
-+#define Error_Unexpected_end_after_finally_msg                       852
-+#define Error_Invalid_data_finally_msg                               853
-+#define Error_Execution_finally_exit_msg                             854
-+#define Error_Translation_finally_exit_msg                           855
++#define Error_Unexpected_end_catch_then_msg                          851
++#define Error_Unexpected_end_catch_else_msg                          852
++#define Error_Unexpected_end_finally_msg                             853
++#define Error_Unexpected_end_finally_then_msg                        854
++#define Error_Unexpected_end_finally_else_msg                        855
++#define Error_Unexpected_end_after_finally_msg                       856
++#define Error_Execution_finally_exit_msg                             857
++#define Error_Translation_finally_exit_msg                           858
  
  
  #endif
 Index: interpreter/messages/RexxMessageTable.h
 ===================================================================
---- a/interpreter/messages/RexxMessageTable.h	(revision 13484)
+--- a/interpreter/messages/RexxMessageTable.h	(revision 13491)
 +++ b/interpreter/messages/RexxMessageTable.h	(working copy)
-@@ -92,6 +92,9 @@
+@@ -92,6 +92,13 @@
        MINOR(Error_Unexpected_end_then)
        MINOR(Error_Unexpected_end_else)
        MINOR(Error_Unexpected_end_select_nolabel)
 +      MINOR(Error_Unexpected_end_catch)
++      MINOR(Error_Unexpected_end_catch_then)
++      MINOR(Error_Unexpected_end_catch_else)
 +      MINOR(Error_Unexpected_end_finally)
++      MINOR(Error_Unexpected_end_finally_then)
++      MINOR(Error_Unexpected_end_finally_else)
 +      MINOR(Error_Unexpected_end_after_finally)
    MAJOR(Error_Control_stack)
        MINOR(Error_Control_stack_full)
        MINOR(Error_Control_stack_user_defined)
-@@ -188,6 +191,7 @@
+@@ -188,6 +195,7 @@
        MINOR(Error_Symbol_expected_address_with)
        MINOR(Error_Symbol_expected_counter)
        MINOR(Error_Symbol_expected_numeric_subdirective)
@@ -2608,15 +2647,7 @@ Index: interpreter/messages/RexxMessageTable.h
    MAJOR(Error_Invalid_data)
        MINOR(Error_Invalid_data_user_defined)
        MINOR(Error_Invalid_data_nop)
-@@ -203,6 +207,7 @@
-       MINOR(Error_Invalid_data_guard_off)
-       MINOR(Error_Invalid_data_constant_dir)
-       MINOR(Error_Invalid_data_resource_dir)
-+      MINOR(Error_Invalid_data_finally)
-   MAJOR(Error_Invalid_character_string)
-       MINOR(Error_Invalid_character_string_char)
-       MINOR(Error_Invalid_character_string_user_defined)
-@@ -259,6 +264,7 @@
+@@ -259,6 +267,7 @@
        MINOR(Error_Invalid_subkeyword_duplicate)
        MINOR(Error_Invalid_subkeyword_conflict)
        MINOR(Error_Invalid_subkeyword_options_form)
@@ -2624,7 +2655,7 @@ Index: interpreter/messages/RexxMessageTable.h
    MAJOR(Error_Invalid_whole_number)
        MINOR(Error_Invalid_whole_number_repeat)
        MINOR(Error_Invalid_whole_number_for)
-@@ -287,6 +293,8 @@
+@@ -287,6 +296,8 @@
        MINOR(Error_Invalid_leave_leavevar)
        MINOR(Error_Invalid_leave_iteratevar)
        MINOR(Error_Invalid_leave_iterate_name)
@@ -2633,7 +2664,7 @@ Index: interpreter/messages/RexxMessageTable.h
    MAJOR(Error_Environment_name)
        MINOR(Error_Environment_name_name)
    MAJOR(Error_Name_too_long)
-@@ -642,6 +650,7 @@
+@@ -642,6 +653,7 @@
        MINOR(Error_Execution_authorization)
        MINOR(Error_Execution_no_concurrency)
        MINOR(Error_Execution_circular_requires)
@@ -2641,7 +2672,7 @@ Index: interpreter/messages/RexxMessageTable.h
        MINOR(Error_Execution_error_syntax)
        MINOR(Error_Execution_failure_syntax)
        MINOR(Error_Execution_lostdigits_syntax)
-@@ -722,6 +731,7 @@
+@@ -722,6 +734,7 @@
        MINOR(Error_Translation_use_local_compound)
        MINOR(Error_Translation_bad_class)
        MINOR(Error_Translation_use_arg_reference_no_default)
@@ -2651,9 +2682,9 @@ Index: interpreter/messages/RexxMessageTable.h
        MINOR(Message_Translations_running)
 Index: interpreter/messages/errnums.xml
 ===================================================================
---- a/interpreter/messages/errnums.xml	(revision 13484)
+--- a/interpreter/messages/errnums.xml	(revision 13491)
 +++ b/interpreter/messages/errnums.xml	(working copy)
-@@ -283,6 +283,24 @@
+@@ -283,6 +283,48 @@
  <para>END corresponding to SELECT on line <emphasis role="italic">line_number</emphasis> must not have a symbol following it because there is no LABEL; found "<emphasis role="italic">symbol</emphasis>".</para>
  </listitem>
  </varlistentry>
@@ -2666,11 +2697,35 @@ Index: interpreter/messages/errnums.xml
 +<varlistentry>
 +<term>009</term>
 +<listitem>
++<para>CATCH must not immediately follow THEN.</para>
++</listitem>
++</varlistentry>
++<varlistentry>
++<term>011</term>
++<listitem>
++<para>CATCH must not immediately follow ELSE.</para>
++</listitem>
++</varlistentry>
++<varlistentry>
++<term>012</term>
++<listitem>
 +<para>FINALLY has no corresponding DO, LOOP, or SELECT.</para>
 +</listitem>
 +</varlistentry>
 +<varlistentry>
-+<term>010</term>
++<term>013</term>
++<listitem>
++<para>FINALLY must not immediately follow THEN.</para>
++</listitem>
++</varlistentry>
++<varlistentry>
++<term>014</term>
++<listitem>
++<para>FINALLY must not immediately follow ELSE.</para>
++</listitem>
++</varlistentry>
++<varlistentry>
++<term>015</term>
 +<listitem>
 +<para>A CATCH or FINALLY clause must not follow the FINALLY clause on line <emphasis role="italic">line_number</emphasis>.</para>
 +</listitem>
@@ -2678,7 +2733,7 @@ Index: interpreter/messages/errnums.xml
  </variablelist>
  </section>
  <section id="ERR11">
-@@ -948,6 +966,12 @@
+@@ -948,6 +990,12 @@
  <para>Symbol expected after the NUMERIC subdirective keyword.</para>
  </listitem>
  </varlistentry>
@@ -2691,20 +2746,7 @@ Index: interpreter/messages/errnums.xml
  </variablelist>
  </section>
  <section id="ERR21">
-@@ -1043,6 +1067,12 @@
- <para>Data must not follow the ::RESOURCE directive; found "<emphasis role="italic">data</emphasis>".</para>
- </listitem>
- </varlistentry>
-+<varlistentry>
-+<term>915</term>
-+<listitem>
-+<para>Data must not follow the FINALLY keyword; found "<emphasis role="italic">data</emphasis>".</para>
-+</listitem>
-+</varlistentry>
- </variablelist>
- </section>
- <section id="ERR22">
-@@ -1409,6 +1439,12 @@
+@@ -1409,6 +1457,12 @@
  <para>FORM must be followed by one of the keywords SCIENTIFIC or ENGINEERING; found "<emphasis role="italic">word</emphasis>".</para>
  </listitem>
  </varlistentry>
@@ -2717,7 +2759,7 @@ Index: interpreter/messages/errnums.xml
  </variablelist>
  </section>
  <section id="ERR26">
-@@ -1615,6 +1651,18 @@
+@@ -1615,6 +1669,18 @@
  <para>Symbol following ITERATE ("<emphasis role="italic">symbol</emphasis>") does not match a repetitive block instruction.</para>
  </listitem>
  </varlistentry>
@@ -2736,7 +2778,7 @@ Index: interpreter/messages/errnums.xml
  </variablelist>
  </section>
  <section id="ERR29">
-@@ -3958,6 +4006,13 @@
+@@ -3958,6 +4024,13 @@
  </listitem>
  </varlistentry>
  <varlistentry>
@@ -2750,7 +2792,7 @@ Index: interpreter/messages/errnums.xml
  <term>970</term>
  <listitem>
  <para>External command "<emphasis role="italic">command</emphasis>" ended with return code <emphasis role="italic">rc</emphasis>.</para>
-@@ -4442,6 +4497,13 @@
+@@ -4442,6 +4515,13 @@
  <para>A USE ARG default value is not allowed for variable references.</para>
  </listitem>
  </varlistentry>
@@ -2766,9 +2808,9 @@ Index: interpreter/messages/errnums.xml
  </section>
 Index: interpreter/messages/rexxmsg.xml
 ===================================================================
---- a/interpreter/messages/rexxmsg.xml	(revision 13484)
+--- a/interpreter/messages/rexxmsg.xml	(revision 13491)
 +++ b/interpreter/messages/rexxmsg.xml	(working copy)
-@@ -418,6 +418,33 @@
+@@ -418,6 +418,69 @@
          <SymbolicName>Error_Unexpected_end_select_nolabel</SymbolicName>
          <Text>END corresponding to SELECT on line <Sub position="2" name="line_number"/> must not have a symbol following it because there is no LABEL; found <q><Sub position="1" name="symbol"/></q>.</Text>
        </SubMessage>
@@ -2787,13 +2829,49 @@ Index: interpreter/messages/rexxmsg.xml
 +        <MessageNumber>851</MessageNumber>
 +        <Component>Rexx</Component>
 +        <Severity>Warning</Severity>
++        <SymbolicName>Error_Unexpected_end_catch_then</SymbolicName>
++        <Text>CATCH must not immediately follow THEN.</Text>
++      </SubMessage>
++      <SubMessage>
++        <Code>10</Code>
++        <Subcode>011</Subcode>
++        <MessageNumber>852</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Unexpected_end_catch_else</SymbolicName>
++        <Text>CATCH must not immediately follow ELSE.</Text>
++      </SubMessage>
++      <SubMessage>
++        <Code>10</Code>
++        <Subcode>012</Subcode>
++        <MessageNumber>853</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
 +        <SymbolicName>Error_Unexpected_end_finally</SymbolicName>
 +        <Text>FINALLY has no corresponding DO, LOOP, or SELECT.</Text>
 +      </SubMessage>
 +      <SubMessage>
 +        <Code>10</Code>
-+        <Subcode>010</Subcode>
-+        <MessageNumber>852</MessageNumber>
++        <Subcode>013</Subcode>
++        <MessageNumber>854</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Unexpected_end_finally_then</SymbolicName>
++        <Text>FINALLY must not immediately follow THEN.</Text>
++      </SubMessage>
++      <SubMessage>
++        <Code>10</Code>
++        <Subcode>014</Subcode>
++        <MessageNumber>855</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Unexpected_end_finally_else</SymbolicName>
++        <Text>FINALLY must not immediately follow ELSE.</Text>
++      </SubMessage>
++      <SubMessage>
++        <Code>10</Code>
++        <Subcode>015</Subcode>
++        <MessageNumber>856</MessageNumber>
 +        <Component>Rexx</Component>
 +        <Severity>Warning</Severity>
 +        <SymbolicName>Error_Unexpected_end_after_finally</SymbolicName>
@@ -2802,7 +2880,7 @@ Index: interpreter/messages/rexxmsg.xml
      </Subcodes>
    </Message>
    <Message>
-@@ -1360,6 +1387,15 @@
+@@ -1360,6 +1423,15 @@
          <SymbolicName>Error_Symbol_expected_numeric_subdirective</SymbolicName>
          <Text>Symbol expected after the NUMERIC subdirective keyword.</Text>
        </SubMessage>
@@ -2818,23 +2896,7 @@ Index: interpreter/messages/rexxmsg.xml
      </Subcodes>
    </Message>
    <Message>
-@@ -1498,6 +1534,15 @@
-         <SymbolicName>Error_Invalid_data_resource_dir</SymbolicName>
-         <Text>Data must not follow the ::RESOURCE directive; found <q><Sub position="1" name="data"/></q>.</Text>
-       </SubMessage>
-+      <SubMessage>
-+        <Code>21</Code>
-+        <Subcode>915</Subcode>
-+        <MessageNumber>853</MessageNumber>
-+        <Component>Rexx</Component>
-+        <Severity>Warning</Severity>
-+        <SymbolicName>Error_Invalid_data_finally</SymbolicName>
-+        <Text>Data must not follow the FINALLY keyword; found <q><Sub position="1" name="data"/></q>.</Text>
-+      </SubMessage>
-     </Subcodes>
-   </Message>
-   <Message>
-@@ -2021,6 +2066,15 @@
+@@ -2021,6 +2093,15 @@
          <SymbolicName>Error_Invalid_subkeyword_options_form</SymbolicName>
          <Text>FORM must be followed by one of the keywords SCIENTIFIC or ENGINEERING; found <q><Sub position="1" name="word"/></q>.</Text>
        </SubMessage>
@@ -2850,7 +2912,7 @@ Index: interpreter/messages/rexxmsg.xml
      </Subcodes>
    </Message>
    <Message>
-@@ -2295,6 +2349,24 @@
+@@ -2295,6 +2376,24 @@
          <SymbolicName>Error_Invalid_leave_iterate_name</SymbolicName>
          <Text>Symbol following ITERATE (<q><Sub position="1" name="symbol"/></q>) does not match a repetitive block instruction.</Text>
        </SubMessage>
@@ -2875,12 +2937,12 @@ Index: interpreter/messages/rexxmsg.xml
      </Subcodes>
    </Message>
    <Message>
-@@ -5612,6 +5684,15 @@
+@@ -5612,6 +5711,15 @@
        </SubMessage>
        <SubMessage>
          <Code>98</Code>
 +        <Subcode>953</Subcode>
-+        <MessageNumber>854</MessageNumber>
++        <MessageNumber>857</MessageNumber>
 +        <Component>Rexx</Component>
 +        <Severity>Warning</Severity>
 +        <SymbolicName>Error_Execution_finally_exit</SymbolicName>
@@ -2891,14 +2953,14 @@ Index: interpreter/messages/rexxmsg.xml
          <Subcode>970</Subcode>
          <MessageNumber>495</MessageNumber>
          <Component>Rexx</Component>
-@@ -6338,6 +6419,15 @@
+@@ -6338,6 +6446,15 @@
          <SymbolicName>Error_Translation_use_arg_reference_no_default</SymbolicName>
          <Text>A USE ARG default value is not allowed for variable references.</Text>
        </SubMessage>
 +      <SubMessage>
 +        <Code>99</Code>
 +        <Subcode>951</Subcode>
-+        <MessageNumber>855</MessageNumber>
++        <MessageNumber>858</MessageNumber>
 +        <Component>Rexx</Component>
 +        <Severity>Warning</Severity>
 +        <SymbolicName>Error_Translation_finally_exit</SymbolicName>
@@ -2909,7 +2971,7 @@ Index: interpreter/messages/rexxmsg.xml
    <Message>
 Index: interpreter/parser/InstructionParser.cpp
 ===================================================================
---- a/interpreter/parser/InstructionParser.cpp	(revision 13484)
+--- a/interpreter/parser/InstructionParser.cpp	(revision 13491)
 +++ b/interpreter/parser/InstructionParser.cpp	(working copy)
 @@ -107,6 +107,8 @@
  #include "DoInstruction.hpp"
@@ -2931,7 +2993,7 @@ Index: interpreter/parser/InstructionParser.cpp
 +
 +                // FINALLY clause of a DO, LOOP or SELECT (RFE #31)
 +            case KEYWORD_FINALLY:
-+                return finallyNew();
++                return finallyNew(first);
 +                break;
 +
                  // ELSE instruction...possibly unexpected.
@@ -2969,7 +3031,7 @@ Index: interpreter/parser/InstructionParser.cpp
      // allocate the object and return
      RexxInstruction *newObject = type == KEYWORD_LEAVE ? new_instruction(LEAVE, Leave) : new_instruction(ITERATE, Leave);
      ::new ((void *)newObject) RexxInstructionLeave(name);
-@@ -3083,6 +3106,127 @@
+@@ -3083,6 +3106,129 @@
  
  
  /**
@@ -3035,21 +3097,23 @@ Index: interpreter/parser/InstructionParser.cpp
 +
 +/**
 + * Parse a FINALLY clause of a DO, LOOP or SELECT (RFE #31).
++ * As THEN, ELSE and OTHERWISE do, the keyword implies a semicolon
++ * after it: an instruction may follow on the same line.  It is
++ * split off in translateBlock().
++ *
++ * @param token  The FINALLY keyword token.
 + *
 + * @return An executable FINALLY instruction object.
 + */
-+RexxInstruction *LanguageParser::finallyNew()
++RexxInstruction *LanguageParser::finallyNew(RexxToken *token)
 +{
 +    // FINALLY is new in 5.3.0: a program that uses it has a new instruction
 +    // class in its image, so an earlier interpreter must reject it when it
 +    // is loaded from a compiled file
 +    requireLanguageLevel(LanguageLevel0607);
 +
-+    // nothing follows the keyword
-+    requiredEndOfClause(Error_Invalid_data_finally);
-+
 +    RexxInstruction *newObject = new_instruction(FINALLY, Finally);
-+    ::new ((void *)newObject) RexxInstructionFinally();
++    ::new ((void *)newObject) RexxInstructionFinally(token);
 +    return newObject;
 +}
 +
@@ -3097,7 +3161,7 @@ Index: interpreter/parser/InstructionParser.cpp
   * Create a new Otherwise instruction object.
   *
   * @param token  The token for the OTHERWISE keyword.
-@@ -3782,6 +3926,8 @@
+@@ -3782,6 +3928,8 @@
      // this is pretty simple...parse the optional expression and create the
      // instruction instance.
      RexxInternalObject *expression = parseExpression(TERM_EOC);
@@ -3106,7 +3170,7 @@ Index: interpreter/parser/InstructionParser.cpp
  
      RexxInstruction *newObject = new_instruction(RETURN, Return);
      ::new ((void *)newObject) RexxInstructionReturn(expression);
-@@ -3907,6 +4053,9 @@
+@@ -3907,6 +4055,9 @@
      // parse it off now.
      RexxInternalObject *labelExpression = requiredExpression(TERM_EOC, Error_Invalid_expression_signal);
  
@@ -3116,7 +3180,7 @@ Index: interpreter/parser/InstructionParser.cpp
      // create a new instruction object
      RexxInstruction *newObject = new_instruction(SIGNAL_VALUE, DynamicSignal);
      ::new ((void *)newObject) RexxInstructionDynamicSignal(labelExpression);
-@@ -4094,6 +4243,9 @@
+@@ -4094,6 +4245,9 @@
          }
      }
  
@@ -3128,7 +3192,7 @@ Index: interpreter/parser/InstructionParser.cpp
      ::new ((void *)newObject) RexxInstructionSignal(labelName);
 Index: interpreter/parser/KeywordConstants.cpp
 ===================================================================
---- a/interpreter/parser/KeywordConstants.cpp	(revision 13484)
+--- a/interpreter/parser/KeywordConstants.cpp	(revision 13491)
 +++ b/interpreter/parser/KeywordConstants.cpp	(working copy)
 @@ -68,6 +68,7 @@
      KeywordEntry("ADDRESS",    KEYWORD_ADDRESS),
@@ -3148,7 +3212,7 @@ Index: interpreter/parser/KeywordConstants.cpp
      KeywordEntry("IF",         KEYWORD_IF),
 Index: interpreter/parser/LanguageParser.cpp
 ===================================================================
---- a/interpreter/parser/LanguageParser.cpp	(revision 13484)
+--- a/interpreter/parser/LanguageParser.cpp	(revision 13491)
 +++ b/interpreter/parser/LanguageParser.cpp	(working copy)
 @@ -62,6 +62,8 @@
  #include "EndInstruction.hpp"
@@ -3170,7 +3234,39 @@ Index: interpreter/parser/LanguageParser.cpp
              {
                  // get our label name
                  resetPosition(1); // firstToken() won't do ..
-@@ -1335,7 +1339,8 @@
+@@ -1347,11 +1351,40 @@
+                     syntaxError(Error_Unexpected_end_then);
+                 }
+             }
++            // nor can a CATCH clause (RFE #31): after an ELSE, flushControl()
++            // would add it as the instruction of the ELSE, and the CATCH case
++            // below would then find the enclosing block and accept it
++            else if (type == KEYWORD_CATCH)
++            {
++                InstructionKeyword pending = topDoType();
++                if (pending == KEYWORD_ELSE)
++                {
++                    syntaxError(Error_Unexpected_end_catch_else);
++                }
++                else if (pending == KEYWORD_IFTHEN || pending == KEYWORD_WHENTHEN)
++                {
++                    syntaxError(Error_Unexpected_end_catch_then);
++                }
++            }
++            // nor a FINALLY clause
++            else if (type == KEYWORD_FINALLY)
++            {
++                InstructionKeyword pending = topDoType();
++                if (pending == KEYWORD_ELSE)
++                {
++                    syntaxError(Error_Unexpected_end_finally_else);
++                }
++                else if (pending == KEYWORD_IFTHEN || pending == KEYWORD_WHENTHEN)
++                {
++                    syntaxError(Error_Unexpected_end_finally_then);
++                }
++            }
+             flushControl(instruction);
          }
          // validate allowed instructions in a SELECT
          if (topDoIsType(KEYWORD_SELECT, KEYWORD_SELECT_CASE) &&
@@ -3180,7 +3276,7 @@ Index: interpreter/parser/LanguageParser.cpp
          {
              syntaxError(Error_When_expected_whenotherwise, topDo());
          }
-@@ -1540,6 +1545,53 @@
+@@ -1556,6 +1589,69 @@
                  break;
              }
  
@@ -3217,7 +3313,8 @@ Index: interpreter/parser/LanguageParser.cpp
 +                        second = topDo();
 +                    }
 +                    // a block instruction other than OTHERWISE is a DO, LOOP or SELECT;
-+                    // anything else (no block, a pending THEN or ELSE) is an error
++                    // anything else (no block at all) is an error.  A pending THEN
++                    // or ELSE has already been rejected, before flushControl()
 +                    if (!second->isBlock() || second->isType(KEYWORD_OTHERWISE))
 +                    {
 +                        syntaxError(type == KEYWORD_FINALLY ? Error_Unexpected_end_finally : Error_Unexpected_end_catch);
@@ -3228,13 +3325,28 @@ Index: interpreter/parser/LanguageParser.cpp
 +                clause->setOwner(owner);
 +                // the clause stays on the control stack until the next one or the END
 +                pushDo(clause);
++
++                // FINALLY implies a semicolon after it, as OTHERWISE does: an
++                // instruction may follow on the same line.  (CATCH is followed by
++                // its conditions, which catchNew() has parsed to the end of the clause.)
++                if (type == KEYWORD_FINALLY)
++                {
++                    RexxToken *token = nextReal();
++                    if (!token->isEndOfClause())
++                    {
++                        previousToken();
++                        trimClause();
++                        // we have a clause, go back around and process this
++                        continue;
++                    }
++                }
 +                break;
 +            }
 +
                  // An END instruction.  This could be the closure for a DO, LOOP, or SELECT.
                  // its matchup should be on the top of the control stack.
              case  KEYWORD_END:
-@@ -1548,6 +1600,14 @@
+@@ -1564,6 +1660,14 @@
                  // correct type, we're finished with this.  If not the
                  // correct type, we have an error.
                  RexxInstruction *second = popDo();
@@ -3249,7 +3361,7 @@ Index: interpreter/parser/LanguageParser.cpp
                  type = second->getType();
                  // that the top of the stack is an acceptable block-type instruction.
                  // This includes all of the DO/LOOP variants, both Select types, and Otherwise
-@@ -1590,6 +1650,19 @@
+@@ -1606,6 +1710,19 @@
                      ((RexxBlockInstruction *)second)->matchEnd((RexxInstructionEnd *)instruction, this);
                  }
  
@@ -3269,7 +3381,7 @@ Index: interpreter/parser/LanguageParser.cpp
                  // We've just completed a large block instruction.  It is possible that
                  // this was part of something like "if a then do;..end", in which case, the
                  // conditional instruction is still in a pending state.  Flush out the control
-@@ -4282,6 +4355,12 @@
+@@ -4298,6 +4415,12 @@
              syntaxError(Error_Incomplete_do_otherwise, instruction);
              break;
  
@@ -3284,21 +3396,21 @@ Index: interpreter/parser/LanguageParser.cpp
          case KEYWORD_WHEN:
 Index: interpreter/parser/LanguageParser.hpp
 ===================================================================
---- a/interpreter/parser/LanguageParser.hpp	(revision 13484)
+--- a/interpreter/parser/LanguageParser.hpp	(revision 13491)
 +++ b/interpreter/parser/LanguageParser.hpp	(working copy)
 @@ -286,6 +286,9 @@
      RexxInstruction *numericNew();
      RexxInstruction *optionsNew();
      RexxInstruction *otherwiseNew(RexxToken *);
 +    RexxInstruction *catchNew();
-+    RexxInstruction *finallyNew();
++    RexxInstruction *finallyNew(RexxToken *);
 +    void checkFinallyExit(const char *keyword, bool blockTarget = false, RexxString *name = OREF_NULL);
      RexxInstruction *parseNew(InstructionSubKeyword);
      RexxInstruction *procedureNew();
      RexxInstruction *pushNew();
 Index: interpreter/parser/Token.hpp
 ===================================================================
---- a/interpreter/parser/Token.hpp	(revision 13484)
+--- a/interpreter/parser/Token.hpp	(revision 13491)
 +++ b/interpreter/parser/Token.hpp	(working copy)
 @@ -255,6 +255,8 @@
      KEYWORD_REQUIRES,

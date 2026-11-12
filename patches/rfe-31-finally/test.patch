@@ -2,7 +2,7 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 ===================================================================
 --- a/ooRexx/base/keyword/CATCH.testGroup	(nonexistent)
 +++ b/ooRexx/base/keyword/CATCH.testGroup	(working copy)
-@@ -0,0 +1,540 @@
+@@ -0,0 +1,707 @@
 +#!/usr/bin/env rexx
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
@@ -215,7 +215,7 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +before:
 +  self~fail('the SIGNAL ON trap was used')
 +
-+-- a SIGNAL ON enabled inside the block hides CATCH
++-- inside its block the CATCH wins over a SIGNAL ON enabled there
 +::method test_trap_inside_block
 +  out = ''
 +  do
@@ -224,10 +224,27 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +  catch syntax
 +    out = 'catch'
 +  end
++  signal off syntax
++  self~assertEquals('catch', out)
++  return
 +inside:
-+  self~assertEquals('', out)
++  self~fail('the SIGNAL ON trap was used')
 +
-+-- SIGNAL OFF inside the block makes CATCH visible again
++-- the SIGNAL ON enabled inside the block is in effect after the block
++::method test_trap_inside_block_persists
++  out = ''
++  do
++    signal on syntax name after
++  catch syntax
++    out = 'catch'
++  end
++  x = 1/0
++  self~fail('the SIGNAL ON trap was not used')
++after:
++  self~assertEquals('', out)
++  self~assertEquals('SIGNAL', condition('I'))
++
++-- SIGNAL OFF inside the block makes no difference
 +::method test_signal_off_inside_block
 +  do
 +    signal on syntax name inside
@@ -241,7 +258,8 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +inside:
 +  self~fail('the SIGNAL ON trap was used')
 +
-+-- a CALL ON enabled inside the block hides CATCH
++-- inside its block the CATCH wins over a CALL ON enabled there, and the
++-- CALL ON is in effect after the block
 +::method test_call_on_inside_block
 +  out = ''
 +  do
@@ -251,12 +269,29 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +  catch user u5
 +    out = out 'catch'
 +  end
++  self~assertEquals(' catch', out)
++  call raiseUserU5
++  out = out 'resumed'
 +  call off user u5
-+  self~assertEquals(' called resumed', out)
++  self~assertEquals(' catch called resumed', out)
 +  return
 +called:
 +  out = out 'called'
 +  return
++
++-- a SIGNAL ON enabled by an INTERPRET in the block does not win either
++::method test_interpret_trap_inside_block
++  out = ''
++  do
++    interpret 'signal on syntax name inside; x = 1/0'
++  catch syntax
++    out = 'catch'
++  end
++  signal off syntax
++  self~assertEquals('catch', out)
++  return
++inside:
++  self~fail('the SIGNAL ON trap was used')
 +
 +-- internal routines are covered; SIGL is the line of the CALL
 +::method test_internal_routine
@@ -286,6 +321,106 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +  return
 +routineTrap:
 +  out = 'routine'
++  return
++
++-- a trap that the internal routine inherits does not win: neither one
++-- enabled before the block nor one enabled inside it
++::method test_internal_routine_inherited_trap
++  signal on syntax name inherited
++  do
++    signal on syntax name inherited
++    call divide
++  catch syntax
++    out = 'catch'
++  end
++  signal off syntax
++  self~assertEquals('catch', out)
++  return
++divide:
++  x = 1/0
++  return
++inherited:
++  self~fail('the SIGNAL ON trap was used')
++
++-- the trap of an internal routine wins in the routines it calls too
++::method test_internal_routine_trap_nested
++  out = ''
++  do
++    call outerRoutine
++    out = out 'back'
++  catch syntax
++    out = out 'catch'
++  end
++  self~assertEquals(' routine back', out)
++  return
++outerRoutine:
++  signal on syntax name routineTrap
++  call innerRoutine
++  return
++innerRoutine:
++  x = 1/0
++  return
++routineTrap:
++  out = out 'routine'
++  signal off syntax
++  return
++
++-- a trap enabled by an INTERPRET in the internal routine is the routine's
++::method test_internal_routine_interpret_trap
++  do
++    call trapping
++  catch syntax
++    out = 'catch'
++  end
++  self~assertEquals('routine', out)
++  return
++trapping:
++  interpret 'signal on syntax name routineTrap'
++  x = 1/0
++  return
++routineTrap:
++  out = 'routine'
++  return
++
++-- a CALL ON of the internal routine itself wins
++::method test_internal_routine_call_on
++  out = ''
++  do
++    call calling
++    out = out 'back'
++  catch user u5
++    out = out 'catch'
++  end
++  self~assertEquals(' called resumed back', out)
++  return
++calling:
++  call on user u5 name called
++  call raiseUserU5
++  out = out 'resumed'
++  return
++called:
++  out = out 'called'
++  return
++
++-- a block of the internal routine wins over the routine's own trap
++::method test_internal_routine_own_block
++  do
++    call catching
++  catch syntax
++    out = 'outer'
++  end
++  self~assertEquals('inner', out)
++  return
++catching:
++  signal on syntax name routineTrap
++  do
++    x = 1/0
++  catch syntax
++    out = 'inner'
++  end
++  return
++routineTrap:
++  out = 'trap'
 +  return
 +
 +-- methods: SYNTAX propagates, NOTREADY does not
@@ -438,7 +573,39 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +  self~assertSyntaxError(10.8, .array~of("say 1", "catch syntax"))
 +
 +::method test_catch_after_then
-+  self~assertSyntaxError(10.8, .array~of("do", "if 1 then", "catch syntax", "end"))
++  self~assertSyntaxError(10.9, .array~of("do", "if 1 then", "catch syntax", "end"))
++
++-- since bug #2024 an END cannot be the instruction of a THEN or an ELSE;
++-- neither can a CATCH clause (10.9 after THEN, 10.11 after ELSE; there is
++-- no 10.10, which as a number would be 10.1)
++::method test_catch_after_else
++  self~assertSyntaxError(10.11, .array~of("do", "if 1 then nop", "else", "catch syntax", "end"))
++
++::method test_catch_after_else_same_line
++  self~assertSyntaxError(10.11, .array~of("do", "if 1 then nop; else catch syntax", "end"))
++
++::method test_catch_after_when_then
++  self~assertSyntaxError(10.9, .array~of("do", "select", "when 1 then", "catch syntax", "end", "end"))
++
++::method test_catch_after_else_in_otherwise
++  self~assertSyntaxError(10.11, .array~of("select", "when 0 then nop", "otherwise", "if 1 then nop", "else", "catch syntax", "end"))
++
++::method test_catch_after_else_in_loop
++  self~assertSyntaxError(10.11, .array~of("loop i = 1 to 2", "if i = 1 then nop", "else", "catch syntax", "end"))
++
++::method test_catch_after_second_catch_else
++  self~assertSyntaxError(10.11, .array~of("do", "nop", "catch syntax", "if 1 then nop", "else", "catch notready", "end"))
++
++-- an ELSE with its instruction, then the clause: fine
++::method test_catch_after_complete_else
++  do
++    if 1 then nop
++    else nop
++    raise syntax 93.900 array ("x")
++  catch syntax
++    r = "caught"
++  end
++  self~assertSame("caught", r)
 +
 +::method test_no_condition_name
 +  self~assertSyntaxError(20.936, .array~of("do", "nop", "catch", "end"))
@@ -558,7 +725,7 @@ Index: ooRexx/base/keyword/FINALLY.testGroup
 ===================================================================
 --- a/ooRexx/base/keyword/FINALLY.testGroup	(nonexistent)
 +++ b/ooRexx/base/keyword/FINALLY.testGroup	(working copy)
-@@ -0,0 +1,1397 @@
+@@ -0,0 +1,1663 @@
 +#!/usr/bin/env rexx
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
@@ -1662,23 +1829,289 @@ Index: ooRexx/base/keyword/FINALLY.testGroup
 +  fallsOff: nop
 +
 +-- ---------------------------------------------------------------------------
++-- FINALLY implies a semicolon after it, as THEN, ELSE and OTHERWISE do: an
++-- instruction may follow on the same line
++-- ---------------------------------------------------------------------------
++
++::method test_same_line_assignment
++  out = ''
++  do
++    out = out 'body'
++  finally out = out 'finally'
++  end
++  self~assertEquals(' body finally', out)
++
++-- the rest of the clause goes on in the following lines
++::method test_same_line_and_more
++  out = ''
++  do
++    out = out 'body'
++  finally out = out 'one'
++    out = out 'two'
++  end
++  self~assertEquals(' body one two', out)
++
++::method test_same_line_message
++  out = .mutableBuffer~new
++  do
++    out~append('body')
++  finally out~append(' finally')
++  end
++  self~assertEquals('body finally', out~string)
++
++::method test_same_line_call
++  out = ''
++  do
++    out = out 'body'
++  finally call cleanup 'x'
++  end
++  self~assertEquals(' body cleanup(x)', out)
++  return
++  cleanup: out = out 'cleanup('arg(1)')'; return
++
++-- a function call as a command would be a command; here it is an expression
++-- whose value is assigned
++::method test_same_line_function
++  out = ''
++  do
++    out = out 'body'
++  finally out = cleanup(out)
++  end
++  self~assertEquals(' body cleaned', out)
++  return
++  cleanup: return arg(1) 'cleaned'
++
++::method test_same_line_semicolon
++  out = ''
++  do
++    out = out 'body'
++  finally; out = out 'finally'
++  end
++  self~assertEquals(' body finally', out)
++
++::method test_same_line_several
++  out = ''
++  do
++    out = out 'body'
++  finally out = out 'one'; out = out 'two'; end
++  self~assertEquals(' body one two', out)
++
++-- an empty clause
++::method test_same_line_end
++  out = ''
++  do
++    out = out 'body'
++  finally end
++  self~assertEquals(' body', out)
++
++::method test_whole_block_in_one_line
++  out = ''
++  do; out = out 'body'; finally out = out 'finally'; end
++  self~assertEquals(' body finally', out)
++
++::method test_same_line_do
++  out = ''
++  do
++    out = out 'body'
++  finally do i = 1 to 2
++      out = out i
++    end
++    out = out 'done'
++  end
++  self~assertEquals(' body 1 2 done', out)
++
++::method test_same_line_if
++  out = ''
++  do n = 1 to 2
++    do
++      out = out 'body'
++    finally if n = 1 then out = out 'one'
++      else out = out 'other'
++    end
++  end
++  self~assertEquals(' body one body other', out)
++
++-- a block with clauses of its own
++::method test_same_line_nested_block
++  out = ''
++  do
++    out = out 'body'
++  finally do
++      out = out 'inner'
++      x = 1 / 0
++    catch syntax
++      out = out 'caught' condition('O')~code
++    finally out = out 'inner-finally'
++    end
++  end
++  self~assertEquals(' body inner caught 42.3 inner-finally', out)
++
++::method test_same_line_after_catch
++  out = ''
++  do
++    x = 1 / 0
++  catch syntax
++    out = out 'caught'
++  finally out = out 'finally'
++  end
++  self~assertEquals(' caught finally', out)
++
++::method test_same_line_select
++  out = ''
++  select
++    when out == '' then out = out 'when'
++    otherwise out = out 'otherwise'
++  finally out = out 'finally'
++  end
++  self~assertEquals(' when finally', out)
++
++::method test_same_line_loop
++  out = ''
++  do i = 1 to 3
++    if i = 2 then leave
++    out = out i
++  finally out = out 'f'i
++  end
++  self~assertEquals(' 1 f2', out)
++
++::method test_same_line_return
++  out = ''
++  self~assertEquals('returned', inner())
++  self~assertEquals(' body finally', out)
++  return
++  inner:
++    do
++      out = out 'body'
++      return 'returned'
++    finally out = out 'finally'
++    end
++    return 'no'
++
++-- a condition raised by the instruction on the same line
++::method test_same_line_raises
++  out = ''
++  do
++    do
++      out = out 'body'
++    finally x = 1 / 0
++    end
++  catch syntax
++    out = out condition('O')~code
++  end
++  self~assertEquals(' body 42.3', out)
++
++-- "finally" is still a variable when the clause is an assignment
++::method test_same_line_variable
++  out = ''
++  finally = 1
++  do
++    out = out 'body'
++  finally finally = finally + 1
++  end
++  self~assertEquals(' body', out)
++  self~assertEquals(2, finally)
++
++-- SIGL of an error in the instruction on the same line
++::method test_same_line_sigl
++  line = 0
++  do
++    do
++      nop
++    finally line = .line; x = 1 / 0
++    end
++  catch syntax
++    self~assertEquals(line, condition('O')~position)
++  end
++  self~assertTrue(line > 0)
++
++-- the rule, at translation time, sees the instruction on the same line
++::method test_same_line_rule_return
++  self~assertSyntaxError(99.951, .array~of("do", "nop", "finally return", "end"))
++
++::method test_same_line_rule_exit
++  self~assertSyntaxError(99.951, .array~of("do", "nop", "finally exit", "end"))
++
++::method test_same_line_rule_leave
++  self~assertSyntaxError(99.951, .array~of("do i = 1 to 2", "nop", "finally leave", "end"))
++
++::method test_same_line_rule_signal
++  self~assertSyntaxError(99.951, .array~of("do", "nop", "finally signal there", "end", "there:"))
++
++::method test_same_line_rule_then
++  self~assertSyntaxError(99.951, .array~of("do", "nop", "finally if 1 then return", "end"))
++
++-- allowed: a LEAVE of a block in the clause
++::method test_same_line_leave_inside
++  out = ''
++  do
++    out = out 'body'
++  finally do i = 1 to 3; if i = 2 then leave; out = out i; end
++  end
++  self~assertEquals(' body 1', out)
++
++::method test_same_line_catch
++  self~assertSyntaxError(10.15, .array~of("do", "nop", "finally catch syntax", "end"))
++
++::method test_same_line_finally
++  self~assertSyntaxError(10.15, .array~of("do", "nop", "finally finally", "end"))
++
++::method test_same_line_label
++  self~assertSyntaxError(47.2, .array~of("do", "nop", "finally lab: nop", "end"))
++
++::method test_same_line_stray
++  self~assertSyntaxError(10.12, .array~of("say 1", "finally say 2"))
++
++::method test_same_line_unclosed
++  self~assertSyntaxError(14.1, .array~of("do", "nop", "finally say 1"))
++
++-- ---------------------------------------------------------------------------
 +-- Translation errors
 +-- ---------------------------------------------------------------------------
 +
 +::method test_stray_finally
-+  self~assertSyntaxError(10.9, .array~of("say 1", "finally"))
++  self~assertSyntaxError(10.12, .array~of("say 1", "finally"))
 +
++-- as an END (bug #2024) or a CATCH, a FINALLY clause cannot be the
++-- instruction of a THEN or of an ELSE: 10.13 after THEN, 10.14 after ELSE
 +::method test_finally_after_then
-+  self~assertSyntaxError(10.9, .array~of("do", "if 1 then", "finally", "end"))
++  self~assertSyntaxError(10.13, .array~of("do", "if 1 then", "finally", "end"))
++
++::method test_finally_after_then_same_line
++  self~assertSyntaxError(10.13, .array~of("do", "if 1 then finally say 1", "end"))
++
++::method test_finally_after_else
++  self~assertSyntaxError(10.14, .array~of("do", "if 1 then nop", "else", "finally", "end"))
++
++::method test_finally_after_else_same_line
++  self~assertSyntaxError(10.14, .array~of("do", "if 1 then nop; else finally say 1", "end"))
++
++::method test_finally_after_when_then
++  self~assertSyntaxError(10.13, .array~of("do", "select", "when 1 then", "finally", "end", "end"))
++
++::method test_finally_after_else_in_select
++  self~assertSyntaxError(10.14, .array~of("select", "when 0 then nop", "otherwise", "if 1 then nop", "else", "finally", "end"))
++
++::method test_finally_after_else_in_loop
++  self~assertSyntaxError(10.14, .array~of("loop i = 1 to 2", "if i = 1 then nop", "else", "finally", "end"))
++
++::method test_finally_after_else_in_catch
++  self~assertSyntaxError(10.14, .array~of("do", "nop", "catch syntax", "if 1 then nop", "else", "finally", "end"))
++
++-- a complete IF before the clause is fine
++::method test_finally_after_complete_if
++  out = ''
++  do
++    if out == '' then out = out 'then'
++    else out = out 'else'
++  finally out = out 'finally'
++  end
++  self~assertEquals(' then finally', out)
 +
 +::method test_catch_after_finally
-+  self~assertSyntaxError(10.10, .array~of("do", "nop", "finally", "nop", "catch syntax", "end"))
++  self~assertSyntaxError(10.15, .array~of("do", "nop", "finally", "nop", "catch syntax", "end"))
 +
 +::method test_two_finally
-+  self~assertSyntaxError(10.10, .array~of("do", "nop", "finally", "nop", "finally", "end"))
-+
-+::method test_data_after_finally
-+  self~assertSyntaxError(21.915, .array~of("do", "nop", "finally syntax", "end"))
++  self~assertSyntaxError(10.15, .array~of("do", "nop", "finally", "nop", "finally", "end"))
 +
 +::method test_label_in_clause
 +  self~assertSyntaxError(47.2, .array~of("do", "nop", "finally", "lab:", "end"))
@@ -1969,7 +2402,7 @@ Added: svn:executable
 \ No newline at end of property
 Index: ooRexx/utilities/rexxc/rexxc.testGroup
 ===================================================================
---- a/ooRexx/utilities/rexxc/rexxc.testGroup	(revision 13484)
+--- a/ooRexx/utilities/rexxc/rexxc.testGroup	(revision 13491)
 +++ b/ooRexx/utilities/rexxc/rexxc.testGroup	(working copy)
 @@ -270,6 +270,55 @@
    compiled~delete
