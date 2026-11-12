@@ -2,7 +2,7 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 ===================================================================
 --- a/ooRexx/base/keyword/CATCH.testGroup	(nonexistent)
 +++ b/ooRexx/base/keyword/CATCH.testGroup	(working copy)
-@@ -0,0 +1,753 @@
+@@ -0,0 +1,879 @@
 +#!/usr/bin/env rexx
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
@@ -563,6 +563,132 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +  call SysFileDelete compiled
 +  self~assertEquals('SYNTAX 2', .routine~new('t', code)~call)
 +
++-- the same with CATCH variable = condition: the variable survives
++::method test_compiled_variable
++  src = .array~of( -
++    "do i = 1 to 3", -
++    "  if i = 2 then x = 1/0", -
++    "catch c = notready, syntax", -
++    "  return c~condition c~code i", -
++    "end")
++  source = SysTempFileName(.File~temporaryPath || .File~separator || 'catch-????.rex')
++  compiled = SysTempFileName(.File~temporaryPath || .File~separator || 'catch-????.rxc')
++  .stream~new(source)~~open("write replace")~~arrayout(src)~~close
++  address system 'rexxc "'source'" "'compiled'" -s -e'
++  s = .stream~new(compiled)~~open("read")
++  code = s~arrayin
++  s~close
++  call SysFileDelete source
++  call SysFileDelete compiled
++  self~assertEquals('SYNTAX 42.3 2', .routine~new('t', code)~call)
++
++-- CATCH variable = condition [, condition]...: the variable gets the
++-- condition object when the clause starts to run (as in NetRexx's
++-- CATCH variable = exception)
++::method test_variable
++  do
++    x = 1/0
++  catch c = syntax
++    self~assertSame("SYNTAX", c~condition)
++    self~assertSame("42.3", c~code)
++    self~assertSame("CATCH", c~instruction)
++    self~assertSame(c~code, condition("O")~code)
++  end
++  self~assertSame("SYNTAX", c~condition)
++
++::method test_variable_list
++  do
++    call raiseUserTwo
++  catch e = user one, user two, syntax
++    r = e~condition
++  end
++  self~assertSame("USER TWO", r)
++
++::method test_variable_any
++  do
++    call raiseUserTwo
++  catch e = any
++    r = e~condition
++  end
++  self~assertSame("USER TWO", r)
++
++::method test_variable_stem
++  s. = 0
++  do
++    call raiseUserTwo
++  catch s. = any
++    nop
++  end
++  self~assertSame("USER TWO", s.zz~condition)
++
++::method test_variable_compound
++  k = 7
++  do
++    x = 1/0
++  catch c.k = syntax
++    nop
++  end
++  self~assertSame("42.3", c.7~code)
++
++-- only the clause that runs sets its variable
++::method test_variable_other_clause
++  drop a b
++  do
++    x = 1/0
++  catch a = notready
++    nop
++  catch b = syntax
++    nop
++  end
++  self~assertSame("A", a)
++  self~assertSame("SYNTAX", b~condition)
++
++-- a clause without a variable sets none
++::method test_variable_none
++  drop c
++  do
++    x = 1/0
++  catch syntax
++    nop
++  end
++  self~assertSame("C", c)
++
++-- the variable may have the name of a condition
++::method test_variable_named_syntax
++  do
++    x = 1/0
++  catch syntax = syntax
++    r = syntax~code
++  end
++  self~assertSame("42.3", r)
++
++-- a block inside a loop: the clause runs, and sets its variable, each time
++::method test_variable_loop
++  do i = 1 to 2
++    do
++      x = i / 0
++    catch c = syntax
++      r = c~code
++    end
++  end
++  self~assertSame("42.3", r)
++  self~assertSame(3, i)
++
++::method test_variable_number
++  self~assertSyntaxError(31.2, .array~of("do", "nop", "catch 1x = syntax", "end"))
++
++::method test_variable_period
++  self~assertSyntaxError(31.3, .array~of("do", "nop", "catch .x = syntax", "end"))
++
++::method test_variable_no_condition
++  self~assertSyntaxError(20.936, .array~of("do", "nop", "catch c =", "end"))
++
++::method test_variable_bad_condition
++  self~assertSyntaxError(25.939, .array~of("do", "nop", "catch c = foo", "end"))
++
++::method test_variable_strict_equal
++  self~assertSyntaxError(25.939, .array~of("do", "nop", "catch c == syntax", "end"))
++
 +-- CATCH is still an ordinary symbol elsewhere
 +::method test_assignment
 +  catch = 1
@@ -771,7 +897,7 @@ Index: ooRexx/base/keyword/FINALLY.testGroup
 ===================================================================
 --- a/ooRexx/base/keyword/FINALLY.testGroup	(nonexistent)
 +++ b/ooRexx/base/keyword/FINALLY.testGroup	(working copy)
-@@ -0,0 +1,1713 @@
+@@ -0,0 +1,1735 @@
 +#!/usr/bin/env rexx
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
@@ -2045,6 +2171,28 @@ Index: ooRexx/base/keyword/FINALLY.testGroup
 +    out = out condition('O')~code
 +  end
 +  self~assertEquals(' body 42.3', out)
++
++-- CATCH variable = condition: the FINALLY clause sees the variable, and
++-- FINALLY itself takes none (what follows it is an ordinary assignment)
++::method test_catch_variable_then_finally
++  out = ''
++  do
++    x = 1 / 0
++  catch c = syntax
++    out = out 'caught'
++  finally out = out c~code
++  end
++  self~assertEquals(' caught 42.3', out)
++
++::method test_finally_then_assignment_not_variable
++  out = ''
++  c = 'none'
++  do
++    out = out 'body'
++  finally c = 'set by the clause'
++  end
++  self~assertEquals(' body', out)
++  self~assertEquals('set by the clause', c)
 +
 +-- "finally" is still a variable when the clause is an assignment
 +::method test_same_line_variable
