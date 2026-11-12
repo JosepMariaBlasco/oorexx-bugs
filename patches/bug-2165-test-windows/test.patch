@@ -1,0 +1,22 @@
+--- a/ooRexx/base/class/Package.testGroup
++++ b/ooRexx/base/class/Package.testGroup
+@@ -747,8 +747,9 @@
+ ::method test_new_context_nativemethod
+   code = "say .tstNativeContext"   -- a class of the child program, not visible
+   file = .TemporaryTestFile~new(self, "nativeContext.tmp.rex")~create(code)
++  -- the name goes into the source: an argument would keep its quotes on Windows
+   source = .array~of( -
+-    "parse arg file", -
++    "file = '"file~fullName~changeStr("'", "''")"'", -
+     "native = .Method~loadExternalMethod('m', 'LIBRARY rxregexp RegExp_Pos')", -
+     "code = '"code"'", -
+     "p = .Package~new('p', code, native)", -
+@@ -760,7 +761,7 @@
+     "::class tstNativeContext")
+   program = .TemporaryTestFile~new(self, "nativeContextMain.tmp.rex")~create(source)
+   output = .array~new
+-  theRC = issueCmd("rexx" program~quotedName file~quotedName, output)
++  theRC = issueCmd("rexx" program~quotedName, output)
+   expected = .array~of(".TSTNATIVECONTEXT", ".TSTNATIVECONTEXT", ".TSTNATIVECONTEXT", -
+                        ".TSTNATIVECONTEXT", ".TSTNATIVECONTEXT", "done")
+   self~assertSame(expected~items, output~items, "rexx ended with rc" theRC "after" output~items "lines")
