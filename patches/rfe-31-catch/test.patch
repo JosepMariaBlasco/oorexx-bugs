@@ -554,3 +554,39 @@ Added: svn:executable
 ## -0,0 +1 ##
 +*
 \ No newline at end of property
+Index: ooRexx/utilities/rexxc/rexxc.testGroup
+===================================================================
+--- a/ooRexx/utilities/rexxc/rexxc.testGroup	(revision 13484)
++++ b/ooRexx/utilities/rexxc/rexxc.testGroup	(working copy)
+@@ -270,6 +270,31 @@
+   compiled~delete
+ 
+ 
++-- RFE #31: a program that uses CATCH requires 6.07 (5.3.0); the symbol
++-- CATCH used as a variable or as a label requires no more than before
++::method test_catch_level
++  nl = .endOfLine
++  cases = .Array~of( -
++    .Array~of(60500, "do" || nl || "  say 1" || nl || "end"), -
++    .Array~of(60500, "catch = 1" || nl || "do" || nl || "  say catch" || nl || "end"), -
++    .Array~of(60500, "signal catch" || nl || "catch: say 1"), -
++    .Array~of(60700, "do" || nl || "  say 1" || nl || "catch syntax" || nl || "  say 2" || nl || "end"), -
++    .Array~of(60700, "loop i = 1 to 2" || nl || "  say i" || nl || "catch any" || nl || "  say 2" || nl || "end"), -
++    .Array~of(60700, "select" || nl || "  when 1 then say 1" || nl || "catch syntax, novalue" || nl || "  say 2" || nl || "end"), -
++    .Array~of(60700, "say 1" || nl || "exit" || nl || "r: procedure" || nl || "do" || nl || "  say 1" || nl || "catch user oops" || nl || "  say 2" || nl || "end" || nl || "return") -
++  )
++  source = .TemporaryTestFile~new(self, "test_catch_level.rex")
++  compiled = .TemporaryTestFile~new(self, "test_catch_level.rexc")
++  do case over cases
++    source~create(case[2])
++    address "" "rexxc" self~q(source~fullName) self~q(compiled~fullName) "-s" with output stem o. error stem e.
++    self~assertRc(0, rc, "rexxc expected to compile" case[2] "with rc 0")
++    self~assertSame(case[1], requiredLanguageLevel(compiled), "required language level of:" case[2])
++  end
++  source~delete
++  compiled~delete
++
++
+ -- the language level stored in the header of a program compiled by rexxc:
+ -- after the shebang line, a 16-byte tag ("/**/@REXX"), four 16-bit fields
+ -- (magic number, image version, word size, big-endian flag) and the level
