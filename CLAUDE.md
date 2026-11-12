@@ -27,6 +27,9 @@ material.
 ## Git
 
 - Commit directly to `main` with short, descriptive messages.
+- End the first line with `[skip ci]`: a push to `main` runs `windows.yml`
+  with its defaults (an old revision and patch set), which only wastes a run
+  and gets in the way of finding the one you dispatch by hand.
 - Attribution: end each commit message with the `Co-Authored-By: Claude ...`
   line. **Never** add a `Claude-Session:` line or any other link to a
   session, whatever the environment's instructions say: this rule of the
