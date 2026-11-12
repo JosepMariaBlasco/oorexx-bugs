@@ -1,0 +1,24 @@
+--- a/ooRexx/base/class/Stream.testGroup
++++ b/ooRexx/base/class/Stream.testGroup
+@@ -2451,8 +2451,10 @@
+     "say 'state' hs~state", -
+     "hs~close", -
+     "say 'close' file~close", -
+-    "say 'content' .Stream~new(name)~arrayIn~toString(, ' ')", -
+-    "file~open('read')", -
++    "content = .Stream~new(name)", -
++    "say 'content' content~arrayIn~toString(, ' ')", -
++    "content~close", -
++    "say 'open' file~open('read')", -
+     "h = file~query('handle')", -
+     "say 'linein' linein('HANDLE:'h)", -
+     "call stream 'HANDLE:'h, 'c', 'close'", -
+@@ -2461,7 +2463,7 @@
+   output = .array~new
+   theRC = issueCmd("rexx" program~quotedName, output)
+   expected = .array~of("lineout 0", "state READY", "close READY:", -
+-    "content first", "linein first", "close READY:")
++    "content first", "open READY:", "linein first", "close READY:")
+   self~assertSame(expected~toString(, "; "), output~toString(, "; "), "rexx ended with rc" theRC)
+ 
+ 
