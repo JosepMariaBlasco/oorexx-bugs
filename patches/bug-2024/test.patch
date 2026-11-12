@@ -1,0 +1,76 @@
+Index: ooRexx/base/keyword/IF.testGroup
+===================================================================
+--- a/ooRexx/base/keyword/IF.testGroup	(revision 13489)
++++ b/ooRexx/base/keyword/IF.testGroup	(working copy)
+@@ -1793,3 +1793,56 @@
+    If x=3.E-19222795 then self~assertSame(x, "3.E-19222795")
+    else self~assertTrue(0)
+ 
++
++-- bug #2024: an END cannot be the instruction of a THEN or of an ELSE.
++-- These programs are only translated (assertSyntaxError), not run.
++::method test_else_end
++  -- END must not immediately follow ELSE
++  self~assertSyntaxError(10.6, "do; if 0 then nop; else; end")
++
++::method test_else_end_same_clause
++  -- END must not immediately follow ELSE
++  self~assertSyntaxError(10.6, "do; if 0 then nop; else end")
++
++::method test_else_end_lines
++  -- END must not immediately follow ELSE
++  self~assertSyntaxError(10.6, ("do", "  if 0 then nop", "  else", "end"))
++
++::method test_else_end_loop
++  -- END must not immediately follow ELSE
++  self~assertSyntaxError(10.6, "do i = 1 to 3; if i = 2 then nop; else; end")
++
++::method test_else_end_nested_if
++  -- END must not immediately follow ELSE
++  self~assertSyntaxError(10.6, "do; if 1 then if 0 then nop; else; end")
++
++::method test_else_end_select
++  -- END must not immediately follow ELSE
++  self~assertSyntaxError(10.6, "select; when 1 then if 0 then nop; else; end")
++
++::method test_then_end
++  -- END must not immediately follow THEN
++  self~assertSyntaxError(10.5, "do; if 1 then; end")
++
++::method test_then_end_same_clause
++  -- END must not immediately follow THEN
++  self~assertSyntaxError(10.5, "do; if 1 then end")
++
++::method test_then_end_lines
++  -- END must not immediately follow THEN
++  self~assertSyntaxError(10.5, ("do", "  if 1", "  then", "end"))
++
++::method test_else_then_end
++  -- END must not immediately follow THEN
++  self~assertSyntaxError(10.5, "do; if 0 then nop; else if 1 then; end")
++
++-- an END that closes a block after a complete IF is still right
++::method test_end_after_if
++  self~assertSame(1, self~runDynamicSource("do; if 0 then nop; else nop; end; return 1"))
++  self~assertSame(2, self~runDynamicSource("do; if 1 then nop; end; return 2"))
++  self~assertSame(3, self~runDynamicSource("do; if 0 then nop; else do; end; end; return 3"))
++  self~assertSame(4, self~runDynamicSource("do; if 1 then do; end; end; return 4"))
++  self~assertSame(5, self~runDynamicSource("do; if 1 then if 0 then nop; else nop; end; return 5"))
++  self~assertSame(6, self~runDynamicSource("select; when 0 then nop; otherwise; end; return 6"))
++  self~assertSame(7, self~runDynamicSource("select; when 0 then nop; otherwise if 0 then nop; else nop; end; return 7"))
++  self~assertSame(8, self~runDynamicSource("do i = 1 to 3; if i = 2 then nop; else nop; end; return 8"))
+Index: ooRexx/base/keyword/SELECT.testGroup
+===================================================================
+--- a/ooRexx/base/keyword/SELECT.testGroup	(revision 13489)
++++ b/ooRexx/base/keyword/SELECT.testGroup	(working copy)
+@@ -630,8 +630,8 @@
+   self~assertSyntaxError(18.2, "select; when 1; end")
+ 
+ ::method test_select_when_expression_then
+-  -- END has no corresponding DO, LOOP, or SELECT
+-  self~assertSyntaxError(10.1, "select; when 1 then; end")
++  -- END must not immediately follow THEN (bug #2024; 10.1 before)
++  self~assertSyntaxError(10.5, "select; when 1 then; end")
+ 
+ -- bug #2018: a WHEN cannot be the instruction of an empty THEN.
+ -- .routine~new only translates: the code must not run, as running it
