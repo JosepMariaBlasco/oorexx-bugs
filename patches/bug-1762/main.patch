@@ -1,0 +1,45 @@
+Index: rexxapi/common/platform/unix/SysCSStream.hpp
+===================================================================
+--- a/rexxapi/common/platform/unix/SysCSStream.hpp	(revision 13491)
++++ b/rexxapi/common/platform/unix/SysCSStream.hpp	(working copy)
+@@ -52,7 +52,9 @@
+ public:
+     inline SysSocketConnection() : c(-1), ApiConnection() { }
+     inline SysSocketConnection(int sock) : c(sock), ApiConnection() { }
+-    inline ~SysSocketConnection() { }
++    // the base class destructor cannot do this: there, disconnect() is the
++    // one of the base class, which does nothing
++    inline ~SysSocketConnection() { disconnect(); }
+ 
+     bool read(void *buf, size_t bufsize, size_t *bytesread) override;
+     bool write(void *buf, size_t bufsize, size_t *byteswritten) override;
+Index: rexxapi/common/platform/windows/SysCSNamedPipeStream.hpp
+===================================================================
+--- a/rexxapi/common/platform/windows/SysCSNamedPipeStream.hpp	(revision 13491)
++++ b/rexxapi/common/platform/windows/SysCSNamedPipeStream.hpp	(working copy)
+@@ -47,7 +47,9 @@
+     inline SysNamedPipeConnection() : pipeHandle(INVALID_HANDLE_VALUE), ApiConnection() { }
+     inline SysNamedPipeConnection(HANDLE h) : pipeHandle(h), ApiConnection() { }
+     inline SysNamedPipeConnection(const char *pipe) : pipeHandle(INVALID_HANDLE_VALUE), ApiConnection() { connect(pipe); }
+-    inline ~SysNamedPipeConnection() { }
++    // the base class destructor cannot do this: there, disconnect() is the
++    // one of the base class, which does nothing
++    inline ~SysNamedPipeConnection() { disconnect(); }
+ 
+     bool read(void *buf, size_t bufsize, size_t *bytesread) override;
+     bool write(void *buf, size_t bufsize, size_t *byteswritten) override;
+Index: rexxapi/common/platform/windows/SysCSStream.hpp
+===================================================================
+--- a/rexxapi/common/platform/windows/SysCSStream.hpp	(revision 13491)
++++ b/rexxapi/common/platform/windows/SysCSStream.hpp	(working copy)
+@@ -51,7 +51,9 @@
+ public:
+     inline SysSocketConnection() : c(-1), ApiConnection() { }
+     inline SysSocketConnection(SOCKET sock) : c(sock), ApiConnection() { }
+-    inline ~SysSocketConnection() { }
++    // the base class destructor cannot do this: there, disconnect() is the
++    // one of the base class, which does nothing
++    inline ~SysSocketConnection() { disconnect(); }
+ 
+     bool read(void *buf, size_t bufsize, size_t *bytesread) override;
+     bool write(void *buf, size_t bufsize, size_t *byteswritten)override ;

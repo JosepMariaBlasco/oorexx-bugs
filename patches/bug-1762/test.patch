@@ -1,0 +1,91 @@
+Index: ooRexx/utilities/rxapi.testGroup
+===================================================================
+--- a/ooRexx/utilities/rxapi.testGroup	(revision 13492)
++++ b/ooRexx/utilities/rxapi.testGroup	(working copy)
+@@ -118,6 +118,40 @@
+   self~assertTrue(external > 50, "an external call stopped the other threads while rxapi did not answer:" external"%")
+   self~assertTrue(requires > 50, "a ::REQUIRES stopped the other threads while rxapi did not answer:" requires"%")
+ 
++::method test_bug_1762
++  -- bug #1762: rxapi did not close the connection of a client it had given
++  -- up on (the socket was left open when the connection object was deleted).
++  -- A client whose message rxapi could not find memory for waited forever
++  -- for its data to be read, and rxapi kept a socket for every client that
++  -- ended without closing its connection.  We start another rxapi (a private
++  -- XDG_RUNTIME_DIR) with a limit on its address space; a helper process
++  -- counts its open files before and after a client is killed, and then
++  -- queues data until that rxapi has no memory left.
++  -- Linux only: needs "ulimit -v" to be enforced, /proc and "timeout"
++  if .ooRexxUnit.OSName \== "LINUX" then return
++  rexx = .RexxInfo~executable
++  if rexx == .nil then return -- we don't know which rexx to run
++  rxapi = .File~new("rxapi", rexx~parent)  -- in the same directory as rexx
++  dir = SysTempFileName("/tmp/ooRexx-rxapi-1762-????")  -- short: rxapi's socket goes here
++  self~assertSame(0, SysMkDir(dir), "cannot create" dir)
++  .stream~new(dir"/helper.rex")~~open("write replace")~~arrayOut(.resources["HELPER1762.REX"])~~close
++  output = .array~new
++  -- rxapi may use 300 MB of address space; the helper starts when its socket
++  -- is there.  Without the fix the helper never ends: give it a minute
++  address system 'export XDG_RUNTIME_DIR="'dir'";' -
++    '(ulimit -v 300000; exec' self~q(rxapi) '>/dev/null 2>&1) & echo $! >' self~q(dir"/rxapi.pid")';' -
++    'n=0; while [ $n -lt 50 ] && ! ls "'dir'"/.ooRexx-*.service >/dev/null 2>&1; do sleep 0.1; n=$((n+1)); done;' -
++    'timeout -s KILL 60' self~q(rexx) self~q(dir"/helper.rex") self~q(dir)';' -
++    'kill $(cat' self~q(dir"/rxapi.pid")') 2>/dev/null' -
++    with output using (output) error using (output)
++  address system "rm -rf" self~q(dir)
++  self~assertSame(2, output~items, "unexpected output from the helper:" output~toString(, " | "))
++  parse value output[1] with "files" before during after .
++  self~assertTrue(before~dataType("W") & during~dataType("W") & after~dataType("W"), "unexpected output from the helper:" output[1])
++  self~assertSame(before + 1, during, "a client is one more open file in rxapi:" output[1])
++  self~assertSame(before, after, "rxapi kept the socket of a client that was killed:" output[1])
++  self~assertSame("48.1", output[2]~word(1), "queuing data until rxapi has no memory left:" output[2])
++
+ ::method q
+   use strict arg string
+   return '"'string'"'
+@@ -198,5 +232,45 @@
+ return
+ ::END
+ 
++-- the helper for test_bug_1762, run with a private XDG_RUNTIME_DIR, where
++-- an rxapi with little memory is running; its argument is that directory,
++-- which has the process id of that rxapi in rxapi.pid
++::resource "helper1762.rex"
++parse arg dir
++pid = .stream~new(dir"/rxapi.pid")~linein
++q = .RexxQueue~new
++-- a client that is killed while it is connected
++before = files(pid)
++address system '"'.RexxInfo~executable~absolutePath'"' '-e "q = .RexxQueue~new; call SysSleep 30"' -
++  '>/dev/null 2>&1 </dev/null & echo $! >"'dir'/client.pid"'
++client = .stream~new(dir"/client.pid")~linein
++do 50 while files(pid) = before         -- up to five seconds for it to connect
++  call SysSleep 0.1
++end
++during = files(pid)
++address system "kill -KILL" client
++do 50 while files(pid) > before         -- and five for rxapi to notice
++  call SysSleep 0.1
++end
++say "files" before during files(pid)
++-- queue data until rxapi cannot find memory for it
++data = "x"~copies(1e6)
++signal on syntax
++do i = 1 to 400
++  q~push(data)
++end
++say "no error after" i - 1 "items of 1 MB"
++signal done
++syntax:
++  say condition("o")~code "after" i - 1 "items of 1 MB"
++done:
++exit 0
+ 
++files: procedure                        -- how many files a process has open
++  use arg pid
++  call SysFileTree "/proc/"pid"/fd/*", "f.", "O"
++  return f.0
++::END
++
++
+ ::options all syntax error condition
