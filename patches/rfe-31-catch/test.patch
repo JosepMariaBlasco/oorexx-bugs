@@ -2,7 +2,7 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 ===================================================================
 --- a/ooRexx/base/keyword/CATCH.testGroup	(nonexistent)
 +++ b/ooRexx/base/keyword/CATCH.testGroup	(working copy)
-@@ -0,0 +1,540 @@
+@@ -0,0 +1,675 @@
 +#!/usr/bin/env rexx
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
@@ -215,7 +215,7 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +before:
 +  self~fail('the SIGNAL ON trap was used')
 +
-+-- a SIGNAL ON enabled inside the block hides CATCH
++-- inside its block the CATCH wins over a SIGNAL ON enabled there
 +::method test_trap_inside_block
 +  out = ''
 +  do
@@ -224,10 +224,27 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +  catch syntax
 +    out = 'catch'
 +  end
++  signal off syntax
++  self~assertEquals('catch', out)
++  return
 +inside:
-+  self~assertEquals('', out)
++  self~fail('the SIGNAL ON trap was used')
 +
-+-- SIGNAL OFF inside the block makes CATCH visible again
++-- the SIGNAL ON enabled inside the block is in effect after the block
++::method test_trap_inside_block_persists
++  out = ''
++  do
++    signal on syntax name after
++  catch syntax
++    out = 'catch'
++  end
++  x = 1/0
++  self~fail('the SIGNAL ON trap was not used')
++after:
++  self~assertEquals('', out)
++  self~assertEquals('SIGNAL', condition('I'))
++
++-- SIGNAL OFF inside the block makes no difference
 +::method test_signal_off_inside_block
 +  do
 +    signal on syntax name inside
@@ -241,7 +258,8 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +inside:
 +  self~fail('the SIGNAL ON trap was used')
 +
-+-- a CALL ON enabled inside the block hides CATCH
++-- inside its block the CATCH wins over a CALL ON enabled there, and the
++-- CALL ON is in effect after the block
 +::method test_call_on_inside_block
 +  out = ''
 +  do
@@ -251,12 +269,29 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +  catch user u5
 +    out = out 'catch'
 +  end
++  self~assertEquals(' catch', out)
++  call raiseUserU5
++  out = out 'resumed'
 +  call off user u5
-+  self~assertEquals(' called resumed', out)
++  self~assertEquals(' catch called resumed', out)
 +  return
 +called:
 +  out = out 'called'
 +  return
++
++-- a SIGNAL ON enabled by an INTERPRET in the block does not win either
++::method test_interpret_trap_inside_block
++  out = ''
++  do
++    interpret 'signal on syntax name inside; x = 1/0'
++  catch syntax
++    out = 'catch'
++  end
++  signal off syntax
++  self~assertEquals('catch', out)
++  return
++inside:
++  self~fail('the SIGNAL ON trap was used')
 +
 +-- internal routines are covered; SIGL is the line of the CALL
 +::method test_internal_routine
@@ -286,6 +321,106 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +  return
 +routineTrap:
 +  out = 'routine'
++  return
++
++-- a trap that the internal routine inherits does not win: neither one
++-- enabled before the block nor one enabled inside it
++::method test_internal_routine_inherited_trap
++  signal on syntax name inherited
++  do
++    signal on syntax name inherited
++    call divide
++  catch syntax
++    out = 'catch'
++  end
++  signal off syntax
++  self~assertEquals('catch', out)
++  return
++divide:
++  x = 1/0
++  return
++inherited:
++  self~fail('the SIGNAL ON trap was used')
++
++-- the trap of an internal routine wins in the routines it calls too
++::method test_internal_routine_trap_nested
++  out = ''
++  do
++    call outerRoutine
++    out = out 'back'
++  catch syntax
++    out = out 'catch'
++  end
++  self~assertEquals(' routine back', out)
++  return
++outerRoutine:
++  signal on syntax name routineTrap
++  call innerRoutine
++  return
++innerRoutine:
++  x = 1/0
++  return
++routineTrap:
++  out = out 'routine'
++  signal off syntax
++  return
++
++-- a trap enabled by an INTERPRET in the internal routine is the routine's
++::method test_internal_routine_interpret_trap
++  do
++    call trapping
++  catch syntax
++    out = 'catch'
++  end
++  self~assertEquals('routine', out)
++  return
++trapping:
++  interpret 'signal on syntax name routineTrap'
++  x = 1/0
++  return
++routineTrap:
++  out = 'routine'
++  return
++
++-- a CALL ON of the internal routine itself wins
++::method test_internal_routine_call_on
++  out = ''
++  do
++    call calling
++    out = out 'back'
++  catch user u5
++    out = out 'catch'
++  end
++  self~assertEquals(' called resumed back', out)
++  return
++calling:
++  call on user u5 name called
++  call raiseUserU5
++  out = out 'resumed'
++  return
++called:
++  out = out 'called'
++  return
++
++-- a block of the internal routine wins over the routine's own trap
++::method test_internal_routine_own_block
++  do
++    call catching
++  catch syntax
++    out = 'outer'
++  end
++  self~assertEquals('inner', out)
++  return
++catching:
++  signal on syntax name routineTrap
++  do
++    x = 1/0
++  catch syntax
++    out = 'inner'
++  end
++  return
++routineTrap:
++  out = 'trap'
 +  return
 +
 +-- methods: SYNTAX propagates, NOTREADY does not

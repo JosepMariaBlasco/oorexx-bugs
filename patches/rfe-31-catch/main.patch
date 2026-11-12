@@ -228,37 +228,49 @@ Index: interpreter/execution/RexxActivation.cpp
  RexxActivation::RexxActivation()
  {
      setHasNoReferences();          // nothing referenced from this either
-@@ -140,6 +145,9 @@
+@@ -140,6 +145,10 @@
      settings.intermediateTrace = false;
      activationContext = METHODCALL;  // the context is a method call
      parent = OREF_NULL;              // we don't have a parent stack frame when invoked as a method
 +    catchBlock = OREF_NULL;
 +    catchClause = OREF_NULL;
 +    catchCondition = OREF_NULL;
++    entrySequence = 0;
      executionState = ACTIVE;         // we are now in active execution
      objectScope = SCOPE_RELEASED;    // scope not reserved yet
  
-@@ -221,6 +229,9 @@
+@@ -221,6 +230,10 @@
  
      // the sender is our parent activity
      parent = _parent;
 +    catchBlock = OREF_NULL;
 +    catchClause = OREF_NULL;
 +    catchCondition = OREF_NULL;
++    entrySequence = 0;
      executionState = ACTIVE;      // we are now in active execution
      objectScope = SCOPE_RELEASED; // internal calls don't have a scope
  
-@@ -290,6 +301,9 @@
+@@ -241,6 +254,8 @@
+     // settings as well.
+     if (context == INTERNALCALL)
+     {
++        // the traps enabled from now on are this routine's own (RFE #31)
++        entrySequence = nextSequence();
+         settings.setTrapsCopied(false);
+         settings.setIOConfigCopied(false);
+         settings.setReplyIssued(false);
+@@ -290,6 +305,10 @@
      activationContext = context;
      settings.intermediateTrace = false;
      parent = OREF_NULL;            // there's no parent for a top level call
 +    catchBlock = OREF_NULL;
 +    catchClause = OREF_NULL;
 +    catchCondition = OREF_NULL;
++    entrySequence = 0;
      executionState = ACTIVE;       // we are now in active execution
      objectScope = SCOPE_RELEASED;  // scope not reserved yet
  
-@@ -371,6 +385,9 @@
+@@ -371,6 +390,9 @@
      memory_mark(environmentList);
      memory_mark(conditionQueue);
      memory_mark(contextObject);
@@ -268,7 +280,7 @@ Index: interpreter/execution/RexxActivation.cpp
  
      // We're holding a pointer back to our arguments directly where they
      // are created.  Since in some places, this argument list comes
-@@ -406,6 +423,9 @@
+@@ -406,6 +428,9 @@
      memory_mark_general(environmentList);
      memory_mark_general(conditionQueue);
      memory_mark_general(contextObject);
@@ -278,7 +290,7 @@ Index: interpreter/execution/RexxActivation.cpp
  
      // We're holding a pointer back to our arguments directly where they
      // are created.  Since in some places, this argument list comes
-@@ -833,6 +853,12 @@
+@@ -833,6 +858,12 @@
                  stack.clear();
                  settings.timeStamp.valid = false;
  
@@ -291,7 +303,7 @@ Index: interpreter/execution/RexxActivation.cpp
                  // if we were in a debug pause, we had a error interpreting the
                  // line typed at the pause.  We're just going to terminate this
                  // like it was a return
-@@ -1154,6 +1180,11 @@
+@@ -1154,6 +1185,11 @@
              // we only recognize LOOP constructs for this.
              if (loop->isLoop())
              {
@@ -303,7 +315,7 @@ Index: interpreter/execution/RexxActivation.cpp
                  // reset the indentation
                  setIndent(doblock->getIndent());
                  // have the loop handle a re-execution.  This will
-@@ -1166,6 +1197,11 @@
+@@ -1166,6 +1202,11 @@
          // a named LEAVE can be either a labeled block or a loop.
          else if (loop->isLabel(name))
          {
@@ -315,7 +327,7 @@ Index: interpreter/execution/RexxActivation.cpp
              // if we have a name match, but this is not a loop,
              // that's a problem.
              if (!loop->isLoop())
-@@ -1218,6 +1254,11 @@
+@@ -1218,6 +1259,11 @@
              // we only recognize LOOP constructs for this.
              if (loop->isLoop())
              {
@@ -327,7 +339,7 @@ Index: interpreter/execution/RexxActivation.cpp
                  loop->terminate(this, doblock);
                  return;
              }
-@@ -1225,6 +1266,11 @@
+@@ -1225,6 +1271,11 @@
          // a named LEAVE can be either a labeled block or a loop.
          else if (loop->isLabel(name))
          {
@@ -339,7 +351,7 @@ Index: interpreter/execution/RexxActivation.cpp
              loop->terminate(this, doblock);
              return;
          }
-@@ -2520,27 +2566,51 @@
+@@ -2520,27 +2571,54 @@
          activity->displayDebug(exceptionObject);
          throw this;
      }
@@ -374,13 +386,16 @@ Index: interpreter/execution/RexxActivation.cpp
 -    // trap enabled, so check that.
 -    if (trapHandler == OREF_NULL)
 +    // a CATCH clause of an active block (here, or in the code that runs
-+    // this internal routine or INTERPRET) wins over a trap enabled before
-+    // the block was entered (RFE #31)
++    // this internal routine or INTERPRET) wins over a trap, wherever the
++    // trap was enabled: the clause has the scope of its block, a trap
++    // belongs to the activation.  The exception is the trap that an
++    // internal routine called from the block has enabled for itself
++    // (RFE #31)
 +    RexxActivation *catchOwner;
 +    DoBlock *catchingBlock;
 +    RexxInstructionCatch *clause;
 +    if (findCatch(condition, catchOwner, catchingBlock, clause) &&
-+        (trapHandler == OREF_NULL || catchingBlock->getSequence() > trapHandler->getSequence()))
++        (trapHandler == OREF_NULL || !enabledBelow(trapHandler, catchOwner)))
      {
 -
 -        trapHandler = (TrapHandler *)settings.traps->get(GlobalNames::ANY);
@@ -405,7 +420,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // if the condition is being trapped, do the CALL or SIGNAL
      if (trapHandler != OREF_NULL)
      {
-@@ -2606,6 +2676,102 @@
+@@ -2606,6 +2684,128 @@
  
  
  /**
@@ -440,6 +455,32 @@ Index: interpreter/execution/RexxActivation.cpp
 +                    return true;
 +                }
 +            }
++        }
++    }
++    return false;
++}
++
++
++/**
++ * Test if a trap was enabled by an internal routine that runs, directly
++ * or not, for an activation: by this one, or by one of those that
++ * called it.  Such a trap is further in than the blocks of that
++ * activation, so it wins over their CATCH clauses; the traps that the
++ * routine inherited from its caller do not (RFE #31).
++ *
++ * @param trap   The trap handler.
++ * @param owner  The activation that owns the block.
++ *
++ * @return true if an internal routine below the owner enabled the trap.
++ */
++bool RexxActivation::enabledBelow(TrapHandler *trap, RexxActivation *owner)
++{
++    for (RexxActivation *activation = this; activation != OREF_NULL && activation != owner; activation = activation->parent)
++    {
++        // an INTERPRET shares the traps of the code that runs it
++        if (activation->isInternalCall() && trap->getSequence() > activation->entrySequence)
++        {
++            return true;
 +        }
 +    }
 +    return false;
@@ -508,7 +549,7 @@ Index: interpreter/execution/RexxActivation.cpp
   * Check the activation to see if this is trapping a condition.
   * This does not process the trap, but merely indicates that
   * this activation WILL trap the condition.  This is a
-@@ -2653,6 +2819,15 @@
+@@ -2653,6 +2853,15 @@
          return true;
      }
  
@@ -524,7 +565,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // no trap table set yet?  can't handle this
      if (settings.traps == OREF_NULL)
      {
-@@ -2690,8 +2865,12 @@
+@@ -2690,8 +2899,12 @@
   */
  RexxObject* RexxActivation::handleNovalueEvent(RexxString *name, RexxObject *defaultValue, RexxVariable *variable)
  {
@@ -538,7 +579,7 @@ Index: interpreter/execution/RexxActivation.cpp
      {
          reportException(Error_Execution_unassigned_variable, name);
      }
-@@ -2711,7 +2890,7 @@
+@@ -2711,7 +2924,7 @@
          return value;
      }
      // raise novalue?
@@ -560,34 +601,35 @@ Index: interpreter/execution/RexxActivation.hpp
  class RexxActivation : public ActivationBase
  {
    public:
-@@ -206,6 +208,9 @@
+@@ -206,6 +208,10 @@
     RexxString      * traceSetting();
     void              iterate(RexxString *);
     void              leaveLoop(RexxString *);
 +   bool              findCatch(RexxString *condition, RexxActivation *&owner, DoBlock *&block, RexxInstructionCatch *&clause);
 +   void              processCatch();
 +   bool              catches(RexxString *condition);
++   bool              enabledBelow(TrapHandler *trap, RexxActivation *owner);
     void              trapOn(RexxString *, RexxInstructionTrapBase *, bool);
     void              trapOff(RexxString *, bool);
     void              setAddress(RexxString *, CommandIOConfiguration *config);
-@@ -220,6 +225,9 @@
+@@ -220,6 +226,10 @@
     RexxObject      * internalCallTrap(RexxString *, RexxInstruction *, DirectoryClass *, ProtectedObject &);
     bool              callMacroSpaceFunction(RexxString *, RexxObject **, size_t, RexxString *, int, ProtectedObject &);
     static RoutineClass* getMacroCode(RexxString *macroName);
-+   // a counter that orders trap activations and block entries (RFE #31)
++   // a counter that orders trap activations and the entries to internal
++   // routines (RFE #31)
 +   static inline uint64_t nextSequence() { return ++sequenceCounter; }
 +   static uint64_t sequenceCounter;
     RexxString       *resolveProgramName(RexxString *name, ResolveType type);
     RexxClass        *findClass(RexxString *name);
     RexxObject       *resolveDotVariable(RexxString *name, RexxObject *&);
-@@ -308,7 +316,14 @@
+@@ -308,7 +318,13 @@
     inline DoBlock *topBlockInstruction() { return doStack; }
     inline void terminateBlockInstruction(size_t _indent) { popBlockInstruction(); settings.traceIndent = _indent; }
     inline void terminateBlockInstruction() { popBlockInstruction();  }
 -   inline void newBlockInstruction(DoBlock *block) { pushBlockInstruction(block); blockNest++; settings.traceIndent++;}
 +   inline void newBlockInstruction(DoBlock *block)
 +   {
-+       block->setSequence(nextSequence());
 +       pushBlockInstruction(block);
 +       blockNest++;
 +       block->setNest(blockNest);
@@ -596,7 +638,7 @@ Index: interpreter/execution/RexxActivation.hpp
     inline void removeBlockInstruction()
     {
         blockNest--;
-@@ -653,5 +668,10 @@
+@@ -653,5 +669,11 @@
      size_t               blockNest;     // block instruction nesting level
      size_t               instructionCount;  // The number of instructions since we last yielded control
      uint32_t             idntfr;        // idntfr for concurrency trace
@@ -605,6 +647,7 @@ Index: interpreter/execution/RexxActivation.hpp
 +    DoBlock             *catchBlock;    // the block that caught it
 +    RexxInstructionCatch *catchClause;  // the CATCH clause that caught it
 +    DirectoryClass      *catchCondition;// the condition object
++    uint64_t             entrySequence; // when this internal routine was entered (see TrapHandler)
   };
   #endif
 Index: interpreter/execution/TrapHandler.cpp
@@ -639,12 +682,13 @@ Index: interpreter/execution/TrapHandler.hpp
  
  protected:
  
-@@ -86,6 +87,8 @@
+@@ -86,6 +87,9 @@
      RexxInstructionTrapBase *handler;   // the instruction that handles this condition trap
      TrapState state;                    // current state of the trap
      DirectoryClass *conditionObject;    // an object associated with a active trap
-+    uint64_t sequence;                  // when the trap was enabled: a CATCH clause
-+                                        // of a block entered later hides it (RFE #31)
++    uint64_t sequence;                  // when the trap was enabled: tells the traps an
++                                        // internal routine enabled itself, which win over
++                                        // the CATCH clauses of its callers (RFE #31)
  };
  
  #endif
@@ -1069,19 +1113,18 @@ Index: interpreter/instructions/DoBlock.cpp
  
  /**
   * Allocate a new DoBlock object.
-@@ -69,6 +70,11 @@
+@@ -69,6 +70,10 @@
  {
      parent = _parent;
      indent = context->getIndent();
 +    // a block with CATCH clauses: find the first one (RFE #31)
 +    catches = RexxInstructionCatch::firstClause(parent);
 +    inCatch = false;
-+    sequence = 0;
 +    nest = 0;
      countVariable = parent->getCountVariable();
      // if we have a count variable, then we need to set the initial value
      // to zero before we do the loop termination tests.
-@@ -93,6 +99,7 @@
+@@ -93,6 +98,7 @@
      memory_mark(to);
      memory_mark(by);
      memory_mark(countVariable);
@@ -1089,7 +1132,7 @@ Index: interpreter/instructions/DoBlock.cpp
  }
  
  
-@@ -111,6 +118,7 @@
+@@ -111,6 +117,7 @@
      memory_mark_general(to);
      memory_mark_general(by);
      memory_mark_general(countVariable);
@@ -1109,7 +1152,7 @@ Index: interpreter/instructions/DoBlock.hpp
  
  /**
   * A container for state of active block instructions (DO LOOP, or SELECT)
-@@ -87,7 +88,17 @@
+@@ -87,7 +88,15 @@
      inline void newIteration() { counter++; };
      void setCounter(RexxActivation *context);
  
@@ -1118,8 +1161,6 @@ Index: interpreter/instructions/DoBlock.hpp
 +    inline RexxInstructionCatch *getCatches() { return catches; }
 +    inline void setInCatch(bool v) { inCatch = v; }
 +    inline bool isInCatch() { return inCatch; }
-+    inline void setSequence(uint64_t s) { sequence = s; }
-+    inline uint64_t getSequence() { return sequence; }
 +    inline void setNest(size_t n) { nest = n; }
 +    inline size_t getNest() { return nest; }
  
@@ -1127,14 +1168,13 @@ Index: interpreter/instructions/DoBlock.hpp
  protected:
  
      DoBlock           *previous;         // previous stacked Do Block
-@@ -105,5 +116,10 @@
+@@ -105,5 +114,9 @@
      TokenSubclass      compare;          // type of comparison
      RexxVariableBase  *countVariable;    // control variable for counter
      uint64_t           counter;          // the loop iteration counter
 +
 +    RexxInstructionCatch *catches;       // first CATCH clause of the block, if any
 +    bool               inCatch;          // the code of a CATCH clause is running
-+    uint64_t           sequence;         // when the block was entered (see TrapHandler)
 +    size_t             nest;             // block nesting level of the block's body
  };
  #endif
