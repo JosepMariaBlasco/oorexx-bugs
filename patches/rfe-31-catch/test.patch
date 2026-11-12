@@ -2,7 +2,7 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 ===================================================================
 --- a/ooRexx/base/keyword/CATCH.testGroup	(nonexistent)
 +++ b/ooRexx/base/keyword/CATCH.testGroup	(working copy)
-@@ -0,0 +1,879 @@
+@@ -0,0 +1,901 @@
 +#!/usr/bin/env rexx
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
@@ -827,9 +827,9 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +
 +-- a line typed at an interactive trace pause is not inside the blocks of
 +-- the paused code: an error there is shown at the pause, as without
-+-- CATCH, and neither the clause of the paused block nor one of a block
-+-- typed at the pause catches it.  A CATCH in code that the typed line
-+-- runs (an INTERPRET) works as anywhere else
++-- CATCH, and the clause of the paused block does not catch it.  A block
++-- typed at the pause, or in an INTERPRET typed there, catches as anywhere
++-- else: the line typed runs as an INTERPRET does
 +-- (the pause comes after the clause that follows TRACE ?R)
 +::method test_trace_pause_interpret
 +  self~runAtTracePause('interpret "y = 1/0"', " body", .true)
@@ -838,7 +838,29 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +  self~runAtTracePause("call pauseFails", " body", .true)
 +
 +::method test_trace_pause_typed_block
-+  self~runAtTracePause('do; call pauseFails; catch syntax; r = r "typed"; end', " body", .true)
++  self~runAtTracePause('do; call pauseFails; catch syntax; r = r "typed"; end; r = r "after"', " body typed after", .false)
++
++::method test_trace_pause_typed_block_variable
++  self~runAtTracePause('do; y = 1/0; catch c = syntax; r = r c~code condition("C"); end', " body 42.3 SYNTAX", .false)
++
++::method test_trace_pause_typed_loop
++  self~runAtTracePause('loop i = 1 to 3; y = 1/0; catch syntax; r = r "loop" i; end', " body loop 1", .false)
++
++::method test_trace_pause_typed_block_nested
++  self~runAtTracePause('do; do; y = 1/0; catch user x; nop; end; catch syntax; r = r "outer"; end', " body outer", .false)
++
++-- a typed block with no clause for the condition: the error is shown and
++-- the rest of the line is not run
++::method test_trace_pause_typed_block_other
++  self~runAtTracePause('do; y = 1/0; catch user x; nop; end; r = r "after"', " body", .true)
++
++-- an error in the code of the typed CATCH clause is shown as well
++::method test_trace_pause_typed_block_clause_fails
++  self~runAtTracePause('do; y = 1/0; catch syntax; z = 2/0; end; r = r "after"', " body", .true)
++
++-- a condition other than SYNTAX is caught as well
++::method test_trace_pause_typed_block_novalue
++  self~runAtTracePause('do; r = r nosuchvar; catch novalue; r = r "nv"; end', " body nv", .false)
 +
 +::method test_trace_pause_interpreted_block
 +  self~runAtTracePause('interpret "do; y = 1/0; catch syntax; r = r ''inner''; end"', " body inner", .false)
