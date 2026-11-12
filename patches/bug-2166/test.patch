@@ -1,0 +1,74 @@
+--- a/ooRexx/base/class/Stream.testGroup
++++ b/ooRexx/base/class/Stream.testGroup
+@@ -2437,4 +2437,71 @@
+   return
+ 
+ 
++-- HANDLE:n streams lost their handle when they were opened: writing crashed
++-- the interpreter (SIGSEGV), and nothing reached the handle.  In a child
++-- process, so that a crash cannot take the test suite with it.
++::method test_handle_stream
++  data = .TemporaryTestFile~new(self, "handle_stream.tmp.txt")~create("")
++  source = .array~of( -
++    "name = '"data~absolutePath~changeStr("'", "''")"'", -
++    "file = .Stream~new(name)", -
++    "file~open('write replace')", -
++    "hs = .Stream~new('HANDLE:'file~query('handle'))", -
++    "say 'lineout' hs~lineout('first')", -
++    "say 'state' hs~state", -
++    "hs~close", -
++    "say 'close' file~close", -
++    "say 'content' .Stream~new(name)~arrayIn~toString(, ' ')", -
++    "file~open('read')", -
++    "h = file~query('handle')", -
++    "say 'linein' linein('HANDLE:'h)", -
++    "call stream 'HANDLE:'h, 'c', 'close'", -
++    "say 'close' file~close")
++  program = .TemporaryTestFile~new(self, "handle_stream.tmp.rex")~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName, output)
++  expected = .array~of("lineout 0", "state READY", "close READY:", -
++    "content first", "linein first", "close READY:")
++  self~assertSame(expected~toString(, "; "), output~toString(, "; "), "rexx ended with rc" theRC)
++
++
++-- the methods of a Stream that did not check that it had not been uninited
++-- crashed the interpreter (SIGSEGV) after UNINIT; they must raise 48.1, as
++-- the others do.  In a child process, so that a crash cannot take the test
++-- suite with it.
++::method test_stream_after_uninit
++  data = .TemporaryTestFile~new(self, "stream_after_uninit.tmp.txt")~create("one")
++  source = .array~of( -
++    "name = '"data~absolutePath~changeStr("'", "''")"'", -
++    "s = .Stream~new(name)", -
++    "s~uninit", -
++    "call test 'STATE'", -
++    "call test 'DESCRIPTION'", -
++    "call test 'QUALIFY'", -
++    "call test 'LINEIN'", -
++    "call test 'QUERY', 'EXISTS'", -
++    "call test 'QUERY', 'HANDLE'", -
++    "call test 'QUERY', 'STREAMTYPE'", -
++    "call test 'QUERY', 'SIZE'", -
++    "call test 'QUERY', 'DATETIME'", -
++    "call test 'COMMAND', 'QUERY EXISTS'", -
++    "s~close", -
++    "s~uninit", -
++    "say 'end'", -
++    "exit", -
++    "test: signal on syntax", -
++    "  s~sendWith(arg(1), arg(1, 'a')~section(2))", -
++    "  say 'no error' arg(1) arg(2)", -
++    "  return", -
++    "syntax: say condition('o')~code arg(1) arg(2)", -
++    "  return")
++  program = .TemporaryTestFile~new(self, "stream_after_uninit.tmp.rex")~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName, output)
++  self~assertSame(11, output~items, "rexx ended with rc" theRC "after" output~items "lines")
++  do line over output~section(1, 10)
++    self~assertSame("48.1", line~word(1), line)
++  end
++  self~assertSame("end", output~lastItem)
++
+ ::options novalue syntax
