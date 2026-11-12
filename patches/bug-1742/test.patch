@@ -1,0 +1,151 @@
+Index: ooRexx/base/class/Stream.testGroup
+===================================================================
+--- a/ooRexx/base/class/Stream.testGroup	(revision 13491)
++++ b/ooRexx/base/class/Stream.testGroup	(working copy)
+@@ -2437,6 +2437,132 @@
+   return
+ 
+ 
++-- #1742 Stream RECLENGTH 1 issues
++-- for a stream opened with BINARY RECLENGTH, what was left of the current
++-- record was miscalculated when the position was on the last character of a
++-- record: with RECLENGTH 1, always.  The program of the ticket.
++::method test_bug_1742
++  f = .TemporaryTestFile~new(, "test_bug_1742")
++  s = .Stream~new(f)
++
++  s~open("replace binary reclength 1")
++  self~assertSame(93, lineoutRC(s, 11), "a line of two characters is too long")
++  self~assertSame(0, lineoutRC(s, 1))
++  self~assertSame(0, lineoutRC(s, 2))
++  s~close
++
++  s~open("read binary reclength 1")
++  self~assertSame(2, s~lines)
++  self~assertSame(1, s~query("position read line"))
++  self~assertSame("1", s~linein)
++  self~assertSame(2, s~query("position read line"))
++  self~assertSame("2", s~linein)
++  self~assertSame(3, s~query("position read line"))
++  s~close
++  f~delete
++
++
++-- #1742 reading records after CHARIN has read from 0 to RECLENGTH
++-- characters of the first one
++::method test_bug_1742_read
++  data = "abcdefghijkl"
++  f = .TemporaryTestFile~new(, "test_bug_1742_read")
++  s = .Stream~new(f)
++  s~open("write replace")
++  s~charout(data)
++  s~close
++
++  do rl = 1 to 4
++    do n = 0 to rl
++      id = "reclength" rl", charin" n
++      rest = rl - n // rl               -- what is left of the current record
++      line = n % rl + 1                 -- the record we are in
++
++      s~open("read binary reclength" rl)
++      if n > 0 then
++        self~assertSame(data~left(n), s~charin(, n), id)
++      self~assertSame(line, s~query("position read line"), id)
++      self~assertSame(data~substr(n + 1, rest), s~linein, id)
++      self~assertSame(line + 1, s~query("position read line"), id)
++      self~assertSame(data~substr(n + rest + 1, rl), s~linein, id)
++      self~assertSame(line + 2, s~query("position read line"), id)
++      s~close
++
++      expected = .Array~of(data~substr(n + 1, rest))
++      do i = n + rest + 1 to data~length by rl
++        expected~append(data~substr(i, rl))
++      end
++      s~open("read binary reclength" rl)
++      if n > 0 then
++        s~charin(, n)
++      self~assertSame(expected~toString(, "|"), s~arrayIn~toString(, "|"), id", arrayIn")
++      s~close
++    end
++  end
++  f~delete
++
++
++-- #1742 writing records after CHAROUT has written from 0 to RECLENGTH
++-- characters of the first one
++::method test_bug_1742_write
++  f = .TemporaryTestFile~new(, "test_bug_1742_write")
++  s = .Stream~new(f)
++
++  do rl = 1 to 4
++    do n = 0 to rl
++      id = "reclength" rl", charout" n
++      rest = rl - n // rl               -- what is left of the current record
++      start = "C"~copies(n)
++
++      -- a line that fills the record, and a whole record after it
++      call open
++      self~assertSame(0, lineoutRC(s, "L"~copies(rest)), id)
++      self~assertSame(0, lineoutRC(s, "M"~copies(rl)), id)
++      self~assertSame(start || "L"~copies(rest) || "M"~copies(rl), written(), id", full line")
++
++      -- a shorter line is padded with blanks to the end of the record
++      call open
++      self~assertSame(0, lineoutRC(s, "L"), id)
++      self~assertSame(0, lineoutRC(s, "M"~copies(rl)), id)
++      self~assertSame(start || "L"~left(rest) || "M"~copies(rl), written(), id", short line")
++
++      -- a line longer than what is left of the record is an error, and
++      -- nothing is written
++      call open
++      self~assertSame(93, lineoutRC(s, "L"~copies(rest + 1)), id)
++      self~assertSame(start, written(), id", line too long")
++
++      -- positioning by line completes a record that has been started
++      if n // rl > 0 then do
++        call open
++        self~assertSame(0, s~lineout( , 3), id)
++        self~assertSame(0, lineoutRC(s, "N"), id)
++        content = written()
++        self~assertSame(3 * rl, content~length, id", line position")
++        self~assertSame(start~left(rl), content~left(rl), id", line position")
++        self~assertSame("N"~left(rl), content~right(rl), id", line position")
++      end
++    end
++  end
++  f~delete
++  return
++
++  open:
++  s~open("write replace binary reclength" rl)
++  if n > 0 then
++    s~charout(start)
++  return
++
++  -- closes the stream and returns what the file has
++  written: procedure expose s f
++  s~close
++  check = .Stream~new(f)
++  check~open("read")
++  content = check~charin(1, check~chars)
++  check~close
++  return content
++
++
+ -- HANDLE:n streams lost their handle when they were opened: writing crashed
+ -- the interpreter (SIGSEGV), and nothing reached the handle.  In a child
+ -- process, so that a crash cannot take the test suite with it.
+@@ -2506,4 +2632,13 @@
+   end
+   self~assertSame("end", output~lastItem)
+ 
++
++-- LINEOUT of a line to a stream: what LINEOUT returns, or the code of the
++-- syntax error it raises
++::routine lineoutRC
++  use strict arg stream, line
++  signal on syntax
++  return stream~lineout(line)
++  syntax: return condition("o")~rc
++
+ ::options novalue syntax
