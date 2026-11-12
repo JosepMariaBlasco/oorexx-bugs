@@ -422,7 +422,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // if the condition is being trapped, do the CALL or SIGNAL
      if (trapHandler != OREF_NULL)
      {
-@@ -2606,6 +2684,137 @@
+@@ -2606,6 +2684,139 @@
  
  
  /**
@@ -552,6 +552,8 @@ Index: interpreter/execution/RexxActivation.cpp
 +    setIndent(block->getIndent());
 +    traceInstruction(clause);
 +    settings.traceIndent = block->getIndent() + 1;
++    // CATCH variable = condition
++    clause->assignCondition(this, conditionObj);
 +    next = clause->nextInstruction;
 +}
 +
@@ -560,7 +562,7 @@ Index: interpreter/execution/RexxActivation.cpp
   * Check the activation to see if this is trapping a condition.
   * This does not process the trap, but merely indicates that
   * this activation WILL trap the condition.  This is a
-@@ -2653,6 +2862,15 @@
+@@ -2653,6 +2864,15 @@
          return true;
      }
  
@@ -576,7 +578,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // no trap table set yet?  can't handle this
      if (settings.traps == OREF_NULL)
      {
-@@ -2690,8 +2908,12 @@
+@@ -2690,8 +2910,12 @@
   */
  RexxObject* RexxActivation::handleNovalueEvent(RexxString *name, RexxObject *defaultValue, RexxVariable *variable)
  {
@@ -590,7 +592,7 @@ Index: interpreter/execution/RexxActivation.cpp
      {
          reportException(Error_Execution_unassigned_variable, name);
      }
-@@ -2711,7 +2933,7 @@
+@@ -2711,7 +2935,7 @@
          return value;
      }
      // raise novalue?
@@ -741,7 +743,7 @@ Index: interpreter/instructions/CatchInstruction.cpp
 ===================================================================
 --- a/interpreter/instructions/CatchInstruction.cpp	(nonexistent)
 +++ b/interpreter/instructions/CatchInstruction.cpp	(working copy)
-@@ -0,0 +1,260 @@
+@@ -0,0 +1,282 @@
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
 +/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
@@ -790,6 +792,7 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +#include "DoInstruction.hpp"
 +#include "DoBlock.hpp"
 +#include "EndInstruction.hpp"
++#include "ExpressionBaseVariable.hpp"
 +
 +
 +/**
@@ -797,9 +800,10 @@ Index: interpreter/instructions/CatchInstruction.cpp
 + *
 + * @param c      The array of condition names caught by this clause.
 + */
-+RexxInstructionCatch::RexxInstructionCatch(ArrayClass *c)
++RexxInstructionCatch::RexxInstructionCatch(ArrayClass *c, RexxVariableBase *v)
 +{
 +    conditions = c;
++    variable = v;
 +}
 +
 +
@@ -816,6 +820,7 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +    memory_mark(owner);
 +    memory_mark(nextCatch);
 +    memory_mark(firstCatch);
++    memory_mark(variable);
 +}
 +
 +
@@ -834,6 +839,7 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +    memory_mark_general(owner);
 +    memory_mark_general(nextCatch);
 +    memory_mark_general(firstCatch);
++    memory_mark_general(variable);
 +}
 +
 +
@@ -851,6 +857,7 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +    flattenRef(owner);
 +    flattenRef(nextCatch);
 +    flattenRef(firstCatch);
++    flattenRef(variable);
 +
 +    cleanUpFlatten
 +}
@@ -947,6 +954,23 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +
 +
 +/**
++ * Give the condition object to the variable of a CATCH clause
++ * written as CATCH variable = condition (RFE #31), when the clause
++ * starts to run.
++ *
++ * @param context      The activation that runs the clause.
++ * @param conditionObj The condition object.
++ */
++void RexxInstructionCatch::assignCondition(RexxActivation *context, DirectoryClass *conditionObj)
++{
++    if (variable != OREF_NULL)
++    {
++        variable->assign(context, (RexxObject *)conditionObj);
++    }
++}
++
++
++/**
 + * Execute a CATCH clause.  Control reaches a CATCH clause in two
 + * ways: the body of the block runs into the first one, and then
 + * the clause does what the END of the block would have done; or
@@ -1013,7 +1037,7 @@ Index: interpreter/instructions/CatchInstruction.hpp
 ===================================================================
 --- a/interpreter/instructions/CatchInstruction.hpp	(nonexistent)
 +++ b/interpreter/instructions/CatchInstruction.hpp	(working copy)
-@@ -0,0 +1,91 @@
+@@ -0,0 +1,95 @@
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
 +/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
@@ -1061,6 +1085,8 @@ Index: interpreter/instructions/CatchInstruction.hpp
 +#include "RexxInstruction.hpp"
 +
 +class DoBlock;
++class RexxVariableBase;
++class DirectoryClass;
 +
 +/**
 + * A CATCH clause.  The clauses of a block follow its body and
@@ -1073,7 +1099,7 @@ Index: interpreter/instructions/CatchInstruction.hpp
 +{
 + public:
 +    inline RexxInstructionCatch(RESTORETYPE restoreType) { ; };
-+    RexxInstructionCatch(ArrayClass *c);
++    RexxInstructionCatch(ArrayClass *c, RexxVariableBase *v = OREF_NULL);
 +
 +    void live(size_t) override;
 +    void liveGeneral(MarkReason reason) override;
@@ -1084,6 +1110,7 @@ Index: interpreter/instructions/CatchInstruction.hpp
 +    void execute(RexxActivation *, ExpressionStack *) override;
 +
 +    bool handles(RexxString *condition);
++    void assignCondition(RexxActivation *context, DirectoryClass *conditionObj);
 +    static RexxInstructionCatch *findClause(DoBlock *doblock, RexxString *condition);
 +    static RexxInstructionCatch *firstClause(RexxBlockInstruction *block);
 +    static bool hasCatches(RexxBlockInstruction *block);
@@ -1103,6 +1130,7 @@ Index: interpreter/instructions/CatchInstruction.hpp
 +    RexxInstructionCatch *nextCatch;   // the next CATCH clause of the same block
 +    RexxInstructionCatch *firstCatch;  // the first CATCH clause of the same block
 +    EndBlockType          ownerStyle;  // the END style the block would have without CATCH
++    RexxVariableBase     *variable;    // CATCH variable = ...: gets the condition object
 +};
 +#endif
 
@@ -1620,12 +1648,13 @@ Index: interpreter/parser/InstructionParser.cpp
                  // ELSE instruction...possibly unexpected.
              case KEYWORD_ELSE:
                  return elseNew(first);
-@@ -3083,6 +3089,67 @@
+@@ -3083,6 +3089,93 @@
  
  
  /**
 + * Parse a CATCH clause of a DO, LOOP or SELECT (RFE #31):
-+ * CATCH condition [, condition]...
++ * CATCH [variable =] condition [, condition]...
++ * The variable gets the condition object when the clause runs.
 + *
 + * @return An executable CATCH instruction object.
 + */
@@ -1635,6 +1664,31 @@ Index: interpreter/parser/InstructionParser.cpp
 +    // class and a new END style in its image, so an earlier interpreter
 +    // must reject it when it is loaded from a compiled file
 +    requireLanguageLevel(LanguageLevel0607);
++
++    // an optional variable for the condition object, as in NetRexx's
++    // CATCH [variable =] exception
++    RexxVariableBase *variable = OREF_NULL;
++    size_t start = markPosition();
++    RexxToken *first = nextReal();
++    RexxToken *second = first->isSymbol() ? nextReal() : OREF_NULL;
++    if (second != OREF_NULL && second->isOperator(OPERATOR_EQUAL))
++    {
++        if (first->isSubtype(SYMBOL_CONSTANT))
++        {
++            syntaxError(Error_Invalid_variable_number, first);
++        }
++        else if (first->isSubtype(SYMBOL_DUMMY, SYMBOL_DOTSYMBOL))
++        {
++            syntaxError(Error_Invalid_variable_period, first);
++        }
++        variable = addVariable(first);
++    }
++    else
++    {
++        // no variable: the conditions start at the first token
++        resetPosition(start);
++    }
++    ProtectedObject pVariable(variable);
 +
 +    // a list of conditions, separated by commas
 +    Protected<ArrayClass> conditions = new_array();
@@ -1679,7 +1733,7 @@ Index: interpreter/parser/InstructionParser.cpp
 +    }
 +
 +    RexxInstruction *newObject = new_instruction(CATCH, Catch);
-+    ::new ((void *)newObject) RexxInstructionCatch(conditions);
++    ::new ((void *)newObject) RexxInstructionCatch(conditions, variable);
 +    return newObject;
 +}
 +
