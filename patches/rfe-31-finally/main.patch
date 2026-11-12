@@ -799,7 +799,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // if the condition is being trapped, do the CALL or SIGNAL
      if (trapHandler != OREF_NULL)
      {
-@@ -2606,6 +2783,508 @@
+@@ -2606,6 +2783,517 @@
  
  
  /**
@@ -1200,6 +1200,15 @@ Index: interpreter/execution/RexxActivation.cpp
 +    for (RexxActivation *activation = this; activation != OREF_NULL;
 +         activation = activation->isInternalLevelCall() ? activation->parent : OREF_NULL)
 +    {
++        // a line typed at an interactive trace pause runs as an INTERPRET
++        // of the paused code, but the blocks of that code are not active
++        // for it: an error there is shown at the pause, as without CATCH.
++        // Stop at the pause, before its own blocks: they cannot catch
++        // either, as the pause shows an error raised in them directly
++        if (activation->debugPause)
++        {
++            break;
++        }
 +        for (DoBlock *doblock = activation->doStack; doblock != OREF_NULL; doblock = doblock->getPrevious())
 +        {
 +            if (!doblock->isInCatch() && doblock->getCatches() != OREF_NULL)
@@ -1308,7 +1317,7 @@ Index: interpreter/execution/RexxActivation.cpp
   * Check the activation to see if this is trapping a condition.
   * This does not process the trap, but merely indicates that
   * this activation WILL trap the condition.  This is a
-@@ -2653,6 +3332,15 @@
+@@ -2653,6 +3341,15 @@
          return true;
      }
  
@@ -1324,7 +1333,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // no trap table set yet?  can't handle this
      if (settings.traps == OREF_NULL)
      {
-@@ -2690,8 +3378,12 @@
+@@ -2690,8 +3387,12 @@
   */
  RexxObject* RexxActivation::handleNovalueEvent(RexxString *name, RexxObject *defaultValue, RexxVariable *variable)
  {
@@ -1338,7 +1347,7 @@ Index: interpreter/execution/RexxActivation.cpp
      {
          reportException(Error_Execution_unassigned_variable, name);
      }
-@@ -2711,7 +3403,7 @@
+@@ -2711,7 +3412,7 @@
          return value;
      }
      // raise novalue?

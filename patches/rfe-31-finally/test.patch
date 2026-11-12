@@ -2,7 +2,7 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 ===================================================================
 --- a/ooRexx/base/keyword/CATCH.testGroup	(nonexistent)
 +++ b/ooRexx/base/keyword/CATCH.testGroup	(working copy)
-@@ -0,0 +1,707 @@
+@@ -0,0 +1,753 @@
 +#!/usr/bin/env rexx
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
@@ -699,6 +699,52 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +  self~assertSame("k=50", output~lastItem)
 +
 +
++-- a line typed at an interactive trace pause is not inside the blocks of
++-- the paused code: an error there is shown at the pause, as without
++-- CATCH, and neither the clause of the paused block nor one of a block
++-- typed at the pause catches it.  A CATCH in code that the typed line
++-- runs (an INTERPRET) works as anywhere else
++-- (the pause comes after the clause that follows TRACE ?R)
++::method test_trace_pause_interpret
++  self~runAtTracePause('interpret "y = 1/0"', " body", .true)
++
++::method test_trace_pause_call
++  self~runAtTracePause("call pauseFails", " body", .true)
++
++::method test_trace_pause_typed_block
++  self~runAtTracePause('do; call pauseFails; catch syntax; r = r "typed"; end', " body", .true)
++
++::method test_trace_pause_interpreted_block
++  self~runAtTracePause('interpret "do; y = 1/0; catch syntax; r = r ''inner''; end"', " body inner", .false)
++
++::method runAtTracePause
++  use arg typed, expected, shown
++  source = .array~of( -
++    "r = ''", -
++    "do", -
++    "  trace ?r", -
++    "  r = r 'body'", -
++    "catch syntax", -
++    "  r = r 'caught'", -
++    "end", -
++    "trace off", -
++    "say 'r=['r']'", -
++    "exit", -
++    "pauseFails: return 1/0")
++  program = .TemporaryTestFile~new(self, "catch_trace_pause.tmp.rex")~create(source)
++  input = .TemporaryTestFile~new(self, "catch_trace_pause.tmp.txt")~create(.array~of(typed, "trace off"))
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName "<" input~quotedName "2>&1", output)
++  self~assertSame(0, theRC, "rexx ended with rc" theRC":" output~makeString)
++  -- the trace goes on after the pause, mixed with the output
++  line = ""
++  do l over output
++    if l~startsWith("r=[") then line = l
++  end
++  self~assertSame("r=["expected"]", line, output~makeString)
++  self~assertSame(shown, output~makeString~pos("Error 42.3") > 0, output~makeString)
++
++
 +::routine raiseUserTwo
 +  raise user two
 +
@@ -725,7 +771,7 @@ Index: ooRexx/base/keyword/FINALLY.testGroup
 ===================================================================
 --- a/ooRexx/base/keyword/FINALLY.testGroup	(nonexistent)
 +++ b/ooRexx/base/keyword/FINALLY.testGroup	(working copy)
-@@ -0,0 +1,1663 @@
+@@ -0,0 +1,1713 @@
 +#!/usr/bin/env rexx
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
@@ -2128,6 +2174,56 @@ Index: ooRexx/base/keyword/FINALLY.testGroup
 +-- ---------------------------------------------------------------------------
 +-- Child processes
 +-- ---------------------------------------------------------------------------
++
++-- a line typed at an interactive trace pause is not inside the blocks of
++-- the paused code (as for CATCH): an error there is shown at the pause and
++-- does not leave the paused block, whose FINALLY clause runs once, when the
++-- block ends.  The clause of a block typed at the pause does not run when
++-- its body fails, as the pause shows an error raised in it directly; one in
++-- code that the typed line runs (an INTERPRET) works as anywhere else
++-- (the pause comes after the clause that follows TRACE ?R)
++::method test_trace_pause_interpret
++  self~runAtTracePause('interpret "y = 1/0"', " body finally", .true)
++
++::method test_trace_pause_call
++  self~runAtTracePause("call pauseFails", " body finally", .true)
++
++::method test_trace_pause_typed_block
++  self~runAtTracePause('do; y = 1/0; finally r = r "typed"; end', " body finally", .true)
++
++::method test_trace_pause_interpreted_block
++  self~runAtTracePause('interpret "do; y = 1/0; finally r = r ''inner''; end"', " body inner finally", .true)
++
++::method test_trace_pause_interpreted_block_ok
++  self~runAtTracePause('interpret "do; nop; finally r = r ''inner''; end"', " body inner finally", .false)
++
++::method runAtTracePause
++  use arg typed, expected, shown
++  source = .array~of( -
++    "r = ''", -
++    "do", -
++    "  trace ?r", -
++    "  r = r 'body'", -
++    "finally", -
++    "  r = r 'finally'", -
++    "end", -
++    "trace off", -
++    "say 'r=['r']'", -
++    "exit", -
++    "pauseFails: return 1/0")
++  program = .TemporaryTestFile~new(self, "finally_trace_pause.tmp.rex")~create(source)
++  input = .TemporaryTestFile~new(self, "finally_trace_pause.tmp.txt")~create(.array~of(typed, "trace off"))
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName "<" input~quotedName "2>&1", output)
++  self~assertSame(0, theRC, "rexx ended with rc" theRC":" output~makeString)
++  -- the trace goes on after the pause, mixed with the output
++  line = ""
++  do l over output
++    if l~startsWith("r=[") then line = l
++  end
++  self~assertSame("r=["expected"]", line, output~makeString)
++  self~assertSame(shown, output~makeString~pos("Error 42.3") > 0, output~makeString)
++
 +
 +-- a condition nobody handles: the clauses run before the error is reported
 +::method test_child_unhandled
