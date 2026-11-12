@@ -1,0 +1,3311 @@
+Index: CMakeLists.txt
+===================================================================
+--- a/CMakeLists.txt	(revision 13484)
++++ b/CMakeLists.txt	(working copy)
+@@ -869,6 +869,8 @@
+             ${build_instructions_dir}/NumericInstruction.cpp
+             ${build_instructions_dir}/OptionsInstruction.cpp
+             ${build_instructions_dir}/OtherwiseInstruction.cpp
++            ${build_instructions_dir}/CatchInstruction.cpp
++            ${build_instructions_dir}/FinallyInstruction.cpp
+             ${build_instructions_dir}/ParseInstruction.cpp
+             ${build_instructions_dir}/ParseTarget.cpp
+             ${build_instructions_dir}/ParseTrigger.cpp
+Index: api/oorexxerrors.h
+===================================================================
+--- a/api/oorexxerrors.h	(revision 13484)
++++ b/api/oorexxerrors.h	(working copy)
+@@ -89,6 +89,9 @@
+ #define Rexx_Error_Unexpected_end_then                                    10005
+ #define Rexx_Error_Unexpected_end_else                                    10006
+ #define Rexx_Error_Unexpected_end_select_nolabel                          10007
++#define Rexx_Error_Unexpected_end_catch                                   10008
++#define Rexx_Error_Unexpected_end_finally                                 10009
++#define Rexx_Error_Unexpected_end_after_finally                           10010
+ #define Rexx_Error_Control_stack                                          11000
+ #define Rexx_Error_Control_stack_full                                     11001
+ #define Rexx_Error_Control_stack_user_defined                             11900
+@@ -185,6 +188,7 @@
+ #define Rexx_Error_Symbol_expected_address_with                           20933
+ #define Rexx_Error_Symbol_expected_counter                                20934
+ #define Rexx_Error_Symbol_expected_numeric_subdirective                   20935
++#define Rexx_Error_Symbol_expected_catch                                  20936
+ #define Rexx_Error_Invalid_data                                           21000
+ #define Rexx_Error_Invalid_data_user_defined                              21900
+ #define Rexx_Error_Invalid_data_nop                                       21901
+@@ -200,6 +204,7 @@
+ #define Rexx_Error_Invalid_data_guard_off                                 21912
+ #define Rexx_Error_Invalid_data_constant_dir                              21913
+ #define Rexx_Error_Invalid_data_resource_dir                              21914
++#define Rexx_Error_Invalid_data_finally                                   21915
+ #define Rexx_Error_Invalid_character_string                               22000
+ #define Rexx_Error_Invalid_character_string_char                          22001
+ #define Rexx_Error_Invalid_character_string_user_defined                  22900
+@@ -256,6 +261,7 @@
+ #define Rexx_Error_Invalid_subkeyword_duplicate                           25936
+ #define Rexx_Error_Invalid_subkeyword_conflict                            25937
+ #define Rexx_Error_Invalid_subkeyword_options_form                        25938
++#define Rexx_Error_Invalid_subkeyword_catch                               25939
+ #define Rexx_Error_Invalid_whole_number                                   26000
+ #define Rexx_Error_Invalid_whole_number_repeat                            26002
+ #define Rexx_Error_Invalid_whole_number_for                               26003
+@@ -284,6 +290,8 @@
+ #define Rexx_Error_Invalid_leave_leavevar                                 28003
+ #define Rexx_Error_Invalid_leave_iteratevar                               28004
+ #define Rexx_Error_Invalid_leave_iterate_name                             28005
++#define Rexx_Error_Invalid_leave_leave_catch                              28006
++#define Rexx_Error_Invalid_leave_iterate_catch                            28007
+ #define Rexx_Error_Environment_name                                       29000
+ #define Rexx_Error_Environment_name_name                                  29001
+ #define Rexx_Error_Name_too_long                                          30000
+@@ -639,6 +647,7 @@
+ #define Rexx_Error_Execution_authorization                                98948
+ #define Rexx_Error_Execution_no_concurrency                               98951
+ #define Rexx_Error_Execution_circular_requires                            98952
++#define Rexx_Error_Execution_finally_exit                                 98953
+ #define Rexx_Error_Execution_error_syntax                                 98970
+ #define Rexx_Error_Execution_failure_syntax                               98971
+ #define Rexx_Error_Execution_lostdigits_syntax                            98972
+@@ -719,6 +728,7 @@
+ #define Rexx_Error_Translation_use_local_compound                         99948
+ #define Rexx_Error_Translation_bad_class                                  99949
+ #define Rexx_Error_Translation_use_arg_reference_no_default               99950
++#define Rexx_Error_Translation_finally_exit                               99951
+ 
+ 
+ #endif
+Index: interpreter/behaviour/ClassTypeCodes.h
+===================================================================
+--- a/interpreter/behaviour/ClassTypeCodes.h	(revision 13484)
++++ b/interpreter/behaviour/ClassTypeCodes.h	(working copy)
+@@ -238,44 +238,46 @@
+     T_CommandIOConfiguration = 176,
+     T_AddressWithInstruction = 177,
+     T_ConstantDirective = 178,
++    T_CatchInstruction = 179,
++    T_FinallyInstruction = 180,
+ 
+-    T_Last_Internal_Class = 178,
++    T_Last_Internal_Class = 180,
+     
+-    T_First_Transient_Class = 179,
++    T_First_Transient_Class = 181,
+ 
+-    T_Memory = 179,
+-    T_InternalStack = 180,
+-    T_PushThroughStack = 181,
+-    T_Activity = 182,
+-    T_Activation = 183,
+-    T_NativeActivation = 184,
+-    T_ActivationFrameBuffer = 185,
+-    T_Envelope = 186,
+-    T_LanguageParser = 187,
+-    T_Clause = 188,
+-    T_Token = 189,
+-    T_DoBlock = 190,
+-    T_InterpreterInstance = 191,
+-    T_SecurityManager = 192,
+-    T_CommandHandler = 193,
+-    T_MapBucket = 194,
+-    T_MapTable = 195,
+-    T_TrapHandler = 196,
+-    T_CommandIOContext = 197,
+-    T_StemOutputTarget = 198,
+-    T_StreamObjectOutputTarget = 199,
+-    T_StreamOutputTarget = 200,
+-    T_CollectionOutputTarget = 201,
+-    T_BufferingOutputTarget = 202,
+-    T_StemInputSource = 203,
+-    T_StreamObjectInputSource = 204,
+-    T_StreamInputSource = 205,
+-    T_ArrayInputSource = 206,
+-    T_RexxQueueOutputTarget = 207,
++    T_Memory = 181,
++    T_InternalStack = 182,
++    T_PushThroughStack = 183,
++    T_Activity = 184,
++    T_Activation = 185,
++    T_NativeActivation = 186,
++    T_ActivationFrameBuffer = 187,
++    T_Envelope = 188,
++    T_LanguageParser = 189,
++    T_Clause = 190,
++    T_Token = 191,
++    T_DoBlock = 192,
++    T_InterpreterInstance = 193,
++    T_SecurityManager = 194,
++    T_CommandHandler = 195,
++    T_MapBucket = 196,
++    T_MapTable = 197,
++    T_TrapHandler = 198,
++    T_CommandIOContext = 199,
++    T_StemOutputTarget = 200,
++    T_StreamObjectOutputTarget = 201,
++    T_StreamOutputTarget = 202,
++    T_CollectionOutputTarget = 203,
++    T_BufferingOutputTarget = 204,
++    T_StemInputSource = 205,
++    T_StreamObjectInputSource = 206,
++    T_StreamInputSource = 207,
++    T_ArrayInputSource = 208,
++    T_RexxQueueOutputTarget = 209,
+ 
+-    T_Last_Transient_Class = 207,
+-    T_Last_Primitive_Class = 207,
+-    T_Last_Class_Type = 207,
++    T_Last_Transient_Class = 209,
++    T_Last_Primitive_Class = 209,
++    T_Last_Class_Type = 209,
+     
+ } ClassTypeCode;
+ 
+Index: interpreter/behaviour/PrimitiveBehaviourNames.h
+===================================================================
+--- a/interpreter/behaviour/PrimitiveBehaviourNames.h	(revision 13484)
++++ b/interpreter/behaviour/PrimitiveBehaviourNames.h	(working copy)
+@@ -228,6 +228,8 @@
+ #define TheCommandIOConfigurationBehaviour      (&RexxBehaviour::primitiveBehaviours[T_CommandIOConfiguration])
+ #define TheAddressWithInstructionBehaviour      (&RexxBehaviour::primitiveBehaviours[T_AddressWithInstruction])
+ #define TheConstantDirectiveBehaviour      (&RexxBehaviour::primitiveBehaviours[T_ConstantDirective])
++#define TheCatchInstructionBehaviour      (&RexxBehaviour::primitiveBehaviours[T_CatchInstruction])
++#define TheFinallyInstructionBehaviour      (&RexxBehaviour::primitiveBehaviours[T_FinallyInstruction])
+ #define TheMemoryBehaviour      (&RexxBehaviour::primitiveBehaviours[T_Memory])
+ #define TheInternalStackBehaviour      (&RexxBehaviour::primitiveBehaviours[T_InternalStack])
+ #define ThePushThroughStackBehaviour      (&RexxBehaviour::primitiveBehaviours[T_PushThroughStack])
+Index: interpreter/behaviour/PrimitiveBehaviours.cpp
+===================================================================
+--- a/interpreter/behaviour/PrimitiveBehaviours.cpp	(revision 13484)
++++ b/interpreter/behaviour/PrimitiveBehaviours.cpp	(working copy)
+@@ -238,6 +238,8 @@
+     RexxBehaviour(T_CommandIOConfiguration, (PCPPM *)RexxObject::operatorMethods),
+     RexxBehaviour(T_AddressWithInstruction, (PCPPM *)RexxObject::operatorMethods),
+     RexxBehaviour(T_ConstantDirective, (PCPPM *)RexxObject::operatorMethods),
++    RexxBehaviour(T_CatchInstruction, (PCPPM *)RexxObject::operatorMethods),
++    RexxBehaviour(T_FinallyInstruction, (PCPPM *)RexxObject::operatorMethods),
+     RexxBehaviour(T_Memory, (PCPPM *)RexxObject::operatorMethods),
+     RexxBehaviour(T_InternalStack, (PCPPM *)RexxObject::operatorMethods),
+     RexxBehaviour(T_PushThroughStack, (PCPPM *)RexxObject::operatorMethods),
+Index: interpreter/behaviour/PrimitiveClasses.xml
+===================================================================
+--- a/interpreter/behaviour/PrimitiveClasses.xml	(revision 13484)
++++ b/interpreter/behaviour/PrimitiveClasses.xml	(working copy)
+@@ -225,6 +225,8 @@
+ <Class id="CommandIOConfiguration" class="CommandIOConfiguration" include="CommandIOConfiguration.hpp"/>
+ <Class id="AddressWithInstruction" class="RexxInstructionAddressWith" include="AddressWithInstruction.hpp"/>
+ <Class id="ConstantDirective" class="ConstantDirective" include="ConstantDirective.hpp"/>
++<Class id="CatchInstruction" class="RexxInstructionCatch" include="CatchInstruction.hpp"/>
++<Class id="FinallyInstruction" class="RexxInstructionFinally" include="FinallyInstruction.hpp"/>
+ </Internal>
+ <Transient>
+ <Class id="Memory" class="MemoryObject" include="RexxMemory.hpp" objectvirtual="true"/>
+Index: interpreter/behaviour/VirtualFunctionTable.cpp
+===================================================================
+--- a/interpreter/behaviour/VirtualFunctionTable.cpp	(revision 13484)
++++ b/interpreter/behaviour/VirtualFunctionTable.cpp	(working copy)
+@@ -160,6 +160,8 @@
+ #include "CommandIOConfiguration.hpp"
+ #include "AddressWithInstruction.hpp"
+ #include "ConstantDirective.hpp"
++#include "CatchInstruction.hpp"
++#include "FinallyInstruction.hpp"
+ #include "RexxMemory.hpp"
+ #include "InternalStack.hpp"
+ #include "MemoryStack.hpp"
+@@ -928,6 +930,14 @@
+    objectPtr = ::new (objectLoc) ConstantDirective(RESTOREIMAGE);
+    virtualFunctionTable[T_ConstantDirective] = getVftPointer(objectLoc);
+    
++   static_assert(sizeof(RexxInstructionCatch) <= sizeof(objectBuffer), "objectBuffer is too small for RexxInstructionCatch");
++   objectPtr = ::new (objectLoc) RexxInstructionCatch(RESTOREIMAGE);
++   virtualFunctionTable[T_CatchInstruction] = getVftPointer(objectLoc);
++   
++   static_assert(sizeof(RexxInstructionFinally) <= sizeof(objectBuffer), "objectBuffer is too small for RexxInstructionFinally");
++   objectPtr = ::new (objectLoc) RexxInstructionFinally(RESTOREIMAGE);
++   virtualFunctionTable[T_FinallyInstruction] = getVftPointer(objectLoc);
++   
+    static_assert(sizeof(RexxObject) <= sizeof(objectBuffer), "objectBuffer is too small for RexxObject");
+    objectPtr = ::new (objectLoc) RexxObject(RESTOREIMAGE);
+    virtualFunctionTable[T_Memory] = getVftPointer(objectLoc);
+Index: interpreter/concurrency/Activity.cpp
+===================================================================
+--- a/interpreter/concurrency/Activity.cpp	(revision 13484)
++++ b/interpreter/concurrency/Activity.cpp	(working copy)
+@@ -596,7 +596,9 @@
+ void Activity::checkConditionSyntaxOptions(RexxString *condition, RexxObject *description, RexxObject *result)
+ {
+     RexxActivation *activation = getCurrentRexxFrame();
+-    if (activation != OREF_NULL)
++    // an active CATCH clause for the condition wins over the option, which
++    // applies again once the block has ended (RFE #31)
++    if (activation != OREF_NULL && !activation->catches(condition))
+     {
+         if (activation->isErrorSyntaxEnabled() && condition->strCompare(GlobalNames::ERRORNAME))
+         {
+Index: interpreter/execution/RexxActivation.cpp
+===================================================================
+--- a/interpreter/execution/RexxActivation.cpp	(revision 13484)
++++ b/interpreter/execution/RexxActivation.cpp	(working copy)
+@@ -84,6 +84,8 @@
+ #include "CommandIOContext.hpp"
+ #include "LibraryPackage.hpp"
+ #include "ConditionTrappingDispatcher.hpp"
++#include "CatchInstruction.hpp"
++#include "DoBlock.hpp"
+ 
+ #include <atomic>
+ 
+@@ -115,6 +117,10 @@
+  * Initialize an activation for direct caching in the activation
+  * cache.  At this time, this is not an executable activation
+  */
++// orders trap activations and block entries (RFE #31)
++uint64_t RexxActivation::sequenceCounter = 0;
++
++
+ RexxActivation::RexxActivation()
+ {
+     setHasNoReferences();          // nothing referenced from this either
+@@ -140,6 +146,9 @@
+     settings.intermediateTrace = false;
+     activationContext = METHODCALL;  // the context is a method call
+     parent = OREF_NULL;              // we don't have a parent stack frame when invoked as a method
++    catchBlock = OREF_NULL;
++    catchClause = OREF_NULL;
++    catchCondition = OREF_NULL;
+     executionState = ACTIVE;         // we are now in active execution
+     objectScope = SCOPE_RELEASED;    // scope not reserved yet
+ 
+@@ -221,6 +230,9 @@
+ 
+     // the sender is our parent activity
+     parent = _parent;
++    catchBlock = OREF_NULL;
++    catchClause = OREF_NULL;
++    catchCondition = OREF_NULL;
+     executionState = ACTIVE;      // we are now in active execution
+     objectScope = SCOPE_RELEASED; // internal calls don't have a scope
+ 
+@@ -290,6 +302,9 @@
+     activationContext = context;
+     settings.intermediateTrace = false;
+     parent = OREF_NULL;            // there's no parent for a top level call
++    catchBlock = OREF_NULL;
++    catchClause = OREF_NULL;
++    catchCondition = OREF_NULL;
+     executionState = ACTIVE;       // we are now in active execution
+     objectScope = SCOPE_RELEASED;  // scope not reserved yet
+ 
+@@ -371,6 +386,9 @@
+     memory_mark(environmentList);
+     memory_mark(conditionQueue);
+     memory_mark(contextObject);
++    memory_mark(catchBlock);
++    memory_mark(catchClause);
++    memory_mark(catchCondition);
+ 
+     // We're holding a pointer back to our arguments directly where they
+     // are created.  Since in some places, this argument list comes
+@@ -406,6 +424,9 @@
+     memory_mark_general(environmentList);
+     memory_mark_general(conditionQueue);
+     memory_mark_general(contextObject);
++    memory_mark_general(catchBlock);
++    memory_mark_general(catchClause);
++    memory_mark_general(catchCondition);
+ 
+     // We're holding a pointer back to our arguments directly where they
+     // are created.  Since in some places, this argument list comes
+@@ -833,6 +854,12 @@
+                 stack.clear();
+                 settings.timeStamp.valid = false;
+ 
++                // a condition caught by a CATCH clause of one of our blocks
++                if (catchBlock != OREF_NULL)
++                {
++                    processCatch();
++                }
++
+                 // if we were in a debug pause, we had a error interpreting the
+                 // line typed at the pause.  We're just going to terminate this
+                 // like it was a return
+@@ -1100,7 +1127,7 @@
+  *
+  * @param resultObj the return result object.
+  */
+-void RexxActivation::returnFrom(RexxObject *resultObj)
++void RexxActivation::returnFrom(RexxObject *resultObj, bool raising)
+ {
+     // already had a reply and trying to return a result?  There is nobody
+     // to receive this result, so this is an error.
+@@ -1108,12 +1135,24 @@
+     {
+         reportException(Error_Execution_reply_return);
+     }
++    // a RETURN must not leave a FINALLY clause (the return part of a RAISE
++    // can: the clause ends by raising a condition)
++    if (!raising)
++    {
++        checkFinallyExit("RETURN", FINALLY_SCOPE_CODE);
++    }
++    // the FINALLY clauses of the active blocks run first, innermost first;
++    // the RETURN goes on when the last one reaches its END
++    if (!leaveBlocks(OREF_NULL, FINALLY_RETURN, resultObj))
++    {
++        return;
++    }
+     // cause this level to terminate the execution loop and shut down
+     stopExecution(RETURNED);
+     // if this is an interpret, we really need to terminate the parent activation
+     if (isInterpret())
+     {
+-        parent->returnFrom(resultObj);
++        parent->returnFrom(resultObj, raising);
+     }
+     // normal termination.
+     else
+@@ -1139,60 +1178,61 @@
+  */
+ void RexxActivation::iterate(RexxString *name)
+ {
+-    // get the top item off of the block stack
++    // find the target loop.  The blocks above it are not left until we know
++    // that there is one: their FINALLY clauses have to run before they are.
+     DoBlock *doblock = topBlockInstruction();
+-
+-    // we might need to scan several levels down to find our target block instruction.
+-    while (doblock != OREF_NULL)
++    for (; doblock != OREF_NULL; doblock = doblock->getPrevious())
+     {
+         // get the actual block instruction (might not be a loop, but it needs to be
+         // for an iterate
+         RexxBlockInstruction *loop = doblock->getParent();
+-        // Is this a request to iterate the inner=most loop?
+-        if (name == OREF_NULL)
++        // an unnamed ITERATE is for the innermost loop; a named one can match
++        // either a labeled block or a loop.
++        if (name == OREF_NULL ? loop->isLoop() : loop->isLabel(name))
+         {
+-            // we only recognize LOOP constructs for this.
+-            if (loop->isLoop())
+-            {
+-                // reset the indentation
+-                setIndent(doblock->getIndent());
+-                // have the loop handle a re-execution.  This will
+-                // determine if we continue or terminate.
+-                ((RexxInstructionBaseLoop *)loop)->reExecute(this, &stack, doblock);
+-                return;
+-            }
++            break;
++        }
++    }
+ 
++    // if we did not find the named block or there were no active loops at all,
++    // this is an error
++    if (doblock == OREF_NULL)
++    {
++        if (name != OREF_NULL)
++        {
++            reportException(Error_Invalid_leave_iteratevar, name);
+         }
+-        // a named LEAVE can be either a labeled block or a loop.
+-        else if (loop->isLabel(name))
++        else
+         {
+-            // if we have a name match, but this is not a loop,
+-            // that's a problem.
+-            if (!loop->isLoop())
+-            {
+-                reportException(Error_Invalid_leave_iterate_name, name);
+-            }
+-            // got our target, reset the indent and do the loop.
+-            setIndent(doblock->getIndent());
+-            ((RexxInstructionBaseLoop *)loop)->reExecute(this, &stack, doblock);
+-            return;
++            reportException(Error_Invalid_leave_iterate);
+         }
+-        // terminate this block instruction and step to the
+-        // the next level.
+-        popBlockInstruction();
+-        doblock = topBlockInstruction();
+     }
+ 
+-    // if we reached here, we either did not find the named
+-    // block or there were no active loops at all.
+-    if (name != OREF_NULL)
++    RexxBlockInstruction *loop = doblock->getParent();
++    // an ITERATE must not leave a FINALLY clause
++    checkFinallyExit("ITERATE", FINALLY_SCOPE_BLOCKS, doblock);
++    // the loop has ended: we are in one of its CATCH clauses
++    if (doblock->isInCatch())
+     {
+-        reportException(Error_Invalid_leave_iteratevar, name);
++        reportException(Error_Invalid_leave_iterate_catch, loop->getLineNumber());
+     }
+-    else
++    // if we have a name match, but this is not a loop,
++    // that's a problem.
++    if (!loop->isLoop())
+     {
+-        reportException(Error_Invalid_leave_iterate);
++        reportException(Error_Invalid_leave_iterate_name, name);
+     }
++    // terminate the blocks inside the loop.  If one of them has a FINALLY
++    // clause, it runs first, and the ITERATE goes on when it reaches its END.
++    if (!leaveBlocks(doblock, FINALLY_ITERATE, name))
++    {
++        return;
++    }
++    // reset the indentation
++    setIndent(doblock->getIndent());
++    // have the loop handle a re-execution.  This will
++    // determine if we continue or terminate.
++    ((RexxInstructionBaseLoop *)loop)->reExecute(this, &stack, doblock);
+ }
+ 
+ 
+@@ -1203,49 +1243,52 @@
+  */
+ void RexxActivation::leaveLoop(RexxString *name)
+ {
+-    // scan the block stack looking for a match.
++    // find the target block.  The blocks above it are not left until we know
++    // that there is one: their FINALLY clauses have to run before they are.
+     DoBlock *doblock = topBlockInstruction();
+-
+-    while (doblock != OREF_NULL)
++    for (; doblock != OREF_NULL; doblock = doblock->getPrevious())
+     {
+         // get the instruction backing the block
+         RexxBlockInstruction *loop = doblock->getParent();
+         // no name means leave the innermost block.  An unnamed
+-        // LEAVE only works with loops.  If this is not a loop,
+-        // keep searching for one.
+-        if (name == OREF_NULL)
++        // LEAVE only works with loops.  A named LEAVE can be either
++        // a labeled block or a loop.
++        if (name == OREF_NULL ? loop->isLoop() : loop->isLabel(name))
+         {
+-            // we only recognize LOOP constructs for this.
+-            if (loop->isLoop())
+-            {
+-                loop->terminate(this, doblock);
+-                return;
+-            }
++            break;
+         }
+-        // a named LEAVE can be either a labeled block or a loop.
+-        else if (loop->isLabel(name))
++    }
++
++    // if we did not find anything to leave, this is either a problem with
++    // a mismatched name or there was no active loop available to leave.
++    if (doblock == OREF_NULL)
++    {
++        if (name != OREF_NULL)
+         {
+-            loop->terminate(this, doblock);
+-            return;
++            reportException(Error_Invalid_leave_leavevar, name);
+         }
+-
+-        // top one is not the one we need...remove this block
+-        // instruction and try the next one.
+-
+-        popBlockInstruction();
+-        doblock = topBlockInstruction();
++        else
++        {
++            reportException(Error_Invalid_leave_leave);
++        }
+     }
+ 
+-    // if we get here, we did not find anything to leave.  This is either
+-    // a problem with a mismatched name or there was no active loop available to leave.
+-    if (name != OREF_NULL)
++    RexxBlockInstruction *loop = doblock->getParent();
++    // a LEAVE must not leave a FINALLY clause
++    checkFinallyExit("LEAVE", FINALLY_SCOPE_BLOCKS, doblock);
++    // the block has ended: we are in one of its CATCH clauses
++    if (doblock->isInCatch())
+     {
+-        reportException(Error_Invalid_leave_leavevar, name);
++        reportException(Error_Invalid_leave_leave_catch, loop->getLineNumber());
+     }
+-    else
++    // terminate the blocks inside the target.  If one of them has a FINALLY
++    // clause, it runs first, and the LEAVE goes on when it reaches its END.
++    if (!leaveBlocks(doblock, FINALLY_LEAVE, name))
+     {
+-        reportException(Error_Invalid_leave_leave);
++        return;
+     }
++    // and the target (its own FINALLY clause runs now)
++    loop->terminate(this, doblock);
+ }
+ 
+ 
+@@ -1401,6 +1444,27 @@
+         {
+             reportException(Error_Execution_reply_exit);
+         }
++        // a FORWARD ends this activation, as a RETURN does: it must not
++        // leave a FINALLY clause
++        checkFinallyExit("FORWARD", FINALLY_SCOPE_CODE);
++        // FINALLY clauses have to run before this activation ends, so it
++        // cannot disappear now: the message is sent first, and its result
++        // is returned once the clauses have run
++        if (hasFinallyToRun())
++        {
++            ProtectedObject r;
++            if (superClass == OREF_NULL)
++            {
++                target->messageSend(message, arguments, argcount, r);
++            }
++            else
++            {
++                target->messageSend(message, arguments, argcount, superClass, r);
++            }
++            // after a REPLY there is nobody to receive the result
++            returnFrom(settings.isReplyIssued() ? OREF_NULL : (RexxObject *)r);
++            return OREF_NULL;
++        }
+         // poof, we just became invisible
+         settings.setForwarded(true);
+         // we terminate the execution loop for this activation
+@@ -1434,6 +1498,15 @@
+  */
+ void RexxActivation::exitFrom(RexxObject *resultObj)
+ {
++    // an EXIT must not leave a FINALLY clause, here or in the code that
++    // called this internal routine
++    checkFinallyExit("EXIT", FINALLY_SCOPE_BODY);
++    // the FINALLY clauses of the active blocks run first, innermost first;
++    // the EXIT goes on when the last one reaches its END
++    if (!leaveBlocks(OREF_NULL, FINALLY_EXIT, resultObj))
++    {
++        return;
++    }
+     // stop the loop execution
+     stopExecution(RETURNED);
+     result = resultObj;
+@@ -1466,6 +1539,12 @@
+             ActivityManager::currentActivity.load()->popStackFrame(false);
+             //. go to the next level
+             activation = ActivityManager::currentActivity.load()->getCurrentRexxFrame();
++            // a level with FINALLY clauses to run goes on with them, and
++            // exits when the last one reaches its END
++            if (!activation->leaveBlocks(OREF_NULL, FINALLY_EXIT, resultObj))
++            {
++                throw activation;
++            }
+         }
+         while (!activation->isTopLevel());
+ 
+@@ -1784,6 +1863,35 @@
+         return;
+     }
+ 
++    // this level ends: the FINALLY clauses of its active blocks run first,
++    // and the RAISE goes on when the last one reaches its END
++    Protected<ArrayClass> raiseInfo = new_array(6);
++    raiseInfo->put(condition, 1);
++    if (rc != OREF_NULL)
++    {
++        raiseInfo->put(rc, 2);
++    }
++    if (description != OREF_NULL)
++    {
++        raiseInfo->put(description, 3);
++    }
++    if (additional != OREF_NULL)
++    {
++        raiseInfo->put(additional, 4);
++    }
++    if (resultObj != OREF_NULL)
++    {
++        raiseInfo->put(resultObj, 5);
++    }
++    if (conditionobj != OREF_NULL)
++    {
++        raiseInfo->put(conditionobj, 6);
++    }
++    if (!leaveBlocks(OREF_NULL, FINALLY_RAISE_EXIT, raiseInfo))
++    {
++        return;
++    }
++
+     // are we at the top level?  This is basically an
+     // exit instruction because there's nobody able to handle this.
+     if (parent == OREF_NULL)
+@@ -1801,6 +1909,11 @@
+         // terminate the activation and remove from the stack
+         termination();
+         activity->popStackFrame(false);
++        // the same for the parent: it goes on with its FINALLY clauses
++        if (!parent->leaveBlocks(OREF_NULL, FINALLY_RAISE_EXIT, raiseInfo))
++        {
++            throw parent;
++        }
+         // propagate to the parent
+         parent->raiseExit(condition, rc, description, additional, resultObj, conditionobj);
+     }
+@@ -1826,6 +1939,37 @@
+ 
+     Protected<DirectoryClass> p = conditionobj;
+ 
++    // every form but a new SYNTAX error (which is raised here, as any
++    // error) ends this activation: the FINALLY clauses of its active blocks
++    // run first, and the RAISE goes on when the last one reaches its END
++    if (!condition->strCompare(GlobalNames::SYNTAX) && hasFinallyToRun())
++    {
++        Protected<ArrayClass> raiseInfo = new_array(6);
++        raiseInfo->put(condition, 1);
++        if (rc != OREF_NULL)
++        {
++            raiseInfo->put(rc, 2);
++        }
++        if (description != OREF_NULL)
++        {
++            raiseInfo->put(description, 3);
++        }
++        if (additional != OREF_NULL)
++        {
++            raiseInfo->put(additional, 4);
++        }
++        if (resultObj != OREF_NULL)
++        {
++            raiseInfo->put(resultObj, 5);
++        }
++        if (conditionobj != OREF_NULL)
++        {
++            raiseInfo->put(conditionobj, 6);
++        }
++        leaveBlocks(OREF_NULL, FINALLY_RAISE, raiseInfo);
++        return;
++    }
++
+     // are we propagating an existing condition?
+     if (condition->strCompare(GlobalNames::PROPAGATE))
+     {
+@@ -1929,7 +2073,7 @@
+         }
+ 
+         // process the return part, then unwind the call stack
+-        returnFrom(resultObj);
++        returnFrom(resultObj, true);
+         throw this;
+     }
+ }
+@@ -2125,14 +2269,28 @@
+  *
+  * @param target The target of the signal instruction.
+  */
+-void RexxActivation::signalTo(RexxInstruction *target)
++void RexxActivation::signalTo(RexxInstruction *target, bool trapped)
+ {
++    // a SIGNAL instruction must not leave a FINALLY clause (a SIGNAL ON trap
++    // can: the clause ends by raising a condition)
++    if (!trapped)
++    {
++        checkFinallyExit("SIGNAL", FINALLY_SCOPE_CODE);
++    }
++    // the FINALLY clauses of the active blocks run first, innermost first;
++    // the jump is taken when the last one reaches its END (for a trap, with
++    // the condition information as it is now)
++    if (!leaveBlocks(OREF_NULL, trapped ? FINALLY_SIGNAL_TRAP : FINALLY_SIGNAL,
++        trapped ? getConditionObj() : OREF_NULL, target))
++    {
++        return;
++    }
+     // if this is an interpret or debug pause, we need to shut this
+     // activation down and have the parent execute the signal.
+     if (isInterpret())
+     {
+         stopExecution(RETURNED);
+-        parent->signalTo(target);
++        parent->signalTo(target, trapped);
+     }
+     // need to clean up some things in a SIGNAL.  Start with
+     // setting the SIGL variable to the current linenumber, then
+@@ -2501,6 +2659,11 @@
+         // we are not really here, so we can't handle this
+         return false;
+     }
++    // if this condition is going to end blocks with FINALLY clauses that
++    // have not run, they run first, and the condition is raised again when
++    // the last one reaches its END (this does not return then)
++    finallyBeforeTrap(condition, exceptionObject);
++
+     // do we need to notify a message object of a syntax error?
+     // send it the notification message.
+     if (notifyObject != OREF_NULL && condition->strCompare(GlobalNames::SYNTAX))
+@@ -2520,27 +2683,33 @@
+         activity->displayDebug(exceptionObject);
+         throw this;
+     }
+-    // no trap table set yet?  can't handle this
+-    if (settings.traps == OREF_NULL)
+-    {
+-        return false;
+-    }
+-
+     // see if we have a handler for this condition
+-    TrapHandler *trapHandler = (TrapHandler *)settings.traps->get(condition);
++    TrapHandler *trapHandler = findTrapHandler(condition);
+ 
+-    // nothing there for the specific condition.  We could have an ANY
+-    // trap enabled, so check that.
+-    if (trapHandler == OREF_NULL)
++    // a CATCH clause of an active block (here, or in the code that runs
++    // this internal routine or INTERPRET) wins over a trap enabled before
++    // the block was entered (RFE #31)
++    RexxActivation *catchOwner;
++    DoBlock *catchingBlock;
++    RexxInstructionCatch *clause;
++    if (findCatch(condition, catchOwner, catchingBlock, clause) &&
++        (trapHandler == OREF_NULL || catchingBlock->getSequence() > trapHandler->getSequence()))
+     {
+-
+-        trapHandler = (TrapHandler *)settings.traps->get(GlobalNames::ANY);
+-        // if we have a handler, but this can't handle this can condition, return false
+-        if (trapHandler != OREF_NULL && !trapHandler->canHandle(condition))
++        // as for a trap, a HALT might need the system exit
++        if (condition->strCompare(GlobalNames::HALT))
+         {
+-            return false;
++            activity->callHaltClearExit(this);
+         }
++        exceptionObject->put(GlobalNames::CATCH, GlobalNames::INSTRUCTION);
++        // the activation that owns the block jumps to the clause once the
++        // unwind reaches it (see processCatch())
++        catchOwner->catchBlock = catchingBlock;
++        catchOwner->catchClause = clause;
++        catchOwner->catchCondition = exceptionObject;
++        activity->clearCurrentCondition();
++        throw catchOwner;
+     }
++
+     // if the condition is being trapped, do the CALL or SIGNAL
+     if (trapHandler != OREF_NULL)
+     {
+@@ -2606,6 +2775,482 @@
+ 
+ 
+ /**
++ * Find the SIGNAL ON or CALL ON trap for a condition.
++ *
++ * @param condition The condition name.
++ *
++ * @return The trap handler, or OREF_NULL if the condition is not trapped.
++ */
++TrapHandler *RexxActivation::findTrapHandler(RexxString *condition)
++{
++    // there might be no trap table yet
++    if (settings.traps == OREF_NULL)
++    {
++        return OREF_NULL;
++    }
++    TrapHandler *trapHandler = (TrapHandler *)settings.traps->get(condition);
++
++    // nothing there for the specific condition.  We could have an ANY
++    // trap enabled, so check that.
++    if (trapHandler == OREF_NULL)
++    {
++        trapHandler = (TrapHandler *)settings.traps->get(GlobalNames::ANY);
++        // if we have a handler, but this can't handle this condition,
++        // it does not count (a CATCH clause might still catch it)
++        if (trapHandler != OREF_NULL && !trapHandler->canHandle(condition))
++        {
++            trapHandler = OREF_NULL;
++        }
++    }
++    return trapHandler;
++}
++
++
++/**
++ * Test if an active block has a FINALLY clause that has not started
++ * (RFE #31).
++ *
++ * @return true if one has.
++ */
++bool RexxActivation::hasFinallyToRun()
++{
++    for (DoBlock *doblock = doStack; doblock != OREF_NULL; doblock = doblock->getPrevious())
++    {
++        if (doblock->hasFinallyToRun())
++        {
++            return true;
++        }
++    }
++    return false;
++}
++
++
++/**
++ * Leave the active blocks above a given one (all of them, if none
++ * is given), because control is going somewhere else.  This is the
++ * one place where blocks are left before their time, and so where
++ * FINALLY clauses start (RFE #31): if one of the blocks has a
++ * FINALLY clause that has not run, the blocks above it are ended,
++ * the block remembers what was going on, and the next instruction is
++ * the code of the clause.  The caller must then return without doing
++ * anything else: endFinally() calls it again, with the same
++ * arguments, when that code reaches the END of the block, and so the
++ * clauses run innermost first.
++ *
++ * A block whose FINALLY code is running is just ended: what it was
++ * waiting to do is forgotten.  That is what a condition raised in the
++ * clause does; everything else is rejected first by
++ * checkFinallyExit().
++ *
++ * @param until       The block to stop at (not left), or OREF_NULL.
++ * @param action      What is going on.
++ * @param object      An object of the action (a result, a name, a
++ *                    condition object).
++ * @param instruction An instruction of the action (a SIGNAL target, a
++ *                    CATCH clause).
++ * @param block       The block of the CATCH clause.
++ *
++ * @return true if the blocks have been left, false if a FINALLY
++ *         clause has to run first.
++ */
++bool RexxActivation::leaveBlocks(DoBlock *until, FinallyAction action, RexxInternalObject *object,
++    RexxInstruction *instruction, DoBlock *block)
++{
++    while (doStack != OREF_NULL && doStack != until)
++    {
++        if (doStack->hasFinallyToRun())
++        {
++            doStack->setPending(action, object, instruction, block, current);
++            startFinally(doStack);
++            return false;
++        }
++        popBlockInstruction();
++    }
++    return true;
++}
++
++
++/**
++ * Start the code of the FINALLY clause of a block, the top one
++ * (RFE #31).
++ *
++ * @param block  The block.
++ */
++void RexxActivation::startFinally(DoBlock *block)
++{
++    RexxInstructionCatch *clause = block->getFinally();
++    blockNest = block->getNest();
++    // the block has ended, as it has in a CATCH clause: its CATCH clauses
++    // do not catch the conditions raised here
++    block->setInCatch(true);
++    block->setInFinally(true);
++
++    setIndent(block->getIndent());
++    traceInstruction(clause);
++    settings.traceIndent = block->getIndent() + 1;
++    next = clause->nextInstruction;
++}
++
++
++/**
++ * A block is ending by itself (its body, or the code of one of its
++ * CATCH clauses, has finished; a loop has ended; a LEAVE names it).
++ * If it has a FINALLY clause that has not run, start its code: the
++ * block ends when that code reaches the END (RFE #31).
++ *
++ * @param block  The block (can be OREF_NULL).
++ *
++ * @return true if the FINALLY code has started, false if the block
++ *         must be ended now.
++ */
++bool RexxActivation::enterFinally(DoBlock *block)
++{
++    if (block == OREF_NULL || !block->hasFinallyToRun())
++    {
++        return false;
++    }
++    block->setPending(FINALLY_END, OREF_NULL, OREF_NULL, OREF_NULL, current);
++    startFinally(block);
++    return true;
++}
++
++
++/**
++ * The code of a FINALLY clause has reached the END of its block: the
++ * block ends, and what was leaving it goes on, as if it was issued
++ * now by the instruction that issued it (RFE #31).
++ *
++ * @param block  The block, the top one.
++ * @param end    The END instruction.
++ */
++void RexxActivation::endFinally(DoBlock *block, RexxInstruction *end)
++{
++    // the block is not usable once it has ended
++    FinallyAction action = block->getPendingAction();
++    ProtectedObject object(block->getPendingObject());
++    RexxInstruction *instruction = block->getPendingInstruction();
++    DoBlock *target = block->getPendingBlock();
++    RexxInstruction *source = block->getPendingCurrent();
++
++    block->getParent()->terminate(this, block);
++    traceInstruction(end);
++
++    if (action == FINALLY_END)
++    {
++        return;
++    }
++
++    // errors, SIGL and so on are those of the instruction that was leaving
++    // the block
++    current = source;
++    RexxInternalObject *pending = (RexxInternalObject *)object;
++
++    switch (action)
++    {
++        case FINALLY_LEAVE:
++            leaveLoop((RexxString *)pending);
++            break;
++
++        case FINALLY_ITERATE:
++            iterate((RexxString *)pending);
++            break;
++
++        case FINALLY_RETURN:
++            returnFrom((RexxObject *)pending);
++            break;
++
++        case FINALLY_EXIT:
++            exitFrom((RexxObject *)pending);
++            break;
++
++        case FINALLY_SIGNAL:
++            signalTo(instruction);
++            break;
++
++        // CONDITION() and so on describe the trapped condition again,
++        // whatever the code of the clause did
++        case FINALLY_SIGNAL_TRAP:
++            setConditionObj((DirectoryClass *)pending);
++            signalTo(instruction, true);
++            break;
++
++        case FINALLY_CATCH:
++            catchBlock = target;
++            catchClause = (RexxInstructionCatch *)instruction;
++            catchCondition = (DirectoryClass *)pending;
++            processCatch();
++            break;
++
++        // the condition is raised again here: an outer activation catches
++        // or traps it now, or it goes on to the caller
++        case FINALLY_CONDITION:
++        {
++            DirectoryClass *conditionObj = (DirectoryClass *)pending;
++            RexxString *condition = (RexxString *)conditionObj->get(GlobalNames::CONDITION);
++            if (condition->strCompare(GlobalNames::SYNTAX))
++            {
++                // this does not return
++                activity->raisePropagate(conditionObj);
++            }
++            else
++            {
++                trap(condition, conditionObj);
++            }
++            break;
++        }
++
++        case FINALLY_RAISE:
++        case FINALLY_RAISE_EXIT:
++        {
++            ArrayClass *raiseInfo = (ArrayClass *)pending;
++            RexxString *condition = (RexxString *)raiseInfo->get(1);
++            RexxObject *rc = (RexxObject *)raiseInfo->get(2);
++            RexxString *description = (RexxString *)raiseInfo->get(3);
++            RexxObject *additional = (RexxObject *)raiseInfo->get(4);
++            RexxObject *resultObj = (RexxObject *)raiseInfo->get(5);
++            DirectoryClass *conditionObj = (DirectoryClass *)raiseInfo->get(6);
++            if (action == FINALLY_RAISE)
++            {
++                raise(condition, rc, description, additional, resultObj, conditionObj);
++            }
++            else
++            {
++                raiseExit(condition, rc, description, additional, resultObj, conditionObj);
++            }
++            break;
++        }
++
++        default:
++            break;
++    }
++}
++
++
++/**
++ * The rule of FINALLY: a FINALLY clause can only end by reaching
++ * its end, or by raising a condition.  Translation rejects the
++ * instructions that would leave one (LanguageParser::checkFinallyExit());
++ * this is the check at run time, for what translation cannot see:
++ * INTERPRET, an EXIT in an internal routine called from the clause
++ * (RFE #31).
++ *
++ * @param keyword The instruction that is leaving.
++ * @param scope   What it leaves.
++ * @param last    For LEAVE and ITERATE, the target block (the last
++ *                one to check).
++ */
++void RexxActivation::checkFinallyExit(const char *keyword, FinallyScope scope, DoBlock *last)
++{
++    RexxActivation *activation = this;
++    while (activation != OREF_NULL)
++    {
++        for (DoBlock *doblock = activation->doStack; doblock != OREF_NULL; doblock = doblock->getPrevious())
++        {
++            if (doblock->isInFinally())
++            {
++                reportException(Error_Execution_finally_exit, keyword, (wholenumber_t)doblock->getFinally()->getLineNumber());
++            }
++            if (doblock == last)
++            {
++                break;
++            }
++        }
++        switch (scope)
++        {
++            case FINALLY_SCOPE_CODE:
++                activation = activation->isInterpret() ? activation->parent : OREF_NULL;
++                break;
++
++            case FINALLY_SCOPE_BODY:
++                activation = activation->isTopLevelCall() ? OREF_NULL : activation->parent;
++                break;
++
++            default:
++                activation = OREF_NULL;
++                break;
++        }
++    }
++}
++
++
++/**
++ * A condition has been raised.  If it is going to end blocks that
++ * have FINALLY clauses to run, in this activation or between this
++ * activation and the one that is going to handle the condition, the
++ * innermost of those activations goes on with them, and the
++ * condition is raised again when the last one reaches its END
++ * (endFinally(), FINALLY_CONDITION).  This does not return then.
++ *
++ * The blocks of the activation that handles the condition itself are
++ * left by processCatch() and signalTo().
++ *
++ * @param condition The condition name.
++ * @param exceptionObject
++ *                  The condition object.
++ */
++void RexxActivation::finallyBeforeTrap(RexxString *condition, DirectoryClass *exceptionObject)
++{
++    if (debugPause)
++    {
++        return;
++    }
++
++    // the activation that is going to handle the condition
++    RexxActivation *handler = OREF_NULL;
++
++    TrapHandler *trapHandler = findTrapHandler(condition);
++    RexxActivation *catchOwner;
++    DoBlock *catchingBlock;
++    RexxInstructionCatch *clause;
++    // a CATCH clause, here or in the code that runs this internal routine
++    // or INTERPRET
++    if (findCatch(condition, catchOwner, catchingBlock, clause) &&
++        (trapHandler == OREF_NULL || catchingBlock->getSequence() > trapHandler->getSequence()))
++    {
++        handler = catchOwner;
++    }
++    else if (trapHandler != OREF_NULL)
++    {
++        // CALL ON: nothing is left
++        if (!trapHandler->isSignal())
++        {
++            return;
++        }
++        // SIGNAL ON: the code that INTERPRETs this takes the jump
++        handler = this;
++        while (handler->isInterpret())
++        {
++            handler = handler->parent;
++        }
++    }
++    // not handled here.  Only a SYNTAX condition goes on to the caller (the
++    // others are ignored), and it is raised there after this activation
++    // has ended.
++    else
++    {
++        if (!condition->strCompare(GlobalNames::SYNTAX))
++        {
++            return;
++        }
++        if (hasFinallyToRun())
++        {
++            activity->clearCurrentCondition();
++            leaveBlocks(OREF_NULL, FINALLY_CONDITION, exceptionObject);
++            throw this;
++        }
++        return;
++    }
++
++    for (RexxActivation *activation = this; activation != OREF_NULL && activation != handler; activation = activation->parent)
++    {
++        if (activation->hasFinallyToRun())
++        {
++            activity->clearCurrentCondition();
++            activation->leaveBlocks(OREF_NULL, FINALLY_CONDITION, exceptionObject);
++            throw activation;
++        }
++    }
++}
++
++
++/**
++ * Find the CATCH clause that catches a condition: the innermost
++ * active block of this activation with a clause for it, or, for an
++ * internal routine or an INTERPRET, of the code that runs it, and
++ * so on.  A block whose CATCH clause is running does not catch the
++ * conditions raised there (RFE #31).
++ *
++ * @param condition The condition name.
++ * @param owner     Returns the activation that owns the block.
++ * @param block     Returns the block.
++ * @param clause    Returns the CATCH clause.
++ *
++ * @return true if a CATCH clause catches the condition.
++ */
++bool RexxActivation::findCatch(RexxString *condition, RexxActivation *&owner, DoBlock *&block, RexxInstructionCatch *&clause)
++{
++    for (RexxActivation *activation = this; activation != OREF_NULL;
++         activation = activation->isInternalLevelCall() ? activation->parent : OREF_NULL)
++    {
++        for (DoBlock *doblock = activation->doStack; doblock != OREF_NULL; doblock = doblock->getPrevious())
++        {
++            if (!doblock->isInCatch() && doblock->getCatches() != OREF_NULL)
++            {
++                RexxInstructionCatch *c = RexxInstructionCatch::findClause(doblock, condition);
++                if (c != OREF_NULL)
++                {
++                    owner = activation;
++                    block = doblock;
++                    clause = c;
++                    return true;
++                }
++            }
++        }
++    }
++    return false;
++}
++
++
++/**
++ * Test if an active CATCH clause catches a condition (RFE #31).
++ *
++ * @param condition The condition name.
++ *
++ * @return true if one does.
++ */
++bool RexxActivation::catches(RexxString *condition)
++{
++    RexxActivation *owner;
++    DoBlock *block;
++    RexxInstructionCatch *clause;
++    return findCatch(condition, owner, block, clause);
++}
++
++
++/**
++ * Jump to the CATCH clause that caught a condition, once the unwind
++ * has reached this activation: end the blocks entered inside the
++ * body of the catching block, and set SIGL, RC and CONDITION() as a
++ * SIGNAL ON trap would (RFE #31).
++ */
++void RexxActivation::processCatch()
++{
++    DoBlock *block = catchBlock;
++    RexxInstructionCatch *clause = catchClause;
++    DirectoryClass *conditionObj = catchCondition;
++    catchBlock = OREF_NULL;
++    catchClause = OREF_NULL;
++    catchCondition = OREF_NULL;
++
++    // end the blocks entered inside the body.  If one of them has a FINALLY
++    // clause, it runs first, and we are back here when it reaches its END.
++    if (!leaveBlocks(block, FINALLY_CATCH, conditionObj, clause, block))
++    {
++        return;
++    }
++    blockNest = block->getNest();
++    settings.traceIndent = block->getIndent() + 1;
++    block->setInCatch(true);
++
++    if (current != OREF_NULL)
++    {
++        setLocalVariable(GlobalNames::SIGL, VARIABLE_SIGL, new_integer(current->getLineNumber()));
++    }
++    RexxInternalObject *rc = conditionObj->get(GlobalNames::RC);
++    if (rc != OREF_NULL)
++    {
++        setLocalVariable(GlobalNames::RC, VARIABLE_RC, (RexxObject *)rc);
++    }
++    setConditionObj(conditionObj);
++
++    setIndent(block->getIndent());
++    traceInstruction(clause);
++    settings.traceIndent = block->getIndent() + 1;
++    next = clause->nextInstruction;
++}
++
++
++/**
+  * Check the activation to see if this is trapping a condition.
+  * This does not process the trap, but merely indicates that
+  * this activation WILL trap the condition.  This is a
+@@ -2653,6 +3298,15 @@
+         return true;
+     }
+ 
++    // a CATCH clause that catches it (RFE #31)
++    RexxActivation *catchOwner;
++    DoBlock *catchingBlock;
++    RexxInstructionCatch *clause;
++    if (findCatch(condition, catchOwner, catchingBlock, clause))
++    {
++        return true;
++    }
++
+     // no trap table set yet?  can't handle this
+     if (settings.traps == OREF_NULL)
+     {
+@@ -2690,8 +3344,12 @@
+  */
+ RexxObject* RexxActivation::handleNovalueEvent(RexxString *name, RexxObject *defaultValue, RexxVariable *variable)
+ {
++    // an active CATCH clause for NOVALUE (or ANY) wins over ::OPTIONS
++    // NOVALUE SYNTAX, and makes the condition be raised (RFE #31)
++    bool caught = catches(GlobalNames::NOVALUE);
++
+     // have we specified via ::options that errors should be raised?
+-    if (isNovalueSyntaxEnabled())
++    if (isNovalueSyntaxEnabled() && !caught)
+     {
+         reportException(Error_Execution_unassigned_variable, name);
+     }
+@@ -2711,7 +3369,7 @@
+         return value;
+     }
+     // raise novalue?
+-    if (novalueEnabled())
++    if (novalueEnabled() || caught)
+     {
+         reportNovalue(name);
+     }
+Index: interpreter/execution/RexxActivation.hpp
+===================================================================
+--- a/interpreter/execution/RexxActivation.hpp	(revision 13484)
++++ b/interpreter/execution/RexxActivation.hpp	(working copy)
+@@ -72,6 +72,8 @@
+ /**
+  * An activation of a section of Rexx code.
+  */
++class RexxInstructionCatch;
++
+ class RexxActivation : public ActivationBase
+ {
+   public:
+@@ -186,7 +188,7 @@
+    }
+    void              reply(RexxObject *);
+    RexxObject      * forward(RexxObject *, RexxString *, RexxClass *, RexxObject **, size_t, bool);
+-   void              returnFrom(RexxObject *result);
++   void              returnFrom(RexxObject *result, bool raising = false);
+    void              exitFrom(RexxObject *);
+    void              procedureExpose(RexxVariableBase **variables, size_t count);
+    void              expose(RexxVariableBase **variables, size_t count);
+@@ -200,12 +202,31 @@
+    ActivationBase  * senderActivation(RexxString *conditionName);
+    RexxActivation  * external();
+    void              interpret(RexxString *);
+-   void              signalTo(RexxInstruction *);
++   void              signalTo(RexxInstruction *, bool trapped = false);
+    void              guardWait();
+    void              debugSkip(wholenumber_t);
+    RexxString      * traceSetting();
+    void              iterate(RexxString *);
+    void              leaveLoop(RexxString *);
++   bool              findCatch(RexxString *condition, RexxActivation *&owner, DoBlock *&block, RexxInstructionCatch *&clause);
++   void              processCatch();
++   bool              catches(RexxString *condition);
++   // FINALLY clauses (RFE #31)
++   typedef enum
++   {
++       FINALLY_SCOPE_BLOCKS,       // LEAVE, ITERATE: the blocks down to the target
++       FINALLY_SCOPE_CODE,         // RETURN, SIGNAL, FORWARD: this code, and what INTERPRETs it
++       FINALLY_SCOPE_BODY,         // EXIT: up to the top level of the code body
++   } FinallyScope;
++   bool              hasFinallyToRun();
++   bool              leaveBlocks(DoBlock *until, FinallyAction action, RexxInternalObject *object = OREF_NULL,
++                                 RexxInstruction *instruction = OREF_NULL, DoBlock *block = OREF_NULL);
++   void              startFinally(DoBlock *block);
++   bool              enterFinally(DoBlock *block);
++   void              endFinally(DoBlock *block, RexxInstruction *end);
++   void              checkFinallyExit(const char *keyword, FinallyScope scope, DoBlock *last = OREF_NULL);
++   void              finallyBeforeTrap(RexxString *condition, DirectoryClass *exceptionObject);
++   TrapHandler     * findTrapHandler(RexxString *condition);
+    void              trapOn(RexxString *, RexxInstructionTrapBase *, bool);
+    void              trapOff(RexxString *, bool);
+    void              setAddress(RexxString *, CommandIOConfiguration *config);
+@@ -220,6 +241,9 @@
+    RexxObject      * internalCallTrap(RexxString *, RexxInstruction *, DirectoryClass *, ProtectedObject &);
+    bool              callMacroSpaceFunction(RexxString *, RexxObject **, size_t, RexxString *, int, ProtectedObject &);
+    static RoutineClass* getMacroCode(RexxString *macroName);
++   // a counter that orders trap activations and block entries (RFE #31)
++   static inline uint64_t nextSequence() { return ++sequenceCounter; }
++   static uint64_t sequenceCounter;
+    RexxString       *resolveProgramName(RexxString *name, ResolveType type);
+    RexxClass        *findClass(RexxString *name);
+    RexxObject       *resolveDotVariable(RexxString *name, RexxObject *&);
+@@ -308,7 +332,14 @@
+    inline DoBlock *topBlockInstruction() { return doStack; }
+    inline void terminateBlockInstruction(size_t _indent) { popBlockInstruction(); settings.traceIndent = _indent; }
+    inline void terminateBlockInstruction() { popBlockInstruction();  }
+-   inline void newBlockInstruction(DoBlock *block) { pushBlockInstruction(block); blockNest++; settings.traceIndent++;}
++   inline void newBlockInstruction(DoBlock *block)
++   {
++       block->setSequence(nextSequence());
++       pushBlockInstruction(block);
++       blockNest++;
++       block->setNest(blockNest);
++       settings.traceIndent++;
++   }
+    inline void removeBlockInstruction()
+    {
+        blockNest--;
+@@ -653,5 +684,10 @@
+     size_t               blockNest;     // block instruction nesting level
+     size_t               instructionCount;  // The number of instructions since we last yielded control
+     uint32_t             idntfr;        // idntfr for concurrency trace
++                                        // a condition caught by a CATCH clause, waiting
++                                        // for the unwind to reach this activation (RFE #31)
++    DoBlock             *catchBlock;    // the block that caught it
++    RexxInstructionCatch *catchClause;  // the CATCH clause that caught it
++    DirectoryClass      *catchCondition;// the condition object
+  };
+  #endif
+Index: interpreter/execution/TrapHandler.cpp
+===================================================================
+--- a/interpreter/execution/TrapHandler.cpp	(revision 13484)
++++ b/interpreter/execution/TrapHandler.cpp	(working copy)
+@@ -47,6 +47,7 @@
+ #include "CallInstruction.hpp"
+ #include "DirectoryClass.hpp"
+ #include "GlobalNames.hpp"
++#include "RexxActivation.hpp"
+ 
+ 
+ /**
+@@ -74,6 +75,7 @@
+     condition = c;
+     handler = h;
+     state = ON;
++    sequence = RexxActivation::nextSequence();
+ }
+ 
+ 
+Index: interpreter/execution/TrapHandler.hpp
+===================================================================
+--- a/interpreter/execution/TrapHandler.hpp	(revision 13484)
++++ b/interpreter/execution/TrapHandler.hpp	(working copy)
+@@ -72,6 +72,7 @@
+     RexxString *getState();
+     void disable();
+     void enable();
++    inline uint64_t getSequence() { return sequence; }
+ 
+ protected:
+ 
+@@ -86,6 +87,8 @@
+     RexxInstructionTrapBase *handler;   // the instruction that handles this condition trap
+     TrapState state;                    // current state of the trap
+     DirectoryClass *conditionObject;    // an object associated with a active trap
++    uint64_t sequence;                  // when the trap was enabled: a CATCH clause
++                                        // of a block entered later hides it (RFE #31)
+ };
+ 
+ #endif
+Index: interpreter/instructions/BaseDoInstruction.cpp
+===================================================================
+--- a/interpreter/instructions/BaseDoInstruction.cpp	(revision 13484)
++++ b/interpreter/instructions/BaseDoInstruction.cpp	(working copy)
+@@ -115,6 +115,9 @@
+         // if we have a doblock for this, do termination cleanup
+         if (doblock != OREF_NULL)
+         {
++            // the instruction is going to be executed again: the block has
++            // not really been entered, so its FINALLY clause does not run
++            doblock->setFinally(OREF_NULL);
+             this->terminate(context, doblock);
+         }
+         // no block required, just remove the nesting
+@@ -157,6 +160,11 @@
+  */
+ void RexxBaseBlockInstruction::terminate(RexxActivation *context, DoBlock *doblock)
+ {
++    // the code of a FINALLY clause runs first; the block ends at its END
++    if (context->enterFinally(doblock))
++    {
++        return;
++    }
+     // reset the DO block
+     context->terminateBlockInstruction(doblock->getIndent());
+     // The next instruction is the one after the END
+@@ -275,11 +283,28 @@
+     // all we do here is create a new doblock and make it active
+     Protected<DoBlock> doblock = new DoBlock(context, this);
+ 
++    // a loop with CATCH clauses is active while its own clause is
++    // evaluated, so the clauses also catch the conditions raised there
++    // (RFE #31; this keeps the trace indentation of the clause)
++    bool catching = doblock->getCatches() != OREF_NULL;
++    if (catching)
++    {
++        context->newBlockInstruction(doblock);
++        context->unindent();
++    }
++
+     // perform loop specific initialization before pushing the doblock
+     setup(context, stack, doblock);
+ 
+     // set the block to the top of the context stack.
+-    context->newBlockInstruction(doblock);
++    if (catching)
++    {
++        context->indent();
++    }
++    else
++    {
++        context->newBlockInstruction(doblock);
++    }
+ 
+     // update the iteration counters
+     doblock->newIteration();
+@@ -375,6 +400,11 @@
+  */
+ void RexxInstructionBaseLoop::endLoop(RexxActivation *context)
+ {
++    // the code of a FINALLY clause runs first; the loop ends at its END
++    if (context->enterFinally(context->topBlockInstruction()))
++    {
++        return;
++    }
+     // pop the block instruction and remove the execution nest.
+     context->popBlockInstruction();
+     // jump to the loop end
+Index: interpreter/instructions/CatchInstruction.cpp
+===================================================================
+--- a/interpreter/instructions/CatchInstruction.cpp	(nonexistent)
++++ b/interpreter/instructions/CatchInstruction.cpp	(working copy)
+@@ -0,0 +1,298 @@
++/*----------------------------------------------------------------------------*/
++/*                                                                            */
++/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
++/*                                                                            */
++/* This program and the accompanying materials are made available under       */
++/* the terms of the Common Public License v1.0 which accompanies this         */
++/* distribution. A copy is also available at the following address:           */
++/* https://www.oorexx.org/license.html                                        */
++/*                                                                            */
++/* Redistribution and use in source and binary forms, with or                 */
++/* without modification, are permitted provided that the following            */
++/* conditions are met:                                                        */
++/*                                                                            */
++/* Redistributions of source code must retain the above copyright             */
++/* notice, this list of conditions and the following disclaimer.              */
++/* Redistributions in binary form must reproduce the above copyright          */
++/* notice, this list of conditions and the following disclaimer in            */
++/* the documentation and/or other materials provided with the distribution.   */
++/*                                                                            */
++/* Neither the name of Rexx Language Association nor the names                */
++/* of its contributors may be used to endorse or promote products             */
++/* derived from this software without specific prior written permission.      */
++/*                                                                            */
++/* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS        */
++/* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT          */
++/* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS          */
++/* FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT   */
++/* OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,      */
++/* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED   */
++/* TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,        */
++/* OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY     */
++/* OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING    */
++/* NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS         */
++/* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.               */
++/*                                                                            */
++/******************************************************************************/
++/* REXX Translator                                                            */
++/*                                                                            */
++/* CATCH clause of a DO, LOOP or SELECT block (RFE #31)                       */
++/*                                                                            */
++/******************************************************************************/
++#include "RexxCore.h"
++#include "RexxActivation.hpp"
++#include "ArrayClass.hpp"
++#include "CatchInstruction.hpp"
++#include "DoInstruction.hpp"
++#include "DoBlock.hpp"
++#include "EndInstruction.hpp"
++
++
++/**
++ * Construct a CATCH clause.
++ *
++ * @param c      The array of condition names caught by this clause.
++ */
++RexxInstructionCatch::RexxInstructionCatch(ArrayClass *c)
++{
++    conditions = c;
++}
++
++
++/**
++ * Perform garbage collection on a live object.
++ *
++ * @param liveMark The current live mark.
++ */
++void RexxInstructionCatch::live(size_t liveMark)
++{
++    // must be first object marked
++    memory_mark(nextInstruction);
++    memory_mark(conditions);
++    memory_mark(owner);
++    memory_mark(nextCatch);
++    memory_mark(firstCatch);
++}
++
++
++/**
++ * Perform generalized live marking on an object.  This is
++ * used when mark-and-sweep processing is needed for purposes
++ * other than garbage collection.
++ *
++ * @param reason The reason for the marking call.
++ */
++void RexxInstructionCatch::liveGeneral(MarkReason reason)
++{
++    // must be first object marked
++    memory_mark_general(nextInstruction);
++    memory_mark_general(conditions);
++    memory_mark_general(owner);
++    memory_mark_general(nextCatch);
++    memory_mark_general(firstCatch);
++}
++
++
++/**
++ * Flatten a source object.
++ *
++ * @param envelope The envelope that will hold the flattened object.
++ */
++void RexxInstructionCatch::flatten(Envelope *envelope)
++{
++    setUpFlatten(RexxInstructionCatch)
++
++    flattenRef(nextInstruction);
++    flattenRef(conditions);
++    flattenRef(owner);
++    flattenRef(nextCatch);
++    flattenRef(firstCatch);
++
++    cleanUpFlatten
++}
++
++
++/**
++ * Test if this clause catches a condition.  ANY catches every
++ * condition, as SIGNAL ON ANY does.
++ *
++ * @param condition The condition name.
++ *
++ * @return true if the clause catches the condition.
++ */
++bool RexxInstructionCatch::handles(RexxString *condition)
++{
++    size_t count = conditions->items();
++    for (size_t i = 1; i <= count; i++)
++    {
++        RexxString *name = (RexxString *)conditions->get(i);
++        if (name->strCompare(condition) || name->strCompare(GlobalNames::ANY))
++        {
++            return true;
++        }
++    }
++    return false;
++}
++
++
++/**
++ * Find the CATCH clause of an active block that catches a
++ * condition.  The clauses are tried in order, the first one that
++ * catches the condition wins.
++ *
++ * @param doblock   The block.
++ * @param condition The condition name.
++ *
++ * @return The clause, or OREF_NULL if the block has no clause for
++ *         the condition (or no CATCH clauses at all).
++ */
++RexxInstructionCatch *RexxInstructionCatch::findClause(DoBlock *doblock, RexxString *condition)
++{
++    RexxInstructionCatch *clause = doblock->getCatches();
++    while (clause != OREF_NULL)
++    {
++        // a FINALLY clause, the last one of the chain, catches nothing
++        if (!clause->isFinally() && clause->handles(condition))
++        {
++            return clause;
++        }
++        clause = clause->nextCatch;
++    }
++    return OREF_NULL;
++}
++
++
++/**
++ * Test if a block instruction has CATCH clauses.
++ *
++ * @param block  The block instruction.
++ *
++ * @return true if it has.
++ */
++bool RexxInstructionCatch::hasCatches(RexxBlockInstruction *block)
++{
++    return block->end != OREF_NULL && block->end->getStyle() == CATCH_BLOCK;
++}
++
++
++/**
++ * Find the first CATCH clause of a block instruction.  The clauses
++ * are between the body and the END; the block does not keep them
++ * (adding a field to it would change the layout of compiled
++ * programs), so look for the first one that belongs to it.
++ *
++ * @param block  The block instruction.
++ *
++ * @return The first CATCH clause, or OREF_NULL if the block has none.
++ */
++RexxInstructionCatch *RexxInstructionCatch::firstClause(RexxBlockInstruction *block)
++{
++    if (!hasCatches(block))
++    {
++        return OREF_NULL;
++    }
++    RexxInstruction *end = block->end;
++    for (RexxInstruction *i = block->nextInstruction; i != OREF_NULL && i != end; i = i->nextInstruction)
++    {
++        if ((i->isType(KEYWORD_CATCH) || i->isType(KEYWORD_FINALLY)) && ((RexxInstructionCatch *)i)->owner == block)
++        {
++            return (RexxInstructionCatch *)i;
++        }
++    }
++    return OREF_NULL;
++}
++
++
++/**
++ * Find the FINALLY clause of a chain of clauses: the last one, if
++ * it is a FINALLY clause.
++ *
++ * @param first  The first clause of the block (can be OREF_NULL).
++ *
++ * @return The FINALLY clause, or OREF_NULL if the block has none.
++ */
++RexxInstructionCatch *RexxInstructionCatch::finallyClause(RexxInstructionCatch *first)
++{
++    for (RexxInstructionCatch *clause = first; clause != OREF_NULL; clause = clause->nextCatch)
++    {
++        if (clause->isFinally())
++        {
++            return clause;
++        }
++    }
++    return OREF_NULL;
++}
++
++
++/**
++ * Execute a CATCH clause.  Control reaches a CATCH clause in two
++ * ways: the body of the block runs into the first one, and then
++ * the clause does what the END of the block would have done; or
++ * the code of a CATCH clause runs into the next one, and then the
++ * block ends.  Control does not reach the code of a clause this
++ * way: the context jumps there when a condition is caught.
++ *
++ * @param context The current execution context.
++ * @param stack   The current evaluation stack.
++ */
++void RexxInstructionCatch::execute(RexxActivation *context, ExpressionStack *stack)
++{
++    // no active block: a SIGNAL into the middle of a block
++    if (!context->hasActiveBlockInstructions())
++    {
++        context->traceInstruction(this);
++        reportException(Error_Unexpected_end_catch);
++    }
++
++    DoBlock *doblock = context->topBlockInstruction();
++
++    // the code of a CATCH clause has finished: the block ends
++    if (doblock->isInCatch())
++    {
++        // the FINALLY clause of the block runs now: trace this clause first
++        if (doblock->hasFinallyToRun())
++        {
++            context->setIndent(doblock->getIndent());
++            context->traceInstruction(this);
++            owner->terminate(context, doblock);
++            return;
++        }
++        owner->terminate(context, doblock);
++        context->traceInstruction(this);
++        return;
++    }
++
++    // the body has finished: do what the END would have done
++    switch (ownerStyle)
++    {
++        case LOOP_BLOCK:
++        {
++            context->setIndent(doblock->getIndent());
++            context->traceInstruction(this);
++            ((RexxInstructionBaseLoop *)owner)->reExecute(context, stack, doblock);
++            break;
++        }
++        // a SELECT without OTHERWISE where no WHEN was true
++        case SELECT_BLOCK:
++        {
++            context->unindent();
++            context->traceInstruction(this);
++            reportException(Error_When_expected_nootherwise);
++            break;
++        }
++        default:
++        {
++            // the FINALLY clause of the block runs now: trace this clause first
++            if (doblock->hasFinallyToRun())
++            {
++                context->setIndent(doblock->getIndent());
++                context->traceInstruction(this);
++                owner->terminate(context, doblock);
++                break;
++            }
++            owner->terminate(context, doblock);
++            context->traceInstruction(this);
++            break;
++        }
++    }
++}
+
+Property changes on: interpreter/instructions/CatchInstruction.cpp
+___________________________________________________________________
+Added: svn:eol-style
+## -0,0 +1 ##
++native
+\ No newline at end of property
+Index: interpreter/instructions/CatchInstruction.hpp
+===================================================================
+--- a/interpreter/instructions/CatchInstruction.hpp	(nonexistent)
++++ b/interpreter/instructions/CatchInstruction.hpp	(working copy)
+@@ -0,0 +1,96 @@
++/*----------------------------------------------------------------------------*/
++/*                                                                            */
++/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
++/*                                                                            */
++/* This program and the accompanying materials are made available under       */
++/* the terms of the Common Public License v1.0 which accompanies this         */
++/* distribution. A copy is also available at the following address:           */
++/* https://www.oorexx.org/license.html                                        */
++/*                                                                            */
++/* Redistribution and use in source and binary forms, with or                 */
++/* without modification, are permitted provided that the following            */
++/* conditions are met:                                                        */
++/*                                                                            */
++/* Redistributions of source code must retain the above copyright             */
++/* notice, this list of conditions and the following disclaimer.              */
++/* Redistributions in binary form must reproduce the above copyright          */
++/* notice, this list of conditions and the following disclaimer in            */
++/* the documentation and/or other materials provided with the distribution.   */
++/*                                                                            */
++/* Neither the name of Rexx Language Association nor the names                */
++/* of its contributors may be used to endorse or promote products             */
++/* derived from this software without specific prior written permission.      */
++/*                                                                            */
++/* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS        */
++/* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT          */
++/* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS          */
++/* FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT   */
++/* OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,      */
++/* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED   */
++/* TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,        */
++/* OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY     */
++/* OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING    */
++/* NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS         */
++/* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.               */
++/*                                                                            */
++/******************************************************************************/
++/* REXX Kernel                                                                */
++/*                                                                            */
++/* CATCH clause of a DO, LOOP or SELECT block (RFE #31)                       */
++/*                                                                            */
++/******************************************************************************/
++#ifndef Included_RexxInstructionCatch
++#define Included_RexxInstructionCatch
++
++#include "RexxInstruction.hpp"
++
++class DoBlock;
++
++/**
++ * A CATCH clause.  The clauses of a block follow its body and
++ * precede its END.  A block that has CATCH clauses gets an END of
++ * style CATCH_BLOCK; the CATCH clauses remember the style the END
++ * would have had (the style used when the body runs into the first
++ * CATCH clause), the block they belong to and the next CATCH clause.
++ *
++ * A FINALLY clause (RexxInstructionFinally, a subclass) is the last
++ * clause of the same chain.
++ */
++class RexxInstructionCatch : public RexxInstruction
++{
++ public:
++    inline RexxInstructionCatch(RESTORETYPE restoreType) { ; };
++    RexxInstructionCatch(ArrayClass *c);
++
++    void live(size_t) override;
++    void liveGeneral(MarkReason reason) override;
++    void flatten(Envelope *) override;
++
++    // a CATCH clause is closed by the END of its block
++    bool isBlock() override { return true; }
++    void execute(RexxActivation *, ExpressionStack *) override;
++
++    bool handles(RexxString *condition);
++    static RexxInstructionCatch *findClause(DoBlock *doblock, RexxString *condition);
++    static RexxInstructionCatch *firstClause(RexxBlockInstruction *block);
++    static bool hasCatches(RexxBlockInstruction *block);
++    static RexxInstructionCatch *finallyClause(RexxInstructionCatch *first);
++    inline bool isFinally() { return isType(KEYWORD_FINALLY); }
++
++    inline void setOwner(RexxBlockInstruction *o) { owner = o; }
++    inline RexxBlockInstruction *getOwner() { return owner; }
++    inline void setNextCatch(RexxInstructionCatch *c) { nextCatch = c; }
++    inline RexxInstructionCatch *getNextCatch() { return nextCatch; }
++    inline void setFirstCatch(RexxInstructionCatch *c) { firstCatch = c; }
++    inline RexxInstructionCatch *getFirstCatch() { return firstCatch; }
++    inline void setOwnerStyle(EndBlockType s) { ownerStyle = s; }
++
++ protected:
++
++    ArrayClass           *conditions;  // the condition names this clause catches
++    RexxBlockInstruction *owner;       // the DO, LOOP or SELECT this clause belongs to
++    RexxInstructionCatch *nextCatch;   // the next CATCH clause of the same block
++    RexxInstructionCatch *firstCatch;  // the first CATCH clause of the same block
++    EndBlockType          ownerStyle;  // the END style the block would have without CATCH
++};
++#endif
+
+Property changes on: interpreter/instructions/CatchInstruction.hpp
+___________________________________________________________________
+Added: svn:eol-style
+## -0,0 +1 ##
++native
+\ No newline at end of property
+Index: interpreter/instructions/DoBlock.cpp
+===================================================================
+--- a/interpreter/instructions/DoBlock.cpp	(revision 13484)
++++ b/interpreter/instructions/DoBlock.cpp	(working copy)
+@@ -46,6 +46,7 @@
+ #include "DoBlock.hpp"
+ #include "RexxActivation.hpp"
+ #include "Numerics.hpp"
++#include "CatchInstruction.hpp"
+ 
+ /**
+  * Allocate a new DoBlock object.
+@@ -69,6 +70,19 @@
+ {
+     parent = _parent;
+     indent = context->getIndent();
++    // a block with CATCH clauses: find the first one (RFE #31)
++    catches = RexxInstructionCatch::firstClause(parent);
++    inCatch = false;
++    // and its FINALLY clause, the last one
++    finallyClause = RexxInstructionCatch::finallyClause(catches);
++    inFinally = false;
++    pendingAction = FINALLY_NONE;
++    pendingObject = OREF_NULL;
++    pendingInstruction = OREF_NULL;
++    pendingBlock = OREF_NULL;
++    pendingCurrent = OREF_NULL;
++    sequence = 0;
++    nest = 0;
+     countVariable = parent->getCountVariable();
+     // if we have a count variable, then we need to set the initial value
+     // to zero before we do the loop termination tests.
+@@ -93,6 +107,12 @@
+     memory_mark(to);
+     memory_mark(by);
+     memory_mark(countVariable);
++    memory_mark(catches);
++    memory_mark(finallyClause);
++    memory_mark(pendingObject);
++    memory_mark(pendingInstruction);
++    memory_mark(pendingBlock);
++    memory_mark(pendingCurrent);
+ }
+ 
+ 
+@@ -111,6 +131,12 @@
+     memory_mark_general(to);
+     memory_mark_general(by);
+     memory_mark_general(countVariable);
++    memory_mark_general(catches);
++    memory_mark_general(finallyClause);
++    memory_mark_general(pendingObject);
++    memory_mark_general(pendingInstruction);
++    memory_mark_general(pendingBlock);
++    memory_mark_general(pendingCurrent);
+ }
+ 
+ 
+Index: interpreter/instructions/DoBlock.hpp
+===================================================================
+--- a/interpreter/instructions/DoBlock.hpp	(revision 13484)
++++ b/interpreter/instructions/DoBlock.hpp	(working copy)
+@@ -49,8 +49,30 @@
+ 
+ class RexxBlockInstruction;
+ class RexxVariableBase;
++class RexxInstructionCatch;
++class RexxInstruction;
+ 
+ /**
++ * What goes on when the code of a FINALLY clause reaches the END of
++ * its block: the reason control was leaving the block (RFE #31).
++ */
++typedef enum
++{
++    FINALLY_NONE,          // the code of the clause is not running
++    FINALLY_END,           // the block ended by itself: go on after the END
++    FINALLY_LEAVE,         // LEAVE of an outer block
++    FINALLY_ITERATE,       // ITERATE of an outer loop
++    FINALLY_RETURN,        // RETURN
++    FINALLY_EXIT,          // EXIT
++    FINALLY_SIGNAL,        // SIGNAL instruction
++    FINALLY_SIGNAL_TRAP,   // a SIGNAL ON trap
++    FINALLY_CATCH,         // a condition caught by a CATCH clause of an outer block
++    FINALLY_CONDITION,     // a condition that goes out of this activation
++    FINALLY_RAISE,         // RAISE ... RETURN
++    FINALLY_RAISE_EXIT,    // RAISE ... EXIT
++} FinallyAction;
++
++/**
+  * A container for state of active block instructions (DO LOOP, or SELECT)
+  */
+ class DoBlock : public RexxInternalObject
+@@ -87,7 +109,38 @@
+     inline void newIteration() { counter++; };
+     void setCounter(RexxActivation *context);
+ 
++    // CATCH clauses (RFE #31)
++    inline void setCatches(RexxInstructionCatch *c) { catches = c; }
++    inline RexxInstructionCatch *getCatches() { return catches; }
++    inline void setInCatch(bool v) { inCatch = v; }
++    inline bool isInCatch() { return inCatch; }
++    inline void setSequence(uint64_t s) { sequence = s; }
++    inline uint64_t getSequence() { return sequence; }
++    inline void setNest(size_t n) { nest = n; }
++    inline size_t getNest() { return nest; }
+ 
++    // FINALLY clause
++    inline RexxInstructionCatch *getFinally() { return finallyClause; }
++    inline void setFinally(RexxInstructionCatch *c) { finallyClause = c; }
++    inline bool isInFinally() { return inFinally; }
++    inline void setInFinally(bool v) { inFinally = v; }
++    // the block has a FINALLY clause that has not started yet
++    inline bool hasFinallyToRun() { return finallyClause != OREF_NULL && !inFinally; }
++    inline void setPending(FinallyAction a, RexxInternalObject *o, RexxInstruction *i, DoBlock *b, RexxInstruction *c)
++    {
++        pendingAction = a;
++        pendingObject = o;
++        pendingInstruction = i;
++        pendingBlock = b;
++        pendingCurrent = c;
++    }
++    inline FinallyAction getPendingAction() { return pendingAction; }
++    inline RexxInternalObject *getPendingObject() { return pendingObject; }
++    inline RexxInstruction *getPendingInstruction() { return pendingInstruction; }
++    inline DoBlock *getPendingBlock() { return pendingBlock; }
++    inline RexxInstruction *getPendingCurrent() { return pendingCurrent; }
++
++
+ protected:
+ 
+     DoBlock           *previous;         // previous stacked Do Block
+@@ -105,5 +158,18 @@
+     TokenSubclass      compare;          // type of comparison
+     RexxVariableBase  *countVariable;    // control variable for counter
+     uint64_t           counter;          // the loop iteration counter
++
++    RexxInstructionCatch *catches;       // first CATCH clause of the block, if any
++    bool               inCatch;          // the code of a CATCH clause is running
++    uint64_t           sequence;         // when the block was entered (see TrapHandler)
++    size_t             nest;             // block nesting level of the block's body
++
++    RexxInstructionCatch *finallyClause; // FINALLY clause of the block, if any
++    bool               inFinally;        // the code of the FINALLY clause is running
++    FinallyAction      pendingAction;    // what goes on when that code reaches the END...
++    RexxInternalObject *pendingObject;   // ...a result, a block name, a condition object
++    RexxInstruction   *pendingInstruction; // ...a SIGNAL target, a CATCH clause
++    DoBlock           *pendingBlock;     // ...the block of that CATCH clause
++    RexxInstruction   *pendingCurrent;   // ...and the instruction that was leaving the block
+ };
+ #endif
+Index: interpreter/instructions/EndIf.cpp
+===================================================================
+--- a/interpreter/instructions/EndIf.cpp	(revision 13484)
++++ b/interpreter/instructions/EndIf.cpp	(working copy)
+@@ -136,6 +136,11 @@
+     // END.
+     if (this->instructionType == KEYWORD_ENDWHEN)
+     {
++        // the code of a FINALLY clause of the SELECT runs first
++        if (context->enterFinally(context->topBlockInstruction()))
++        {
++            return;
++        }
+         // remove the select block and reset the indent
+         context->terminateBlockInstruction();
+         // branch to the END of the SELECT.
+Index: interpreter/instructions/EndInstruction.cpp
+===================================================================
+--- a/interpreter/instructions/EndInstruction.cpp	(revision 13484)
++++ b/interpreter/instructions/EndInstruction.cpp	(working copy)
+@@ -157,6 +157,23 @@
+         }
+ 
+         // for labeled BLOCK types, we need to remove the active marker.
++        // a block with CATCH clauses: the code of the last clause has
++        // finished, so the block ends (RFE #31)
++        case CATCH_BLOCK:
++        {
++            DoBlock *doBlock = context->topBlockInstruction();
++            // the code of the FINALLY clause has finished: the block ends,
++            // and what was leaving it goes on
++            if (doBlock->isInFinally())
++            {
++                context->endFinally(doBlock, this);
++                break;
++            }
++            doBlock->getParent()->terminate(context, doBlock);
++            context->traceInstruction(this);
++            break;
++        }
++
+         case OTHERWISE_BLOCK:
+         case LABELED_OTHERWISE_BLOCK:
+         case LABELED_DO_BLOCK:
+Index: interpreter/instructions/FinallyInstruction.cpp
+===================================================================
+--- a/interpreter/instructions/FinallyInstruction.cpp	(nonexistent)
++++ b/interpreter/instructions/FinallyInstruction.cpp	(working copy)
+@@ -0,0 +1,102 @@
++/*----------------------------------------------------------------------------*/
++/*                                                                            */
++/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
++/*                                                                            */
++/* This program and the accompanying materials are made available under       */
++/* the terms of the Common Public License v1.0 which accompanies this         */
++/* distribution. A copy is also available at the following address:           */
++/* https://www.oorexx.org/license.html                                        */
++/*                                                                            */
++/* Redistribution and use in source and binary forms, with or                 */
++/* without modification, are permitted provided that the following            */
++/* conditions are met:                                                        */
++/*                                                                            */
++/* Redistributions of source code must retain the above copyright             */
++/* notice, this list of conditions and the following disclaimer.              */
++/* Redistributions in binary form must reproduce the above copyright          */
++/* notice, this list of conditions and the following disclaimer in            */
++/* the documentation and/or other materials provided with the distribution.   */
++/*                                                                            */
++/* Neither the name of Rexx Language Association nor the names                */
++/* of its contributors may be used to endorse or promote products             */
++/* derived from this software without specific prior written permission.      */
++/*                                                                            */
++/* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS        */
++/* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT          */
++/* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS          */
++/* FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT   */
++/* OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,      */
++/* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED   */
++/* TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,        */
++/* OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY     */
++/* OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING    */
++/* NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS         */
++/* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.               */
++/*                                                                            */
++/******************************************************************************/
++/* REXX Translator                                                            */
++/*                                                                            */
++/* FINALLY clause of a DO, LOOP or SELECT block (RFE #31)                     */
++/*                                                                            */
++/******************************************************************************/
++#include "RexxCore.h"
++#include "RexxActivation.hpp"
++#include "FinallyInstruction.hpp"
++#include "DoInstruction.hpp"
++#include "DoBlock.hpp"
++#include "EndInstruction.hpp"
++
++
++/**
++ * Construct a FINALLY clause.
++ */
++RexxInstructionFinally::RexxInstructionFinally() : RexxInstructionCatch((ArrayClass *)OREF_NULL)
++{
++}
++
++
++/**
++ * Execute a FINALLY clause.  Control reaches the clause itself when
++ * the body of the block, or the code of its last CATCH clause, runs
++ * into it.  Every other way out of the block goes straight to the
++ * code of the clause (RexxActivation::leaveBlocks()).
++ *
++ * @param context The current execution context.
++ * @param stack   The current evaluation stack.
++ */
++void RexxInstructionFinally::execute(RexxActivation *context, ExpressionStack *stack)
++{
++    // no active block: a SIGNAL into the middle of a block
++    if (!context->hasActiveBlockInstructions())
++    {
++        context->traceInstruction(this);
++        reportException(Error_Unexpected_end_finally);
++    }
++
++    DoBlock *doblock = context->topBlockInstruction();
++
++    // the body has finished (not the code of a CATCH clause): do what
++    // the END would have done
++    if (!doblock->isInCatch())
++    {
++        // a loop goes round again; when it ends, the code of this clause runs
++        if (ownerStyle == LOOP_BLOCK)
++        {
++            context->setIndent(doblock->getIndent());
++            context->traceInstruction(this);
++            ((RexxInstructionBaseLoop *)owner)->reExecute(context, stack, doblock);
++            return;
++        }
++        // a SELECT without OTHERWISE where no WHEN was true: the code of
++        // this clause runs before the error goes on, as for any condition
++        if (ownerStyle == SELECT_BLOCK)
++        {
++            context->unindent();
++            context->traceInstruction(this);
++            reportException(Error_When_expected_nootherwise);
++        }
++    }
++
++    // the block ends: this starts the code of the clause (and traces it)
++    owner->terminate(context, doblock);
++}
+
+Property changes on: interpreter/instructions/FinallyInstruction.cpp
+___________________________________________________________________
+Added: svn:eol-style
+## -0,0 +1 ##
++native
+\ No newline at end of property
+Index: interpreter/instructions/FinallyInstruction.hpp
+===================================================================
+--- a/interpreter/instructions/FinallyInstruction.hpp	(nonexistent)
++++ b/interpreter/instructions/FinallyInstruction.hpp	(working copy)
+@@ -0,0 +1,65 @@
++/*----------------------------------------------------------------------------*/
++/*                                                                            */
++/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
++/*                                                                            */
++/* This program and the accompanying materials are made available under       */
++/* the terms of the Common Public License v1.0 which accompanies this         */
++/* distribution. A copy is also available at the following address:           */
++/* https://www.oorexx.org/license.html                                        */
++/*                                                                            */
++/* Redistribution and use in source and binary forms, with or                 */
++/* without modification, are permitted provided that the following            */
++/* conditions are met:                                                        */
++/*                                                                            */
++/* Redistributions of source code must retain the above copyright             */
++/* notice, this list of conditions and the following disclaimer.              */
++/* Redistributions in binary form must reproduce the above copyright          */
++/* notice, this list of conditions and the following disclaimer in            */
++/* the documentation and/or other materials provided with the distribution.   */
++/*                                                                            */
++/* Neither the name of Rexx Language Association nor the names                */
++/* of its contributors may be used to endorse or promote products             */
++/* derived from this software without specific prior written permission.      */
++/*                                                                            */
++/* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS        */
++/* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT          */
++/* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS          */
++/* FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT   */
++/* OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,      */
++/* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED   */
++/* TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,        */
++/* OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY     */
++/* OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING    */
++/* NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS         */
++/* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.               */
++/*                                                                            */
++/******************************************************************************/
++/* REXX Translator                                                            */
++/*                                                                            */
++/* FINALLY clause of a DO, LOOP or SELECT block (RFE #31)                     */
++/*                                                                            */
++/******************************************************************************/
++#ifndef Included_RexxInstructionFinally
++#define Included_RexxInstructionFinally
++
++#include "CatchInstruction.hpp"
++
++/**
++ * A FINALLY clause.  It is the last clause of a block, after its
++ * CATCH clauses (if any), and belongs to the same chain of clauses:
++ * it has the owner, the first clause and the END style of a CATCH
++ * clause, and no conditions.  Its code runs whenever control leaves
++ * the block, whatever the reason; what was going to happen then
++ * (nothing, a LEAVE, a RETURN, a condition...) waits in the DoBlock
++ * and goes on when the code reaches the END of the block (see
++ * RexxActivation::leaveBlocks() and endFinally()).
++ */
++class RexxInstructionFinally : public RexxInstructionCatch
++{
++ public:
++    inline RexxInstructionFinally(RESTORETYPE restoreType) : RexxInstructionCatch(restoreType) { ; };
++    RexxInstructionFinally();
++
++    void execute(RexxActivation *, ExpressionStack *) override;
++};
++#endif
+
+Property changes on: interpreter/instructions/FinallyInstruction.hpp
+___________________________________________________________________
+Added: svn:eol-style
+## -0,0 +1 ##
++native
+\ No newline at end of property
+Index: interpreter/instructions/RexxInstruction.hpp
+===================================================================
+--- a/interpreter/instructions/RexxInstruction.hpp	(revision 13484)
++++ b/interpreter/instructions/RexxInstruction.hpp	(working copy)
+@@ -113,6 +113,7 @@
+     LABELED_SELECT_BLOCK,
+     LABELED_OTHERWISE_BLOCK,
+     LABELED_DO_BLOCK,
++    CATCH_BLOCK,                // a block with CATCH clauses (RFE #31)
+ } EndBlockType;
+ 
+ class DoBlock;
+Index: interpreter/instructions/SelectInstruction.cpp
+===================================================================
+--- a/interpreter/instructions/SelectInstruction.cpp	(revision 13484)
++++ b/interpreter/instructions/SelectInstruction.cpp	(working copy)
+@@ -141,6 +141,8 @@
+     // if we've been asked to re-execute.
+     if (context->conditionalPauseInstruction())
+     {
++        // executed again: the FINALLY clause does not run
++        doblock->setFinally(OREF_NULL);
+         this->terminate(context, doblock);
+     }
+ }
+@@ -165,6 +167,11 @@
+  */
+ void RexxInstructionSelect::terminate(RexxActivation *context, DoBlock *doblock )
+ {
++    // the code of a FINALLY clause runs first; the SELECT ends at its END
++    if (context->enterFinally(doblock))
++    {
++        return;
++    }
+     // we terminate this doblock
+     context->terminateBlockInstruction(doblock->getIndent());
+     // and we jump to the instruction after our END
+@@ -367,6 +374,15 @@
+     // protect it, as the expression evaluation may trigger a GC
+     Protected<DoBlock> doblock = new DoBlock (context, this);
+ 
++    // a SELECT CASE with CATCH clauses is active while the CASE expression
++    // is evaluated, as a loop is while its clause is (RFE #31)
++    bool catching = doblock->getCatches() != OREF_NULL;
++    if (catching)
++    {
++        context->newBlockInstruction(doblock);
++        context->unindent();
++    }
++
+     // evaluate the CASE instruction and store in the doblock so the WHEN
+     // instructions can retrieve it.
+     ProtectedObject caseResult = caseExpr->evaluate(context, stack);
+@@ -373,7 +389,14 @@
+     context->traceKeywordResult(GlobalNames::CASE, caseResult);
+ 
+     // set the block to the top of the context stack.
+-    context->newBlockInstruction(doblock);
++    if (catching)
++    {
++        context->indent();
++    }
++    else
++    {
++        context->newBlockInstruction(doblock);
++    }
+ 
+     doblock->setCase(caseResult);
+ 
+@@ -381,6 +404,8 @@
+     // if we've been asked to re-execute.
+     if (context->conditionalPauseInstruction())
+     {
++        // executed again: the FINALLY clause does not run
++        doblock->setFinally(OREF_NULL);
+         terminate(context, doblock);
+     }
+ }
+Index: interpreter/instructions/SignalInstruction.cpp
+===================================================================
+--- a/interpreter/instructions/SignalInstruction.cpp	(revision 13484)
++++ b/interpreter/instructions/SignalInstruction.cpp	(working copy)
+@@ -356,6 +356,6 @@
+     // set the new condition object
+     context->setConditionObj(conditionObj);
+     // and jump to the condition target
+-    context->signalTo(targetInstruction);
++    context->signalTo(targetInstruction, true);
+ }
+ 
+Index: interpreter/instructions/SimpleDoInstruction.cpp
+===================================================================
+--- a/interpreter/instructions/SimpleDoInstruction.cpp	(revision 13484)
++++ b/interpreter/instructions/SimpleDoInstruction.cpp	(working copy)
+@@ -46,6 +46,7 @@
+ #include "DoBlock.hpp"
+ #include "EndInstruction.hpp"
+ #include "RexxActivation.hpp"
++#include "CatchInstruction.hpp"
+ 
+ 
+ /**
+@@ -77,7 +78,8 @@
+ 
+     // if we have a label then we need to add a block to the control stack
+     // so LEAVE or ITERATE can determine the block bounds.
+-    if (getLabel() != OREF_NULL)
++    // a block with CATCH clauses needs one too (RFE #31)
++    if (getLabel() != OREF_NULL || RexxInstructionCatch::hasCatches(this))
+     {
+         // create an active block, and make this the top of the
+         // control stack
+Index: interpreter/memory/GlobalNames.h
+===================================================================
+--- a/interpreter/memory/GlobalNames.h	(revision 13484)
++++ b/interpreter/memory/GlobalNames.h	(working copy)
+@@ -66,6 +66,7 @@
+ GLOBAL_NAME(BRACKETS, "[]")
+ GLOBAL_NAME(BY, "BY")
+ GLOBAL_NAME(CALL, "CALL")
++GLOBAL_NAME(CATCH, "CATCH")
+ GLOBAL_NAME(CASE, "CASE")
+ GLOBAL_NAME(CHAR, "CHAR")
+ GLOBAL_NAME(CHARIN, "CHARIN")
+Index: interpreter/messages/RexxErrorCodes.h
+===================================================================
+--- a/interpreter/messages/RexxErrorCodes.h	(revision 13484)
++++ b/interpreter/messages/RexxErrorCodes.h	(working copy)
+@@ -91,6 +91,9 @@
+ Error_Unexpected_end_then                                    = 10005,
+ Error_Unexpected_end_else                                    = 10006,
+ Error_Unexpected_end_select_nolabel                          = 10007,
++Error_Unexpected_end_catch                                   = 10008,
++Error_Unexpected_end_finally                                 = 10009,
++Error_Unexpected_end_after_finally                           = 10010,
+ Error_Control_stack                                          = 11000,
+ Error_Control_stack_full                                     = 11001,
+ Error_Control_stack_user_defined                             = 11900,
+@@ -187,6 +190,7 @@
+ Error_Symbol_expected_address_with                           = 20933,
+ Error_Symbol_expected_counter                                = 20934,
+ Error_Symbol_expected_numeric_subdirective                   = 20935,
++Error_Symbol_expected_catch                                  = 20936,
+ Error_Invalid_data                                           = 21000,
+ Error_Invalid_data_user_defined                              = 21900,
+ Error_Invalid_data_nop                                       = 21901,
+@@ -202,6 +206,7 @@
+ Error_Invalid_data_guard_off                                 = 21912,
+ Error_Invalid_data_constant_dir                              = 21913,
+ Error_Invalid_data_resource_dir                              = 21914,
++Error_Invalid_data_finally                                   = 21915,
+ Error_Invalid_character_string                               = 22000,
+ Error_Invalid_character_string_char                          = 22001,
+ Error_Invalid_character_string_user_defined                  = 22900,
+@@ -258,6 +263,7 @@
+ Error_Invalid_subkeyword_duplicate                           = 25936,
+ Error_Invalid_subkeyword_conflict                            = 25937,
+ Error_Invalid_subkeyword_options_form                        = 25938,
++Error_Invalid_subkeyword_catch                               = 25939,
+ Error_Invalid_whole_number                                   = 26000,
+ Error_Invalid_whole_number_repeat                            = 26002,
+ Error_Invalid_whole_number_for                               = 26003,
+@@ -286,6 +292,8 @@
+ Error_Invalid_leave_leavevar                                 = 28003,
+ Error_Invalid_leave_iteratevar                               = 28004,
+ Error_Invalid_leave_iterate_name                             = 28005,
++Error_Invalid_leave_leave_catch                              = 28006,
++Error_Invalid_leave_iterate_catch                            = 28007,
+ Error_Environment_name                                       = 29000,
+ Error_Environment_name_name                                  = 29001,
+ Error_Name_too_long                                          = 30000,
+@@ -641,6 +649,7 @@
+ Error_Execution_authorization                                = 98948,
+ Error_Execution_no_concurrency                               = 98951,
+ Error_Execution_circular_requires                            = 98952,
++Error_Execution_finally_exit                                 = 98953,
+ Error_Execution_error_syntax                                 = 98970,
+ Error_Execution_failure_syntax                               = 98971,
+ Error_Execution_lostdigits_syntax                            = 98972,
+@@ -721,6 +730,7 @@
+ Error_Translation_use_local_compound                         = 99948,
+ Error_Translation_bad_class                                  = 99949,
+ Error_Translation_use_arg_reference_no_default               = 99950,
++Error_Translation_finally_exit                               = 99951,
+ Error_at_line                                                = 101000,
+ Message_Translations_error                                   = 101001,
+ Message_Translations_running                                 = 101002,
+Index: interpreter/messages/RexxErrorMessages.h
+===================================================================
+--- a/interpreter/messages/RexxErrorMessages.h	(revision 13484)
++++ b/interpreter/messages/RexxErrorMessages.h	(working copy)
+@@ -93,6 +93,9 @@
+     MESSAGE(Error_Unexpected_end_then, "END must not immediately follow THEN.")
+     MESSAGE(Error_Unexpected_end_else, "END must not immediately follow ELSE.")
+     MESSAGE(Error_Unexpected_end_select_nolabel, "END corresponding to SELECT on line &2 must not have a symbol following it because there is no LABEL; found \"&1\".")
++    MESSAGE(Error_Unexpected_end_catch, "CATCH has no corresponding DO, LOOP, or SELECT.")
++    MESSAGE(Error_Unexpected_end_finally, "FINALLY has no corresponding DO, LOOP, or SELECT.")
++    MESSAGE(Error_Unexpected_end_after_finally, "A CATCH or FINALLY clause must not follow the FINALLY clause on line &1.")
+     MESSAGE(Error_Control_stack, "Control stack full.")
+     MESSAGE(Error_Control_stack_full, "Insufficient control stack space; cannot continue execution.")
+     MESSAGE(Error_Control_stack_user_defined, "&1.")
+@@ -189,6 +192,7 @@
+     MESSAGE(Error_Symbol_expected_address_with, "Symbol expected after WITH keyword.")
+     MESSAGE(Error_Symbol_expected_counter, "Symbol expected after COUNTER keyword.")
+     MESSAGE(Error_Symbol_expected_numeric_subdirective, "Symbol expected after the NUMERIC subdirective keyword.")
++    MESSAGE(Error_Symbol_expected_catch, "Symbol expected after CATCH keyword or after a comma in a CATCH clause.")
+     MESSAGE(Error_Invalid_data, "Invalid data on end of clause.")
+     MESSAGE(Error_Invalid_data_user_defined, "&1.")
+     MESSAGE(Error_Invalid_data_nop, "Data must not follow the NOP keyword; found \"&1\".")
+@@ -204,6 +208,7 @@
+     MESSAGE(Error_Invalid_data_guard_off, "Data must not follow the GUARD OFF specification; found \"&1\".")
+     MESSAGE(Error_Invalid_data_constant_dir, "Data must not follow the ::CONSTANT value; found \"&1\".")
+     MESSAGE(Error_Invalid_data_resource_dir, "Data must not follow the ::RESOURCE directive; found \"&1\".")
++    MESSAGE(Error_Invalid_data_finally, "Data must not follow the FINALLY keyword; found \"&1\".")
+     MESSAGE(Error_Invalid_character_string, "Invalid character string.")
+     MESSAGE(Error_Invalid_character_string_char, "Incorrect character string \"&1\" ('&2'X).")
+     MESSAGE(Error_Invalid_character_string_user_defined, "&1.")
+@@ -260,6 +265,7 @@
+     MESSAGE(Error_Invalid_subkeyword_duplicate, "Duplicate keyword on ::&1 directive; found \"&2\".")
+     MESSAGE(Error_Invalid_subkeyword_conflict, "Keyword \"&1\" on ::&2 directive conflicts with \"&3\".")
+     MESSAGE(Error_Invalid_subkeyword_options_form, "FORM must be followed by one of the keywords SCIENTIFIC or ENGINEERING; found \"&1\".")
++    MESSAGE(Error_Invalid_subkeyword_catch, "CATCH must be followed by one or more of the keywords ERROR, FAILURE, HALT, LOSTDIGITS, NOTREADY, NOMETHOD, NOSTRING, NOVALUE, SYNTAX, USER, or ANY, separated by commas; found \"&1\".")
+     MESSAGE(Error_Invalid_whole_number, "Invalid whole number.")
+     MESSAGE(Error_Invalid_whole_number_repeat, "Value of repetition count expression in DO or LOOP instruction must be zero or a positive whole number; found \"&1\".")
+     MESSAGE(Error_Invalid_whole_number_for, "Value of FOR expression in DO or LOOP instruction must be zero or a positive whole number; found \"&1\".")
+@@ -288,6 +294,8 @@
+     MESSAGE(Error_Invalid_leave_leavevar, "Symbol following LEAVE (\"&1\") must either match the label of a current loop or block instruction.")
+     MESSAGE(Error_Invalid_leave_iteratevar, "Symbol following ITERATE (\"&1\") must either match the label of a current loop or be omitted.")
+     MESSAGE(Error_Invalid_leave_iterate_name, "Symbol following ITERATE (\"&1\") does not match a repetitive block instruction.")
++    MESSAGE(Error_Invalid_leave_leave_catch, "LEAVE in a CATCH clause must not refer to the block instruction on line &1, which owns the clause.")
++    MESSAGE(Error_Invalid_leave_iterate_catch, "ITERATE in a CATCH clause must not refer to the block instruction on line &1, which owns the clause.")
+     MESSAGE(Error_Environment_name, "Environment name too long.")
+     MESSAGE(Error_Environment_name_name, "Environment name exceeds &1 characters; found \"&2\".")
+     MESSAGE(Error_Name_too_long, "Name or symbol too long.")
+@@ -643,6 +651,7 @@
+     MESSAGE(Error_Execution_authorization, "Authorization failure:  &1.")
+     MESSAGE(Error_Execution_no_concurrency, "Concurrency not supported.")
+     MESSAGE(Error_Execution_circular_requires, "Circular ::REQUIRES references detected with &1.")
++    MESSAGE(Error_Execution_finally_exit, "&1 must not leave the FINALLY clause on line &2.")
+     MESSAGE(Error_Execution_error_syntax, "External command \"&1\" ended with return code &2.")
+     MESSAGE(Error_Execution_failure_syntax, "External command \"&1\" failed with return code &2.")
+     MESSAGE(Error_Execution_lostdigits_syntax, "Number &1 has more digits than the current precision.")
+@@ -723,6 +732,7 @@
+     MESSAGE(Error_Translation_use_local_compound, "USE LOCAL cannot process compound variables; found \"&1\".")
+     MESSAGE(Error_Translation_bad_class, "\"&1\" is not a valid class.")
+     MESSAGE(Error_Translation_use_arg_reference_no_default, "A USE ARG default value is not allowed for variable references.")
++    MESSAGE(Error_Translation_finally_exit, "&1 must not leave the FINALLY clause on line &2.")
+     MESSAGE(Error_at_line, "Error &1 running &2, line &3:.")
+     MESSAGE(Message_Translations_error, "Error")
+     MESSAGE(Message_Translations_running, "running")
+Index: interpreter/messages/RexxMessageNumbers.h
+===================================================================
+--- a/interpreter/messages/RexxMessageNumbers.h	(revision 13484)
++++ b/interpreter/messages/RexxMessageNumbers.h	(working copy)
+@@ -763,6 +763,16 @@
+ #define Error_Invalid_subkeyword_options_form_msg                    843
+ #define Error_Variable_reference_use_default_msg                     844
+ #define Error_Incorrect_call_error_code_msg                          845
++#define Error_Unexpected_end_catch_msg                               846
++#define Error_Symbol_expected_catch_msg                              847
++#define Error_Invalid_subkeyword_catch_msg                           848
++#define Error_Invalid_leave_leave_catch_msg                          849
++#define Error_Invalid_leave_iterate_catch_msg                        850
++#define Error_Unexpected_end_finally_msg                             851
++#define Error_Unexpected_end_after_finally_msg                       852
++#define Error_Invalid_data_finally_msg                               853
++#define Error_Execution_finally_exit_msg                             854
++#define Error_Translation_finally_exit_msg                           855
+ 
+ 
+ #endif
+Index: interpreter/messages/RexxMessageTable.h
+===================================================================
+--- a/interpreter/messages/RexxMessageTable.h	(revision 13484)
++++ b/interpreter/messages/RexxMessageTable.h	(working copy)
+@@ -92,6 +92,9 @@
+       MINOR(Error_Unexpected_end_then)
+       MINOR(Error_Unexpected_end_else)
+       MINOR(Error_Unexpected_end_select_nolabel)
++      MINOR(Error_Unexpected_end_catch)
++      MINOR(Error_Unexpected_end_finally)
++      MINOR(Error_Unexpected_end_after_finally)
+   MAJOR(Error_Control_stack)
+       MINOR(Error_Control_stack_full)
+       MINOR(Error_Control_stack_user_defined)
+@@ -188,6 +191,7 @@
+       MINOR(Error_Symbol_expected_address_with)
+       MINOR(Error_Symbol_expected_counter)
+       MINOR(Error_Symbol_expected_numeric_subdirective)
++      MINOR(Error_Symbol_expected_catch)
+   MAJOR(Error_Invalid_data)
+       MINOR(Error_Invalid_data_user_defined)
+       MINOR(Error_Invalid_data_nop)
+@@ -203,6 +207,7 @@
+       MINOR(Error_Invalid_data_guard_off)
+       MINOR(Error_Invalid_data_constant_dir)
+       MINOR(Error_Invalid_data_resource_dir)
++      MINOR(Error_Invalid_data_finally)
+   MAJOR(Error_Invalid_character_string)
+       MINOR(Error_Invalid_character_string_char)
+       MINOR(Error_Invalid_character_string_user_defined)
+@@ -259,6 +264,7 @@
+       MINOR(Error_Invalid_subkeyword_duplicate)
+       MINOR(Error_Invalid_subkeyword_conflict)
+       MINOR(Error_Invalid_subkeyword_options_form)
++      MINOR(Error_Invalid_subkeyword_catch)
+   MAJOR(Error_Invalid_whole_number)
+       MINOR(Error_Invalid_whole_number_repeat)
+       MINOR(Error_Invalid_whole_number_for)
+@@ -287,6 +293,8 @@
+       MINOR(Error_Invalid_leave_leavevar)
+       MINOR(Error_Invalid_leave_iteratevar)
+       MINOR(Error_Invalid_leave_iterate_name)
++      MINOR(Error_Invalid_leave_leave_catch)
++      MINOR(Error_Invalid_leave_iterate_catch)
+   MAJOR(Error_Environment_name)
+       MINOR(Error_Environment_name_name)
+   MAJOR(Error_Name_too_long)
+@@ -642,6 +650,7 @@
+       MINOR(Error_Execution_authorization)
+       MINOR(Error_Execution_no_concurrency)
+       MINOR(Error_Execution_circular_requires)
++      MINOR(Error_Execution_finally_exit)
+       MINOR(Error_Execution_error_syntax)
+       MINOR(Error_Execution_failure_syntax)
+       MINOR(Error_Execution_lostdigits_syntax)
+@@ -722,6 +731,7 @@
+       MINOR(Error_Translation_use_local_compound)
+       MINOR(Error_Translation_bad_class)
+       MINOR(Error_Translation_use_arg_reference_no_default)
++      MINOR(Error_Translation_finally_exit)
+   MAJOR(Error_at_line)
+       MINOR(Message_Translations_error)
+       MINOR(Message_Translations_running)
+Index: interpreter/messages/errnums.xml
+===================================================================
+--- a/interpreter/messages/errnums.xml	(revision 13484)
++++ b/interpreter/messages/errnums.xml	(working copy)
+@@ -283,6 +283,24 @@
+ <para>END corresponding to SELECT on line <emphasis role="italic">line_number</emphasis> must not have a symbol following it because there is no LABEL; found "<emphasis role="italic">symbol</emphasis>".</para>
+ </listitem>
+ </varlistentry>
++<varlistentry>
++<term>008</term>
++<listitem>
++<para>CATCH has no corresponding DO, LOOP, or SELECT.</para>
++</listitem>
++</varlistentry>
++<varlistentry>
++<term>009</term>
++<listitem>
++<para>FINALLY has no corresponding DO, LOOP, or SELECT.</para>
++</listitem>
++</varlistentry>
++<varlistentry>
++<term>010</term>
++<listitem>
++<para>A CATCH or FINALLY clause must not follow the FINALLY clause on line <emphasis role="italic">line_number</emphasis>.</para>
++</listitem>
++</varlistentry>
+ </variablelist>
+ </section>
+ <section id="ERR11">
+@@ -948,6 +966,12 @@
+ <para>Symbol expected after the NUMERIC subdirective keyword.</para>
+ </listitem>
+ </varlistentry>
++<varlistentry>
++<term>936</term>
++<listitem>
++<para>Symbol expected after CATCH keyword or after a comma in a CATCH clause.</para>
++</listitem>
++</varlistentry>
+ </variablelist>
+ </section>
+ <section id="ERR21">
+@@ -1043,6 +1067,12 @@
+ <para>Data must not follow the ::RESOURCE directive; found "<emphasis role="italic">data</emphasis>".</para>
+ </listitem>
+ </varlistentry>
++<varlistentry>
++<term>915</term>
++<listitem>
++<para>Data must not follow the FINALLY keyword; found "<emphasis role="italic">data</emphasis>".</para>
++</listitem>
++</varlistentry>
+ </variablelist>
+ </section>
+ <section id="ERR22">
+@@ -1409,6 +1439,12 @@
+ <para>FORM must be followed by one of the keywords SCIENTIFIC or ENGINEERING; found "<emphasis role="italic">word</emphasis>".</para>
+ </listitem>
+ </varlistentry>
++<varlistentry>
++<term>939</term>
++<listitem>
++<para>CATCH must be followed by one or more of the keywords ERROR, FAILURE, HALT, LOSTDIGITS, NOTREADY, NOMETHOD, NOSTRING, NOVALUE, SYNTAX, USER, or ANY, separated by commas; found "<emphasis role="italic">word</emphasis>".</para>
++</listitem>
++</varlistentry>
+ </variablelist>
+ </section>
+ <section id="ERR26">
+@@ -1615,6 +1651,18 @@
+ <para>Symbol following ITERATE ("<emphasis role="italic">symbol</emphasis>") does not match a repetitive block instruction.</para>
+ </listitem>
+ </varlistentry>
++<varlistentry>
++<term>006</term>
++<listitem>
++<para>LEAVE in a CATCH clause must not refer to the block instruction on line <emphasis role="italic">line_number</emphasis>, which owns the clause.</para>
++</listitem>
++</varlistentry>
++<varlistentry>
++<term>007</term>
++<listitem>
++<para>ITERATE in a CATCH clause must not refer to the block instruction on line <emphasis role="italic">line_number</emphasis>, which owns the clause.</para>
++</listitem>
++</varlistentry>
+ </variablelist>
+ </section>
+ <section id="ERR29">
+@@ -3958,6 +4006,13 @@
+ </listitem>
+ </varlistentry>
+ <varlistentry>
++<term>953</term>
++<listitem>
++<para>
++<emphasis role="italic">instruction</emphasis> must not leave the FINALLY clause on line <emphasis role="italic">line_number</emphasis>.</para>
++</listitem>
++</varlistentry>
++<varlistentry>
+ <term>970</term>
+ <listitem>
+ <para>External command "<emphasis role="italic">command</emphasis>" ended with return code <emphasis role="italic">rc</emphasis>.</para>
+@@ -4442,6 +4497,13 @@
+ <para>A USE ARG default value is not allowed for variable references.</para>
+ </listitem>
+ </varlistentry>
++<varlistentry>
++<term>951</term>
++<listitem>
++<para>
++<emphasis role="italic">instruction</emphasis> must not leave the FINALLY clause on line <emphasis role="italic">line_number</emphasis>.</para>
++</listitem>
++</varlistentry>
+ </variablelist>
+ </section>
+ </section>
+Index: interpreter/messages/rexxmsg.xml
+===================================================================
+--- a/interpreter/messages/rexxmsg.xml	(revision 13484)
++++ b/interpreter/messages/rexxmsg.xml	(working copy)
+@@ -418,6 +418,33 @@
+         <SymbolicName>Error_Unexpected_end_select_nolabel</SymbolicName>
+         <Text>END corresponding to SELECT on line <Sub position="2" name="line_number"/> must not have a symbol following it because there is no LABEL; found <q><Sub position="1" name="symbol"/></q>.</Text>
+       </SubMessage>
++      <SubMessage>
++        <Code>10</Code>
++        <Subcode>008</Subcode>
++        <MessageNumber>846</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Unexpected_end_catch</SymbolicName>
++        <Text>CATCH has no corresponding DO, LOOP, or SELECT.</Text>
++      </SubMessage>
++      <SubMessage>
++        <Code>10</Code>
++        <Subcode>009</Subcode>
++        <MessageNumber>851</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Unexpected_end_finally</SymbolicName>
++        <Text>FINALLY has no corresponding DO, LOOP, or SELECT.</Text>
++      </SubMessage>
++      <SubMessage>
++        <Code>10</Code>
++        <Subcode>010</Subcode>
++        <MessageNumber>852</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Unexpected_end_after_finally</SymbolicName>
++        <Text>A CATCH or FINALLY clause must not follow the FINALLY clause on line <Sub position="1" name="line_number"/>.</Text>
++      </SubMessage>
+     </Subcodes>
+   </Message>
+   <Message>
+@@ -1360,6 +1387,15 @@
+         <SymbolicName>Error_Symbol_expected_numeric_subdirective</SymbolicName>
+         <Text>Symbol expected after the NUMERIC subdirective keyword.</Text>
+       </SubMessage>
++      <SubMessage>
++        <Code>20</Code>
++        <Subcode>936</Subcode>
++        <MessageNumber>847</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Symbol_expected_catch</SymbolicName>
++        <Text>Symbol expected after CATCH keyword or after a comma in a CATCH clause.</Text>
++      </SubMessage>
+     </Subcodes>
+   </Message>
+   <Message>
+@@ -1498,6 +1534,15 @@
+         <SymbolicName>Error_Invalid_data_resource_dir</SymbolicName>
+         <Text>Data must not follow the ::RESOURCE directive; found <q><Sub position="1" name="data"/></q>.</Text>
+       </SubMessage>
++      <SubMessage>
++        <Code>21</Code>
++        <Subcode>915</Subcode>
++        <MessageNumber>853</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Invalid_data_finally</SymbolicName>
++        <Text>Data must not follow the FINALLY keyword; found <q><Sub position="1" name="data"/></q>.</Text>
++      </SubMessage>
+     </Subcodes>
+   </Message>
+   <Message>
+@@ -2021,6 +2066,15 @@
+         <SymbolicName>Error_Invalid_subkeyword_options_form</SymbolicName>
+         <Text>FORM must be followed by one of the keywords SCIENTIFIC or ENGINEERING; found <q><Sub position="1" name="word"/></q>.</Text>
+       </SubMessage>
++      <SubMessage>
++        <Code>25</Code>
++        <Subcode>939</Subcode>
++        <MessageNumber>848</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Invalid_subkeyword_catch</SymbolicName>
++        <Text>CATCH must be followed by one or more of the keywords ERROR, FAILURE, HALT, LOSTDIGITS, NOTREADY, NOMETHOD, NOSTRING, NOVALUE, SYNTAX, USER, or ANY, separated by commas; found <q><Sub position="1" name="word"/></q>.</Text>
++      </SubMessage>
+     </Subcodes>
+   </Message>
+   <Message>
+@@ -2295,6 +2349,24 @@
+         <SymbolicName>Error_Invalid_leave_iterate_name</SymbolicName>
+         <Text>Symbol following ITERATE (<q><Sub position="1" name="symbol"/></q>) does not match a repetitive block instruction.</Text>
+       </SubMessage>
++      <SubMessage>
++        <Code>28</Code>
++        <Subcode>006</Subcode>
++        <MessageNumber>849</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Invalid_leave_leave_catch</SymbolicName>
++        <Text>LEAVE in a CATCH clause must not refer to the block instruction on line <Sub position="1" name="line_number"/>, which owns the clause.</Text>
++      </SubMessage>
++      <SubMessage>
++        <Code>28</Code>
++        <Subcode>007</Subcode>
++        <MessageNumber>850</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Invalid_leave_iterate_catch</SymbolicName>
++        <Text>ITERATE in a CATCH clause must not refer to the block instruction on line <Sub position="1" name="line_number"/>, which owns the clause.</Text>
++      </SubMessage>
+     </Subcodes>
+   </Message>
+   <Message>
+@@ -5612,6 +5684,15 @@
+       </SubMessage>
+       <SubMessage>
+         <Code>98</Code>
++        <Subcode>953</Subcode>
++        <MessageNumber>854</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Execution_finally_exit</SymbolicName>
++        <Text><Sub position="1" name="instruction"/> must not leave the FINALLY clause on line <Sub position="2" name="line_number"/>.</Text>
++      </SubMessage>
++      <SubMessage>
++        <Code>98</Code>
+         <Subcode>970</Subcode>
+         <MessageNumber>495</MessageNumber>
+         <Component>Rexx</Component>
+@@ -6338,6 +6419,15 @@
+         <SymbolicName>Error_Translation_use_arg_reference_no_default</SymbolicName>
+         <Text>A USE ARG default value is not allowed for variable references.</Text>
+       </SubMessage>
++      <SubMessage>
++        <Code>99</Code>
++        <Subcode>951</Subcode>
++        <MessageNumber>855</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Translation_finally_exit</SymbolicName>
++        <Text><Sub position="1" name="instruction"/> must not leave the FINALLY clause on line <Sub position="2" name="line_number"/>.</Text>
++      </SubMessage>
+     </Subcodes>
+   </Message>
+   <Message>
+Index: interpreter/parser/InstructionParser.cpp
+===================================================================
+--- a/interpreter/parser/InstructionParser.cpp	(revision 13484)
++++ b/interpreter/parser/InstructionParser.cpp	(working copy)
+@@ -107,6 +107,8 @@
+ #include "DoInstruction.hpp"
+ #include "EndInstruction.hpp"
+ #include "OtherwiseInstruction.hpp"
++#include "CatchInstruction.hpp"
++#include "FinallyInstruction.hpp"
+ #include "SelectInstruction.hpp"
+ #include "ProtectedObject.hpp"
+ #include "UseArgVariableRef.hpp"
+@@ -432,6 +434,16 @@
+                 return otherwiseNew(first);
+                 break;
+ 
++                // CATCH clause of a DO, LOOP or SELECT (RFE #31)
++            case KEYWORD_CATCH:
++                return catchNew();
++                break;
++
++                // FINALLY clause of a DO, LOOP or SELECT (RFE #31)
++            case KEYWORD_FINALLY:
++                return finallyNew();
++                break;
++
+                 // ELSE instruction...possibly unexpected.
+             case KEYWORD_ELSE:
+                 return elseNew(first);
+@@ -2306,6 +2318,8 @@
+     // this is pretty simple...parse the optional expression and create the
+     // instruction instance.
+     RexxInternalObject *expression = parseExpression(TERM_EOC);
++    // an EXIT must not leave a FINALLY clause
++    checkFinallyExit("EXIT");
+     RexxInstruction *newObject = new_instruction(EXIT, Exit);
+     ::new ((void *)newObject) RexxInstructionExit(expression);
+     return newObject;
+@@ -2569,6 +2583,12 @@
+         // go process another keyword
+         token = nextReal();
+     }
++    // a FORWARD ends the method, as a RETURN does (unless it is a FORWARD
++    // CONTINUE): it must not leave a FINALLY clause
++    if (!returnContinue)
++    {
++        checkFinallyExit("FORWARD");
++    }
+     // and create the forward object
+     RexxInstruction *newObject = new_instruction(FORWARD, Forward);
+     ::new ((void *)newObject) RexxInstructionForward(target, message, superClass, arguments, array, returnContinue);
+@@ -2843,6 +2863,9 @@
+         requiredEndOfClause(type == KEYWORD_LEAVE ? Error_Invalid_data_leave : Error_Invalid_data_iterate);
+     }
+ 
++    // a LEAVE or ITERATE must not leave a FINALLY clause
++    checkFinallyExit(type == KEYWORD_LEAVE ? "LEAVE" : "ITERATE", true, name);
++
+     // allocate the object and return
+     RexxInstruction *newObject = type == KEYWORD_LEAVE ? new_instruction(LEAVE, Leave) : new_instruction(ITERATE, Leave);
+     ::new ((void *)newObject) RexxInstructionLeave(name);
+@@ -3083,6 +3106,127 @@
+ 
+ 
+ /**
++ * Parse a CATCH clause of a DO, LOOP or SELECT (RFE #31):
++ * CATCH condition [, condition]...
++ *
++ * @return An executable CATCH instruction object.
++ */
++RexxInstruction *LanguageParser::catchNew()
++{
++    // CATCH is new in 5.3.0: a program that uses it has a new instruction
++    // class and a new END style in its image, so an earlier interpreter
++    // must reject it when it is loaded from a compiled file
++    requireLanguageLevel(LanguageLevel0607);
++
++    // a list of conditions, separated by commas
++    Protected<ArrayClass> conditions = new_array();
++    for (;;)
++    {
++        RexxToken *token = nextReal();
++        if (!token->isSymbol())
++        {
++            syntaxError(Error_Symbol_expected_catch);
++        }
++        RexxString *conditionName;
++        ConditionKeyword condType = token->condition();
++        if (condType == CONDITION_NONE || condType == CONDITION_PROPAGATE)
++        {
++            syntaxError(Error_Invalid_subkeyword_catch, token);
++        }
++        // USER conditions are "USER name", as for SIGNAL ON
++        else if (condType == CONDITION_USER)
++        {
++            token = nextReal();
++            if (!token->isSymbol())
++            {
++                syntaxError(Error_Symbol_expected_user);
++            }
++            conditionName = commonString(token->value()->concatToCstring("USER "));
++        }
++        else
++        {
++            conditionName = token->value();
++        }
++        conditions->append(conditionName);
++
++        token = nextReal();
++        if (token->isEndOfClause())
++        {
++            break;
++        }
++        if (!token->isComma())
++        {
++            syntaxError(Error_Invalid_data_condition, token);
++        }
++    }
++
++    RexxInstruction *newObject = new_instruction(CATCH, Catch);
++    ::new ((void *)newObject) RexxInstructionCatch(conditions);
++    return newObject;
++}
++
++
++/**
++ * Parse a FINALLY clause of a DO, LOOP or SELECT (RFE #31).
++ *
++ * @return An executable FINALLY instruction object.
++ */
++RexxInstruction *LanguageParser::finallyNew()
++{
++    // FINALLY is new in 5.3.0: a program that uses it has a new instruction
++    // class in its image, so an earlier interpreter must reject it when it
++    // is loaded from a compiled file
++    requireLanguageLevel(LanguageLevel0607);
++
++    // nothing follows the keyword
++    requiredEndOfClause(Error_Invalid_data_finally);
++
++    RexxInstruction *newObject = new_instruction(FINALLY, Finally);
++    ::new ((void *)newObject) RexxInstructionFinally();
++    return newObject;
++}
++
++
++/**
++ * The rule of FINALLY: a FINALLY clause can only end by reaching
++ * its end, or by raising a condition.  An instruction that takes
++ * control somewhere else must not be in the code of a FINALLY clause,
++ * unless it stays inside that code (a LEAVE or ITERATE of a block
++ * that is itself in the clause).  What cannot be seen here (INTERPRET,
++ * an EXIT in an internal routine called from the clause) is checked
++ * at run time by RexxActivation::checkFinallyExit() (RFE #31).
++ *
++ * @param keyword     The instruction, for the error message.
++ * @param blockTarget true for LEAVE and ITERATE, which only leave the
++ *                    blocks down to their target.
++ * @param name        The block name given on the LEAVE or ITERATE,
++ *                    if any.
++ */
++void LanguageParser::checkFinallyExit(const char *keyword, bool blockTarget, RexxString *name)
++{
++    // the control stack, from the innermost pending instruction outwards
++    for (size_t i = 1; i <= control->lastIndex(); i++)
++    {
++        RexxInstruction *inst = (RexxInstruction *)control->get(i);
++        // we are in the code of this FINALLY clause, and going out of it
++        if (inst->isType(KEYWORD_FINALLY))
++        {
++            syntaxError(Error_Translation_finally_exit, new_string(keyword), new_integer(inst->getLineNumber()));
++        }
++        // the target of a LEAVE or ITERATE: it is inside the clause
++        if (blockTarget && inst->isControl())
++        {
++            RexxBlockInstruction *block = (RexxBlockInstruction *)inst;
++            if (name == OREF_NULL ? block->isLoop() : block->isLabel(name))
++            {
++                return;
++            }
++        }
++    }
++}
++
++
++/**
+  * Create a new Otherwise instruction object.
+  *
+  * @param token  The token for the OTHERWISE keyword.
+@@ -3782,6 +3926,8 @@
+     // this is pretty simple...parse the optional expression and create the
+     // instruction instance.
+     RexxInternalObject *expression = parseExpression(TERM_EOC);
++    // a RETURN must not leave a FINALLY clause
++    checkFinallyExit("RETURN");
+ 
+     RexxInstruction *newObject = new_instruction(RETURN, Return);
+     ::new ((void *)newObject) RexxInstructionReturn(expression);
+@@ -3907,6 +4053,9 @@
+     // parse it off now.
+     RexxInternalObject *labelExpression = requiredExpression(TERM_EOC, Error_Invalid_expression_signal);
+ 
++    // a SIGNAL must not leave a FINALLY clause
++    checkFinallyExit("SIGNAL");
++
+     // create a new instruction object
+     RexxInstruction *newObject = new_instruction(SIGNAL_VALUE, DynamicSignal);
+     ::new ((void *)newObject) RexxInstructionDynamicSignal(labelExpression);
+@@ -4094,6 +4243,9 @@
+         }
+     }
+ 
++    // a SIGNAL must not leave a FINALLY clause
++    checkFinallyExit("SIGNAL");
++
+     // create a new instruction object
+     RexxInstruction *newObject = new_instruction(SIGNAL, Signal);
+     ::new ((void *)newObject) RexxInstructionSignal(labelName);
+Index: interpreter/parser/KeywordConstants.cpp
+===================================================================
+--- a/interpreter/parser/KeywordConstants.cpp	(revision 13484)
++++ b/interpreter/parser/KeywordConstants.cpp	(working copy)
+@@ -68,6 +68,7 @@
+     KeywordEntry("ADDRESS",    KEYWORD_ADDRESS),
+     KeywordEntry("ARG",        KEYWORD_ARG),
+     KeywordEntry("CALL",       KEYWORD_CALL),
++    KeywordEntry("CATCH",      KEYWORD_CATCH),
+     KeywordEntry("DO",         KEYWORD_DO),
+     KeywordEntry("DROP",       KEYWORD_DROP),
+     KeywordEntry("ELSE",       KEYWORD_ELSE),
+@@ -74,6 +75,7 @@
+     KeywordEntry("END",        KEYWORD_END),
+     KeywordEntry("EXIT",       KEYWORD_EXIT),
+     KeywordEntry("EXPOSE",     KEYWORD_EXPOSE),
++    KeywordEntry("FINALLY",    KEYWORD_FINALLY),
+     KeywordEntry("FORWARD",    KEYWORD_FORWARD),
+     KeywordEntry("GUARD",      KEYWORD_GUARD),
+     KeywordEntry("IF",         KEYWORD_IF),
+Index: interpreter/parser/LanguageParser.cpp
+===================================================================
+--- a/interpreter/parser/LanguageParser.cpp	(revision 13484)
++++ b/interpreter/parser/LanguageParser.cpp	(working copy)
+@@ -62,6 +62,8 @@
+ #include "EndInstruction.hpp"
+ #include "DoInstruction.hpp"
+ #include "OtherwiseInstruction.hpp"
++#include "CatchInstruction.hpp"
++#include "FinallyInstruction.hpp"
+ #include "CallInstruction.hpp"
+ #include "ExpressionFunction.hpp"
+ #include "ExpressionVariable.hpp"
+@@ -1263,7 +1265,9 @@
+             bool withinIf = type == KEYWORD_IFTHEN || type == KEYWORD_ELSE;
+             bool withinSelect = type == KEYWORD_SELECT || type == KEYWORD_SELECT_CASE ||
+                                 type == KEYWORD_WHENTHEN || type == KEYWORD_ENDWHEN || type == KEYWORD_OTHERWISE;
+-            if (topDo()->isControl() || withinIf || withinSelect)
++            // a CATCH clause is part of its DO, LOOP or SELECT (RFE #31)
++            bool withinCatch = type == KEYWORD_CATCH || type == KEYWORD_FINALLY;
++            if (topDo()->isControl() || withinIf || withinSelect || withinCatch)
+             {
+                 // get our label name
+                 resetPosition(1); // firstToken() won't do ..
+@@ -1335,7 +1339,8 @@
+         }
+         // validate allowed instructions in a SELECT
+         if (topDoIsType(KEYWORD_SELECT, KEYWORD_SELECT_CASE) &&
+-            (type != KEYWORD_WHEN && type != KEYWORD_WHEN_CASE && type != KEYWORD_OTHERWISE && type != KEYWORD_END))
++            (type != KEYWORD_WHEN && type != KEYWORD_WHEN_CASE && type != KEYWORD_OTHERWISE && type != KEYWORD_END &&
++             type != KEYWORD_CATCH && type != KEYWORD_FINALLY))
+         {
+             syntaxError(Error_When_expected_whenotherwise, topDo());
+         }
+@@ -1540,6 +1545,53 @@
+                 break;
+             }
+ 
++                // A CATCH clause of a DO, LOOP or SELECT (RFE #31).  It follows the
++                // body, or the code of the previous CATCH clause, and lasts until
++                // the next CATCH clause or the END.
++                // A FINALLY clause is one more clause of the same chain, the last one.
++            case  KEYWORD_CATCH:
++            case  KEYWORD_FINALLY:
++            {
++                RexxInstructionCatch *clause = (RexxInstructionCatch *)instruction;
++                RexxInstruction *second = topDo();
++                RexxBlockInstruction *owner;
++                // nothing follows the FINALLY clause of a block but its END
++                if (second->isType(KEYWORD_FINALLY))
++                {
++                    syntaxError(Error_Unexpected_end_after_finally, new_integer(second->getLineNumber()));
++                }
++                // another clause of the same block
++                if (second->isType(KEYWORD_CATCH))
++                {
++                    popDo();
++                    RexxInstructionCatch *previous = (RexxInstructionCatch *)second;
++                    owner = previous->getOwner();
++                    previous->setNextCatch(clause);
++                    clause->setFirstCatch(previous->getFirstCatch());
++                }
++                else
++                {
++                    // after the OTHERWISE of a SELECT, the clause belongs to the SELECT
++                    if (second->isType(KEYWORD_OTHERWISE))
++                    {
++                        popDo();
++                        second = topDo();
++                    }
++                    // a block instruction other than OTHERWISE is a DO, LOOP or SELECT;
++                    // anything else (no block, a pending THEN or ELSE) is an error
++                    if (!second->isBlock() || second->isType(KEYWORD_OTHERWISE))
++                    {
++                        syntaxError(type == KEYWORD_FINALLY ? Error_Unexpected_end_finally : Error_Unexpected_end_catch);
++                    }
++                    owner = (RexxBlockInstruction *)second;
++                    clause->setFirstCatch(clause);
++                }
++                clause->setOwner(owner);
++                // the clause stays on the control stack until the next one or the END
++                pushDo(clause);
++                break;
++            }
++
+                 // An END instruction.  This could be the closure for a DO, LOOP, or SELECT.
+                 // its matchup should be on the top of the control stack.
+             case  KEYWORD_END:
+@@ -1548,6 +1600,14 @@
+                 // correct type, we're finished with this.  If not the
+                 // correct type, we have an error.
+                 RexxInstruction *second = popDo();
++                // the END of a block with CATCH clauses: the last clause is on top,
++                // its block below it (RFE #31)
++                RexxInstructionCatch *lastCatch = OREF_NULL;
++                if (second->isType(KEYWORD_CATCH) || second->isType(KEYWORD_FINALLY))
++                {
++                    lastCatch = (RexxInstructionCatch *)second;
++                    second = popDo();
++                }
+                 type = second->getType();
+                 // that the top of the stack is an acceptable block-type instruction.
+                 // This includes all of the DO/LOOP variants, both Select types, and Otherwise
+@@ -1590,6 +1650,19 @@
+                     ((RexxBlockInstruction *)second)->matchEnd((RexxInstructionEnd *)instruction, this);
+                 }
+ 
++                // a block with CATCH clauses: the clauses do what the END would have
++                // done when the body runs into them, and the END ends the block
++                if (lastCatch != OREF_NULL)
++                {
++                    RexxInstructionEnd *end = (RexxInstructionEnd *)instruction;
++                    for (RexxInstructionCatch *clause = lastCatch->getFirstCatch(); clause != OREF_NULL;
++                         clause = clause->getNextCatch())
++                    {
++                        clause->setOwnerStyle(end->getStyle());
++                    }
++                    end->setStyle(CATCH_BLOCK);
++                }
++
+                 // We've just completed a large block instruction.  It is possible that
+                 // this was part of something like "if a then do;..end", in which case, the
+                 // conditional instruction is still in a pending state.  Flush out the control
+@@ -4282,6 +4355,12 @@
+             syntaxError(Error_Incomplete_do_otherwise, instruction);
+             break;
+ 
++        // CATCH or FINALLY clause: the error is the one of its block
++        case KEYWORD_CATCH:
++        case KEYWORD_FINALLY:
++            blockError(((RexxInstructionCatch *)instruction)->getOwner());
++            break;
++
+         // different variants of an IF
+         case KEYWORD_IF:
+         case KEYWORD_WHEN:
+Index: interpreter/parser/LanguageParser.hpp
+===================================================================
+--- a/interpreter/parser/LanguageParser.hpp	(revision 13484)
++++ b/interpreter/parser/LanguageParser.hpp	(working copy)
+@@ -286,6 +286,9 @@
+     RexxInstruction *numericNew();
+     RexxInstruction *optionsNew();
+     RexxInstruction *otherwiseNew(RexxToken *);
++    RexxInstruction *catchNew();
++    RexxInstruction *finallyNew();
++    void checkFinallyExit(const char *keyword, bool blockTarget = false, RexxString *name = OREF_NULL);
+     RexxInstruction *parseNew(InstructionSubKeyword);
+     RexxInstruction *procedureNew();
+     RexxInstruction *pushNew();
+Index: interpreter/parser/Token.hpp
+===================================================================
+--- a/interpreter/parser/Token.hpp	(revision 13484)
++++ b/interpreter/parser/Token.hpp	(working copy)
+@@ -255,6 +255,8 @@
+     KEYWORD_REQUIRES,
+     KEYWORD_USE_LOCAL,
+     KEYWORD_CONSTANT,
++    KEYWORD_CATCH,
++    KEYWORD_FINALLY,
+ } InstructionKeyword;
+ 
+ // instruction subkeyword types
