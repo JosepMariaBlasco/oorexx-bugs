@@ -1,0 +1,76 @@
+--- a/ooRexx/base/keyword/GUARD.testGroup
++++ b/ooRexx/base/keyword/GUARD.testGroup
+@@ -336,4 +336,73 @@
+   drop var2
+ 
+ 
++-- GUARD WHEN on a compound variable was not woken when another method
++-- assigned or dropped it: only the stem variable was watched.  And a
++-- compound variable already used in the method before the GUARD gave
++-- 99.913 ("GUARD instruction did not include references to exposed
++-- variables").  The class is built at run time, so that a 99.913 cannot
++-- stop the test group from loading; a waiter that is never woken is woken
++-- at the end by assigning the whole stem, which was always watched.
++::method test_wait_compound
++  source = .array~of( -
++    "::class waiter public", -
++    "::method init", -
++    "  expose a. i", -
++    "  a. = 0; i = 2", -
++    "::method stem", -
++    "  expose a.", -
++    "  a. = 1", -
++    "::method set", -
++    "  expose a.", -
++    "  use arg tail, value", -
++    "  a.tail = value", -
++    "::method unset", -
++    "  expose a.", -
++    "  use arg tail", -
++    "  drop a.tail", -
++    "::method assigned", -
++    "  expose a.", -
++    "  guard on when a.1 = 1", -
++    "  return 'assigned' a.1", -
++    "::method dropped", -
++    "  expose a.", -
++    "  signal off novalue", -
++    "  guard on when a.1 == 'A.1'", -
++    "  return 'dropped'", -
++    "::method tail", -
++    "  expose a. i", -
++    "  guard on when a.i = 1", -
++    "  return 'tail' a.i")
++  waiter = .Package~new("guard_compound", source)~findClass("WAITER")
++  self~assertSame("assigned 1", wait(waiter~new, "assigned", "set", 1, 1))
++  self~assertSame("dropped",    wait(waiter~new, "dropped",  "unset", 1))
++  self~assertSame("tail 1",     wait(waiter~new, "tail",     "set", 2, 1))
++
++  -- the same compound variable used before the GUARD
++  source~append("::method usedBefore")
++  source~append("  expose a.")
++  source~append("  a.1 = 0")
++  source~append("  guard on when a.1 = 1")
++  source~append("  return 'used before' a.1")
++  waiter = .Package~new("guard_compound_used_before", source)~findClass("WAITER")
++  self~assertSame("used before 1", wait(waiter~new, "usedBefore", "set", 1, 1))
++  exit
++
++wait: procedure
++  use arg o, waiting, change, ...
++  m = o~start(waiting)
++  -- let the waiter reach its GUARD
++  call SysSleep 0.1
++  o~sendWith(change, arg(1, "a")~section(4))
++  do 40 until m~completed
++    call SysSleep 0.025
++  end
++  if m~completed then
++    return m~result
++  -- not woken: wake it now, so that it does not hang the test suite
++  o~stem
++  m~wait
++  return "not woken:" m~result
++
++
+ ::options all syntax
