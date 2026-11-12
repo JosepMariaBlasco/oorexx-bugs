@@ -14,15 +14,17 @@ Index: api/oorexxerrors.h
 ===================================================================
 --- a/api/oorexxerrors.h	(revision 13491)
 +++ b/api/oorexxerrors.h	(working copy)
-@@ -89,6 +89,7 @@
+@@ -89,6 +89,9 @@
  #define Rexx_Error_Unexpected_end_then                                    10005
  #define Rexx_Error_Unexpected_end_else                                    10006
  #define Rexx_Error_Unexpected_end_select_nolabel                          10007
 +#define Rexx_Error_Unexpected_end_catch                                   10008
++#define Rexx_Error_Unexpected_end_catch_then                              10009
++#define Rexx_Error_Unexpected_end_catch_else                              10011
  #define Rexx_Error_Control_stack                                          11000
  #define Rexx_Error_Control_stack_full                                     11001
  #define Rexx_Error_Control_stack_user_defined                             11900
-@@ -185,6 +186,7 @@
+@@ -185,6 +188,7 @@
  #define Rexx_Error_Symbol_expected_address_with                           20933
  #define Rexx_Error_Symbol_expected_counter                                20934
  #define Rexx_Error_Symbol_expected_numeric_subdirective                   20935
@@ -30,7 +32,7 @@ Index: api/oorexxerrors.h
  #define Rexx_Error_Invalid_data                                           21000
  #define Rexx_Error_Invalid_data_user_defined                              21900
  #define Rexx_Error_Invalid_data_nop                                       21901
-@@ -256,6 +258,7 @@
+@@ -256,6 +260,7 @@
  #define Rexx_Error_Invalid_subkeyword_duplicate                           25936
  #define Rexx_Error_Invalid_subkeyword_conflict                            25937
  #define Rexx_Error_Invalid_subkeyword_options_form                        25938
@@ -38,7 +40,7 @@ Index: api/oorexxerrors.h
  #define Rexx_Error_Invalid_whole_number                                   26000
  #define Rexx_Error_Invalid_whole_number_repeat                            26002
  #define Rexx_Error_Invalid_whole_number_for                               26003
-@@ -284,6 +287,8 @@
+@@ -284,6 +289,8 @@
  #define Rexx_Error_Invalid_leave_leavevar                                 28003
  #define Rexx_Error_Invalid_leave_iteratevar                               28004
  #define Rexx_Error_Invalid_leave_iterate_name                             28005
@@ -1285,15 +1287,17 @@ Index: interpreter/messages/RexxErrorCodes.h
 ===================================================================
 --- a/interpreter/messages/RexxErrorCodes.h	(revision 13491)
 +++ b/interpreter/messages/RexxErrorCodes.h	(working copy)
-@@ -91,6 +91,7 @@
+@@ -91,6 +91,9 @@
  Error_Unexpected_end_then                                    = 10005,
  Error_Unexpected_end_else                                    = 10006,
  Error_Unexpected_end_select_nolabel                          = 10007,
 +Error_Unexpected_end_catch                                   = 10008,
++Error_Unexpected_end_catch_then                              = 10009,
++Error_Unexpected_end_catch_else                              = 10011,
  Error_Control_stack                                          = 11000,
  Error_Control_stack_full                                     = 11001,
  Error_Control_stack_user_defined                             = 11900,
-@@ -187,6 +188,7 @@
+@@ -187,6 +190,7 @@
  Error_Symbol_expected_address_with                           = 20933,
  Error_Symbol_expected_counter                                = 20934,
  Error_Symbol_expected_numeric_subdirective                   = 20935,
@@ -1301,7 +1305,7 @@ Index: interpreter/messages/RexxErrorCodes.h
  Error_Invalid_data                                           = 21000,
  Error_Invalid_data_user_defined                              = 21900,
  Error_Invalid_data_nop                                       = 21901,
-@@ -258,6 +260,7 @@
+@@ -258,6 +262,7 @@
  Error_Invalid_subkeyword_duplicate                           = 25936,
  Error_Invalid_subkeyword_conflict                            = 25937,
  Error_Invalid_subkeyword_options_form                        = 25938,
@@ -1309,7 +1313,7 @@ Index: interpreter/messages/RexxErrorCodes.h
  Error_Invalid_whole_number                                   = 26000,
  Error_Invalid_whole_number_repeat                            = 26002,
  Error_Invalid_whole_number_for                               = 26003,
-@@ -286,6 +289,8 @@
+@@ -286,6 +291,8 @@
  Error_Invalid_leave_leavevar                                 = 28003,
  Error_Invalid_leave_iteratevar                               = 28004,
  Error_Invalid_leave_iterate_name                             = 28005,
@@ -1322,15 +1326,17 @@ Index: interpreter/messages/RexxErrorMessages.h
 ===================================================================
 --- a/interpreter/messages/RexxErrorMessages.h	(revision 13491)
 +++ b/interpreter/messages/RexxErrorMessages.h	(working copy)
-@@ -93,6 +93,7 @@
+@@ -93,6 +93,9 @@
      MESSAGE(Error_Unexpected_end_then, "END must not immediately follow THEN.")
      MESSAGE(Error_Unexpected_end_else, "END must not immediately follow ELSE.")
      MESSAGE(Error_Unexpected_end_select_nolabel, "END corresponding to SELECT on line &2 must not have a symbol following it because there is no LABEL; found \"&1\".")
 +    MESSAGE(Error_Unexpected_end_catch, "CATCH has no corresponding DO, LOOP, or SELECT.")
++    MESSAGE(Error_Unexpected_end_catch_then, "CATCH must not immediately follow THEN.")
++    MESSAGE(Error_Unexpected_end_catch_else, "CATCH must not immediately follow ELSE.")
      MESSAGE(Error_Control_stack, "Control stack full.")
      MESSAGE(Error_Control_stack_full, "Insufficient control stack space; cannot continue execution.")
      MESSAGE(Error_Control_stack_user_defined, "&1.")
-@@ -189,6 +190,7 @@
+@@ -189,6 +192,7 @@
      MESSAGE(Error_Symbol_expected_address_with, "Symbol expected after WITH keyword.")
      MESSAGE(Error_Symbol_expected_counter, "Symbol expected after COUNTER keyword.")
      MESSAGE(Error_Symbol_expected_numeric_subdirective, "Symbol expected after the NUMERIC subdirective keyword.")
@@ -1338,7 +1344,7 @@ Index: interpreter/messages/RexxErrorMessages.h
      MESSAGE(Error_Invalid_data, "Invalid data on end of clause.")
      MESSAGE(Error_Invalid_data_user_defined, "&1.")
      MESSAGE(Error_Invalid_data_nop, "Data must not follow the NOP keyword; found \"&1\".")
-@@ -260,6 +262,7 @@
+@@ -260,6 +264,7 @@
      MESSAGE(Error_Invalid_subkeyword_duplicate, "Duplicate keyword on ::&1 directive; found \"&2\".")
      MESSAGE(Error_Invalid_subkeyword_conflict, "Keyword \"&1\" on ::&2 directive conflicts with \"&3\".")
      MESSAGE(Error_Invalid_subkeyword_options_form, "FORM must be followed by one of the keywords SCIENTIFIC or ENGINEERING; found \"&1\".")
@@ -1346,7 +1352,7 @@ Index: interpreter/messages/RexxErrorMessages.h
      MESSAGE(Error_Invalid_whole_number, "Invalid whole number.")
      MESSAGE(Error_Invalid_whole_number_repeat, "Value of repetition count expression in DO or LOOP instruction must be zero or a positive whole number; found \"&1\".")
      MESSAGE(Error_Invalid_whole_number_for, "Value of FOR expression in DO or LOOP instruction must be zero or a positive whole number; found \"&1\".")
-@@ -288,6 +291,8 @@
+@@ -288,6 +293,8 @@
      MESSAGE(Error_Invalid_leave_leavevar, "Symbol following LEAVE (\"&1\") must either match the label of a current loop or block instruction.")
      MESSAGE(Error_Invalid_leave_iteratevar, "Symbol following ITERATE (\"&1\") must either match the label of a current loop or be omitted.")
      MESSAGE(Error_Invalid_leave_iterate_name, "Symbol following ITERATE (\"&1\") does not match a repetitive block instruction.")
@@ -1359,7 +1365,7 @@ Index: interpreter/messages/RexxMessageNumbers.h
 ===================================================================
 --- a/interpreter/messages/RexxMessageNumbers.h	(revision 13491)
 +++ b/interpreter/messages/RexxMessageNumbers.h	(working copy)
-@@ -763,6 +763,11 @@
+@@ -763,6 +763,13 @@
  #define Error_Invalid_subkeyword_options_form_msg                    843
  #define Error_Variable_reference_use_default_msg                     844
  #define Error_Incorrect_call_error_code_msg                          845
@@ -1368,6 +1374,8 @@ Index: interpreter/messages/RexxMessageNumbers.h
 +#define Error_Invalid_subkeyword_catch_msg                           848
 +#define Error_Invalid_leave_leave_catch_msg                          849
 +#define Error_Invalid_leave_iterate_catch_msg                        850
++#define Error_Unexpected_end_catch_then_msg                          851
++#define Error_Unexpected_end_catch_else_msg                          852
  
  
  #endif
@@ -1375,15 +1383,17 @@ Index: interpreter/messages/RexxMessageTable.h
 ===================================================================
 --- a/interpreter/messages/RexxMessageTable.h	(revision 13491)
 +++ b/interpreter/messages/RexxMessageTable.h	(working copy)
-@@ -92,6 +92,7 @@
+@@ -92,6 +92,9 @@
        MINOR(Error_Unexpected_end_then)
        MINOR(Error_Unexpected_end_else)
        MINOR(Error_Unexpected_end_select_nolabel)
 +      MINOR(Error_Unexpected_end_catch)
++      MINOR(Error_Unexpected_end_catch_then)
++      MINOR(Error_Unexpected_end_catch_else)
    MAJOR(Error_Control_stack)
        MINOR(Error_Control_stack_full)
        MINOR(Error_Control_stack_user_defined)
-@@ -188,6 +189,7 @@
+@@ -188,6 +191,7 @@
        MINOR(Error_Symbol_expected_address_with)
        MINOR(Error_Symbol_expected_counter)
        MINOR(Error_Symbol_expected_numeric_subdirective)
@@ -1391,7 +1401,7 @@ Index: interpreter/messages/RexxMessageTable.h
    MAJOR(Error_Invalid_data)
        MINOR(Error_Invalid_data_user_defined)
        MINOR(Error_Invalid_data_nop)
-@@ -259,6 +261,7 @@
+@@ -259,6 +263,7 @@
        MINOR(Error_Invalid_subkeyword_duplicate)
        MINOR(Error_Invalid_subkeyword_conflict)
        MINOR(Error_Invalid_subkeyword_options_form)
@@ -1399,7 +1409,7 @@ Index: interpreter/messages/RexxMessageTable.h
    MAJOR(Error_Invalid_whole_number)
        MINOR(Error_Invalid_whole_number_repeat)
        MINOR(Error_Invalid_whole_number_for)
-@@ -287,6 +290,8 @@
+@@ -287,6 +292,8 @@
        MINOR(Error_Invalid_leave_leavevar)
        MINOR(Error_Invalid_leave_iteratevar)
        MINOR(Error_Invalid_leave_iterate_name)
@@ -1412,7 +1422,7 @@ Index: interpreter/messages/errnums.xml
 ===================================================================
 --- a/interpreter/messages/errnums.xml	(revision 13491)
 +++ b/interpreter/messages/errnums.xml	(working copy)
-@@ -283,6 +283,12 @@
+@@ -283,6 +283,24 @@
  <para>END corresponding to SELECT on line <emphasis role="italic">line_number</emphasis> must not have a symbol following it because there is no LABEL; found "<emphasis role="italic">symbol</emphasis>".</para>
  </listitem>
  </varlistentry>
@@ -1422,10 +1432,22 @@ Index: interpreter/messages/errnums.xml
 +<para>CATCH has no corresponding DO, LOOP, or SELECT.</para>
 +</listitem>
 +</varlistentry>
++<varlistentry>
++<term>009</term>
++<listitem>
++<para>CATCH must not immediately follow THEN.</para>
++</listitem>
++</varlistentry>
++<varlistentry>
++<term>011</term>
++<listitem>
++<para>CATCH must not immediately follow ELSE.</para>
++</listitem>
++</varlistentry>
  </variablelist>
  </section>
  <section id="ERR11">
-@@ -948,6 +954,12 @@
+@@ -948,6 +966,12 @@
  <para>Symbol expected after the NUMERIC subdirective keyword.</para>
  </listitem>
  </varlistentry>
@@ -1438,7 +1460,7 @@ Index: interpreter/messages/errnums.xml
  </variablelist>
  </section>
  <section id="ERR21">
-@@ -1409,6 +1421,12 @@
+@@ -1409,6 +1433,12 @@
  <para>FORM must be followed by one of the keywords SCIENTIFIC or ENGINEERING; found "<emphasis role="italic">word</emphasis>".</para>
  </listitem>
  </varlistentry>
@@ -1451,7 +1473,7 @@ Index: interpreter/messages/errnums.xml
  </variablelist>
  </section>
  <section id="ERR26">
-@@ -1615,6 +1633,18 @@
+@@ -1615,6 +1645,18 @@
  <para>Symbol following ITERATE ("<emphasis role="italic">symbol</emphasis>") does not match a repetitive block instruction.</para>
  </listitem>
  </varlistentry>
@@ -1474,7 +1496,7 @@ Index: interpreter/messages/rexxmsg.xml
 ===================================================================
 --- a/interpreter/messages/rexxmsg.xml	(revision 13491)
 +++ b/interpreter/messages/rexxmsg.xml	(working copy)
-@@ -418,6 +418,15 @@
+@@ -418,6 +418,33 @@
          <SymbolicName>Error_Unexpected_end_select_nolabel</SymbolicName>
          <Text>END corresponding to SELECT on line <Sub position="2" name="line_number"/> must not have a symbol following it because there is no LABEL; found <q><Sub position="1" name="symbol"/></q>.</Text>
        </SubMessage>
@@ -1487,10 +1509,28 @@ Index: interpreter/messages/rexxmsg.xml
 +        <SymbolicName>Error_Unexpected_end_catch</SymbolicName>
 +        <Text>CATCH has no corresponding DO, LOOP, or SELECT.</Text>
 +      </SubMessage>
++      <SubMessage>
++        <Code>10</Code>
++        <Subcode>009</Subcode>
++        <MessageNumber>851</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Unexpected_end_catch_then</SymbolicName>
++        <Text>CATCH must not immediately follow THEN.</Text>
++      </SubMessage>
++      <SubMessage>
++        <Code>10</Code>
++        <Subcode>011</Subcode>
++        <MessageNumber>852</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Unexpected_end_catch_else</SymbolicName>
++        <Text>CATCH must not immediately follow ELSE.</Text>
++      </SubMessage>
      </Subcodes>
    </Message>
    <Message>
-@@ -1360,6 +1369,15 @@
+@@ -1360,6 +1387,15 @@
          <SymbolicName>Error_Symbol_expected_numeric_subdirective</SymbolicName>
          <Text>Symbol expected after the NUMERIC subdirective keyword.</Text>
        </SubMessage>
@@ -1506,7 +1546,7 @@ Index: interpreter/messages/rexxmsg.xml
      </Subcodes>
    </Message>
    <Message>
-@@ -2021,6 +2039,15 @@
+@@ -2021,6 +2057,15 @@
          <SymbolicName>Error_Invalid_subkeyword_options_form</SymbolicName>
          <Text>FORM must be followed by one of the keywords SCIENTIFIC or ENGINEERING; found <q><Sub position="1" name="word"/></q>.</Text>
        </SubMessage>
@@ -1522,7 +1562,7 @@ Index: interpreter/messages/rexxmsg.xml
      </Subcodes>
    </Message>
    <Message>
-@@ -2295,6 +2322,24 @@
+@@ -2295,6 +2340,24 @@
          <SymbolicName>Error_Invalid_leave_iterate_name</SymbolicName>
          <Text>Symbol following ITERATE (<q><Sub position="1" name="symbol"/></q>) does not match a repetitive block instruction.</Text>
        </SubMessage>
@@ -1674,7 +1714,7 @@ Index: interpreter/parser/LanguageParser.cpp
              {
                  // get our label name
                  resetPosition(1); // firstToken() won't do ..
-@@ -1347,11 +1350,23 @@
+@@ -1347,11 +1350,27 @@
                      syntaxError(Error_Unexpected_end_then);
                  }
              }
@@ -1684,9 +1724,13 @@ Index: interpreter/parser/LanguageParser.cpp
 +            else if (type == KEYWORD_CATCH)
 +            {
 +                InstructionKeyword pending = topDoType();
-+                if (pending == KEYWORD_ELSE || pending == KEYWORD_IFTHEN || pending == KEYWORD_WHENTHEN)
++                if (pending == KEYWORD_ELSE)
 +                {
-+                    syntaxError(Error_Unexpected_end_catch);
++                    syntaxError(Error_Unexpected_end_catch_else);
++                }
++                else if (pending == KEYWORD_IFTHEN || pending == KEYWORD_WHENTHEN)
++                {
++                    syntaxError(Error_Unexpected_end_catch_then);
 +                }
 +            }
              flushControl(instruction);
@@ -1699,7 +1743,7 @@ Index: interpreter/parser/LanguageParser.cpp
          {
              syntaxError(Error_When_expected_whenotherwise, topDo());
          }
-@@ -1556,6 +1571,47 @@
+@@ -1556,6 +1575,47 @@
                  break;
              }
  
@@ -1747,7 +1791,7 @@ Index: interpreter/parser/LanguageParser.cpp
                  // An END instruction.  This could be the closure for a DO, LOOP, or SELECT.
                  // its matchup should be on the top of the control stack.
              case  KEYWORD_END:
-@@ -1564,6 +1620,14 @@
+@@ -1564,6 +1624,14 @@
                  // correct type, we're finished with this.  If not the
                  // correct type, we have an error.
                  RexxInstruction *second = popDo();
@@ -1762,7 +1806,7 @@ Index: interpreter/parser/LanguageParser.cpp
                  type = second->getType();
                  // that the top of the stack is an acceptable block-type instruction.
                  // This includes all of the DO/LOOP variants, both Select types, and Otherwise
-@@ -1606,6 +1670,19 @@
+@@ -1606,6 +1674,19 @@
                      ((RexxBlockInstruction *)second)->matchEnd((RexxInstructionEnd *)instruction, this);
                  }
  
@@ -1782,7 +1826,7 @@ Index: interpreter/parser/LanguageParser.cpp
                  // We've just completed a large block instruction.  It is possible that
                  // this was part of something like "if a then do;..end", in which case, the
                  // conditional instruction is still in a pending state.  Flush out the control
-@@ -4298,6 +4375,11 @@
+@@ -4298,6 +4379,11 @@
              syntaxError(Error_Incomplete_do_otherwise, instruction);
              break;
  

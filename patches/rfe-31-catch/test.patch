@@ -2,7 +2,7 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 ===================================================================
 --- a/ooRexx/base/keyword/CATCH.testGroup	(nonexistent)
 +++ b/ooRexx/base/keyword/CATCH.testGroup	(working copy)
-@@ -0,0 +1,706 @@
+@@ -0,0 +1,707 @@
 +#!/usr/bin/env rexx
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
@@ -573,27 +573,28 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +  self~assertSyntaxError(10.8, .array~of("say 1", "catch syntax"))
 +
 +::method test_catch_after_then
-+  self~assertSyntaxError(10.8, .array~of("do", "if 1 then", "catch syntax", "end"))
++  self~assertSyntaxError(10.9, .array~of("do", "if 1 then", "catch syntax", "end"))
 +
 +-- since bug #2024 an END cannot be the instruction of a THEN or an ELSE;
-+-- neither can a CATCH clause
++-- neither can a CATCH clause (10.9 after THEN, 10.11 after ELSE; there is
++-- no 10.10, which as a number would be 10.1)
 +::method test_catch_after_else
-+  self~assertSyntaxError(10.8, .array~of("do", "if 1 then nop", "else", "catch syntax", "end"))
++  self~assertSyntaxError(10.11, .array~of("do", "if 1 then nop", "else", "catch syntax", "end"))
 +
 +::method test_catch_after_else_same_line
-+  self~assertSyntaxError(10.8, .array~of("do", "if 1 then nop; else catch syntax", "end"))
++  self~assertSyntaxError(10.11, .array~of("do", "if 1 then nop; else catch syntax", "end"))
 +
 +::method test_catch_after_when_then
-+  self~assertSyntaxError(10.8, .array~of("do", "select", "when 1 then", "catch syntax", "end", "end"))
++  self~assertSyntaxError(10.9, .array~of("do", "select", "when 1 then", "catch syntax", "end", "end"))
 +
 +::method test_catch_after_else_in_otherwise
-+  self~assertSyntaxError(10.8, .array~of("select", "when 0 then nop", "otherwise", "if 1 then nop", "else", "catch syntax", "end"))
++  self~assertSyntaxError(10.11, .array~of("select", "when 0 then nop", "otherwise", "if 1 then nop", "else", "catch syntax", "end"))
 +
 +::method test_catch_after_else_in_loop
-+  self~assertSyntaxError(10.8, .array~of("loop i = 1 to 2", "if i = 1 then nop", "else", "catch syntax", "end"))
++  self~assertSyntaxError(10.11, .array~of("loop i = 1 to 2", "if i = 1 then nop", "else", "catch syntax", "end"))
 +
 +::method test_catch_after_second_catch_else
-+  self~assertSyntaxError(10.8, .array~of("do", "nop", "catch syntax", "if 1 then nop", "else", "catch notready", "end"))
++  self~assertSyntaxError(10.11, .array~of("do", "nop", "catch syntax", "if 1 then nop", "else", "catch notready", "end"))
 +
 +-- an ELSE with its instruction, then the clause: fine
 +::method test_catch_after_complete_else
