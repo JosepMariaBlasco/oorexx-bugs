@@ -17,6 +17,12 @@ material.
   and `test/trunk`; either may be missing.
 - `.github/workflows/windows.yml`: builds a revision with and without a
   patch set (MSVC, Ninja) and runs a test group and the full suite.
+- `.github/workflows/windows-installer.yml`: builds a Windows NSIS installer
+  of a revision with a patch set (target `nsis_template_installer`, NSIS and
+  the PDFs from SourceForge) and runs one test group. Run it with
+  `gh workflow run windows-installer.yml -f patchset=... -f suffix=...`.
+- The `source` job of both runs in a `debian:bookworm` container: on
+  11/11/2026 ubuntu.com's package archives did not resolve from the runners.
 
 ## Git
 
