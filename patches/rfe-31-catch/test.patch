@@ -2,7 +2,7 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 ===================================================================
 --- a/ooRexx/base/keyword/CATCH.testGroup	(nonexistent)
 +++ b/ooRexx/base/keyword/CATCH.testGroup	(working copy)
-@@ -0,0 +1,675 @@
+@@ -0,0 +1,706 @@
 +#!/usr/bin/env rexx
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
@@ -575,6 +575,37 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +::method test_catch_after_then
 +  self~assertSyntaxError(10.8, .array~of("do", "if 1 then", "catch syntax", "end"))
 +
++-- since bug #2024 an END cannot be the instruction of a THEN or an ELSE;
++-- neither can a CATCH clause
++::method test_catch_after_else
++  self~assertSyntaxError(10.8, .array~of("do", "if 1 then nop", "else", "catch syntax", "end"))
++
++::method test_catch_after_else_same_line
++  self~assertSyntaxError(10.8, .array~of("do", "if 1 then nop; else catch syntax", "end"))
++
++::method test_catch_after_when_then
++  self~assertSyntaxError(10.8, .array~of("do", "select", "when 1 then", "catch syntax", "end", "end"))
++
++::method test_catch_after_else_in_otherwise
++  self~assertSyntaxError(10.8, .array~of("select", "when 0 then nop", "otherwise", "if 1 then nop", "else", "catch syntax", "end"))
++
++::method test_catch_after_else_in_loop
++  self~assertSyntaxError(10.8, .array~of("loop i = 1 to 2", "if i = 1 then nop", "else", "catch syntax", "end"))
++
++::method test_catch_after_second_catch_else
++  self~assertSyntaxError(10.8, .array~of("do", "nop", "catch syntax", "if 1 then nop", "else", "catch notready", "end"))
++
++-- an ELSE with its instruction, then the clause: fine
++::method test_catch_after_complete_else
++  do
++    if 1 then nop
++    else nop
++    raise syntax 93.900 array ("x")
++  catch syntax
++    r = "caught"
++  end
++  self~assertSame("caught", r)
++
 +::method test_no_condition_name
 +  self~assertSyntaxError(20.936, .array~of("do", "nop", "catch", "end"))
 +
@@ -691,7 +722,7 @@ Added: svn:executable
 \ No newline at end of property
 Index: ooRexx/utilities/rexxc/rexxc.testGroup
 ===================================================================
---- a/ooRexx/utilities/rexxc/rexxc.testGroup	(revision 13484)
+--- a/ooRexx/utilities/rexxc/rexxc.testGroup	(revision 13491)
 +++ b/ooRexx/utilities/rexxc/rexxc.testGroup	(working copy)
 @@ -270,6 +270,31 @@
    compiled~delete
