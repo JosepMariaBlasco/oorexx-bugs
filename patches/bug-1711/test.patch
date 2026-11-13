@@ -1,0 +1,71 @@
+Index: ooRexx/base/keyword/ADDRESS.testGroup
+===================================================================
+--- a/ooRexx/base/keyword/ADDRESS.testGroup	(revision 13509)
++++ b/ooRexx/base/keyword/ADDRESS.testGroup	(working copy)
+@@ -1291,10 +1291,15 @@
+     self~assertSame("set", value("test_command_set", , "environment"))
+     self~assertSame("SET", value("test_command_SET", , "environment"))
+ 
+-    -- export should support simple environment variable expansion
+-    /*@@BUG: doesn't work
++    -- export should support simple environment variable expansion (bug #1711)
+     self~assertSame("set expanded", self~set('export test_command_set="$test_command_set expanded"'))
+-    */
++    self~assertSame("set expanded/x", self~set('export test_command_set=${test_command_set}/x'))
++    -- double quotes are removed; nothing is expanded within single quotes
++    self~assertSame("a  b", self~set('export test_command_set="a  b"'))
++    self~assertSame("$test_command_set", self~set("export test_command_set='$test_command_set'"))
++    -- an undefined variable expands to nothing
++    call value "test_command_undefined", .nil, "environment"
++    self~assertSame("<>", self~set('export test_command_set="<$test_command_undefined>"'))
+   end
+ 
+ -- a Windows "d:" command should be handled in the same process
+@@ -1320,17 +1325,12 @@
+   -- directory, where we find above temp directories
+   current = directory(filespec("location", self~class~package~name))
+ 
+-  -- @@BUGS:
+-  --   on Unix leading/trailing blanks don't work: " cd .", 'cd "dir" '
+-  --   on Windows chdir doesn't work
+   -- other issues:
+   --   on Windows cd /d isn't supported
+-  --   on Windows "cd .. " should also work with a trailing blank, but doesn't
+-  --   returns zero, but does nothing, which is strange,
+-  --   similar "cmd /c cd .. ." also returns 0 and does nothing
++  --   similar "cmd /c cd .. ." returns 0 and does nothing
+ 
+   -- for Windows we test cd, Cd, ChDir, on Unix just cd
+-  do cd over self~isWindows~?(("cd", "Cd" /*@@BUG: "ChDir"*/), "cd")
++  do cd over self~isWindows~?(("cd", "Cd", "ChDir"), "cd")
+     -- cd with a relative path, no blanks, unquoted
+     call directory current
+     cd dirNoBlanks -- should be handled within same process
+@@ -1379,15 +1379,23 @@
+ 
+   -- specials
+ 
+-  -- leading/in-between/trailing blanks
+---@@BUG: doesn't work on Linux
+-if self~isWindows then do
++  -- leading/in-between/trailing blanks (bug #1711)
+   call directory current
+   " " cd ' "' || dirNoBlanks || '" '
+   self~assertSame(0, rc, " " cd ' "' || dirNoBlanks || '" ' "returns" SysgetErrorText(rc))
+   self~assertSame(pathNoBlanks~absolutePath, directory())
+-end
+ 
++  call directory current
++  " cd" '"' || dirWithBlanks || '"  '
++  self~assertSame(0, rc, " cd" '"' || dirWithBlanks || '"  ' "returns" SysgetErrorText(rc))
++  self~assertSame(pathWithBlanks~absolutePath, directory())
++
++  -- a trailing blank after an unquoted directory (bug #1711)
++  call directory pathNoBlanks~absolutePath
++  "cd .. "
++  self~assertSame(0, rc, "cd .. (trailing blank) returns" SysgetErrorText(rc))
++  self~assertSame(current, directory())
++
+   -- Windows-only: leading "quiet "@"
+   if self~isWindows then do
+     "@CD .."
