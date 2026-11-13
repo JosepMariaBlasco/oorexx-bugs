@@ -33,9 +33,11 @@ jobs:
         shell: bash
         run: |
           set -e
-          name=$(curl -sSL --retry 3 --fail \
-                   "https://sourceforge.net/projects/oorexx/rss?path=/${{ inputs.folder }}&limit=500" \
-                 | grep -o "[^/<>\"]*${{ matrix.pattern }}" | sort -uV | tail -1)
+          list() {
+            curl -sSL --retry 3 --fail "https://sourceforge.net/projects/oorexx/rss?path=/${{ inputs.folder }}" \
+            || curl -sSL --retry 3 --fail "https://sourceforge.net/projects/oorexx/files/${{ inputs.folder }}/"
+          }
+          name=$(list | grep -o "[^/<>\"]*${{ matrix.pattern }}" | sort -uV | tail -1)
           echo "portable: $name"
           test -n "$name"
           curl -sSL --retry 3 --fail -o portable.zip \
