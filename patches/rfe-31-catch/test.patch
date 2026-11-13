@@ -2,7 +2,7 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 ===================================================================
 --- a/ooRexx/base/keyword/CATCH.testGroup	(nonexistent)
 +++ b/ooRexx/base/keyword/CATCH.testGroup	(working copy)
-@@ -0,0 +1,1480 @@
+@@ -0,0 +1,1573 @@
 +#!/usr/bin/env rexx
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
@@ -938,7 +938,8 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +  call raiseErrorRc 7
 +  return
 +
-+-- a variable with no value matches nothing, and NOVALUE is not raised
++-- a variable with no value is its own name in uppercase, as everywhere, but
++-- NOVALUE is not raised: CODE does not match 4
 +::method test_code_error_variable_unset
 +  drop code
 +  do
@@ -955,6 +956,31 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +    r = "outer novalue"
 +  end
 +  self~assertSame("error", r)
++
++-- ... and matches a return code that is its name
++::method test_code_error_variable_unset_name
++  drop notFound
++  signal on novalue name novalueRaised
++  do
++    call raiseErrorRc "NOTFOUND"
++  catch error notFound
++    r = "notFound"
++  catch error
++    r = "error"
++  end
++  self~assertSame("notFound", r)
++  -- the name is in uppercase
++  do
++    call raiseErrorRc "notFound"
++  catch error notFound
++    r = "notFound"
++  catch error
++    r = "error"
++  end
++  self~assertSame("error", r)
++  return
++novalueRaised:
++  self~fail("NOVALUE raised")
 +
 +-- RC can be any object: a variable holding it matches it (identity)
 +::method test_code_error_object
@@ -1160,8 +1186,9 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +  end
 +  self~assertSame("arithmetic 42", r)
 +
-+-- a variable with no value, or with a value that is not an error number,
-+-- does not match, and NOVALUE is not raised
++-- a variable with no value (its name is not an error number), or with a
++-- value that is not an error number, does not match, and NOVALUE is not
++-- raised
 +::method test_code_syntax_variable_no_match
 +  signal on novalue name novalueRaised
 +  bad = "xyz"
@@ -1384,6 +1411,52 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +-- typed at the pause, or in an INTERPRET typed there, catches as anywhere
 +-- else: the line typed runs as an INTERPRET does
 +-- (the pause comes after the clause that follows TRACE ?R)
++-- the END is traced when a block ends, as it is without CATCH clauses: never
++-- the next CATCH clause, which does not run
++::method test_trace_end_after_clause
++  lines = .catchTraceLines~new
++  .TraceOutput~destination(lines)
++  trace r
++  do
++    x = 1/0
++  catch syntax
++    nop
++  catch error
++    nop
++  end
++  do i = 1 to 2
++    nop
++  catch syntax
++    nop
++  end
++  trace off
++  .TraceOutput~destination
++  ends = 0
++  do line over lines
++    if \line~isA(.string) then iterate
++    self~assertEquals(0, pos("catch error", line), "traced:" line)
++    if line~strip~endsWith("*-* end") then ends += 1
++  end
++  -- the first block's END, and the loop's END after each iteration
++  self~assertEquals(3, ends)
++
++-- interactive tracing pauses at the CATCH clause that caught the condition,
++-- before its instructions run, with RC, SIGL and the variable already set
++::method test_trace_pause_at_catch
++  .TraceOutput~destination(.catchTraceLines~new)
++  .DebugInput~destination(.catchInputLines~new(.array~of("", "paused = rc sigl c~code; trace off")))
++  paused = ""
++  trace ?r
++  do
++    y = 1 / 0
++  catch c = syntax
++    r = "caught"
++  end
++  .TraceOutput~destination
++  .DebugInput~destination
++  self~assertSame("caught", r)
++  self~assertSame(42 (.line - 7) 42.3, paused)
++
 +::method test_trace_pause_interpret
 +  self~runAtTracePause('interpret "y = 1/0"', " body", .true)
 +
@@ -1483,6 +1556,26 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +  x = 1/0
 +::method notready
 +  call stream 'nonexistent.file.CATCH.testGroup', 'C', 'OPEN READ'
++
++-- collects the lines written to .TraceOutput (TraceObjects, as text)
++::class catchTraceLines subclass array
++::method lineout
++  use arg line
++  if line~isA(.TraceObject) then line = line~traceLine
++  self~append(line)
++  return 0
++
++-- lines for .DebugInput; "trace off" once they run out
++::class catchInputLines
++::method init
++  expose lines
++  use arg lines
++::method linein
++  expose lines
++  if lines~isEmpty then return "trace off"
++  line = lines[1]
++  lines~delete(1)
++  return line
 
 Property changes on: ooRexx/base/keyword/CATCH.testGroup
 ___________________________________________________________________

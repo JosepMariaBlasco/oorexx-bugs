@@ -448,7 +448,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // if the condition is being trapped, do the CALL or SIGNAL
      if (trapHandler != OREF_NULL)
      {
-@@ -2606,6 +2686,142 @@
+@@ -2606,6 +2686,151 @@
  
  
  /**
@@ -584,6 +584,15 @@ Index: interpreter/execution/RexxActivation.cpp
 +    // CATCH variable = condition
 +    clause->assignCondition(this, conditionObj);
 +    next = clause->nextInstruction;
++    // interactive tracing pauses at the clause, as it does at the label
++    // of a SIGNAL ON trap, before any of its instructions run: RC, SIGL,
++    // CONDITION() and the variable can be inspected.  "=" cannot run the
++    // clause that raised the condition again (its block has ended), so
++    // there it just continues.
++    if (conditionalPauseInstruction())
++    {
++        next = clause->nextInstruction;
++    }
 +}
 +
 +
@@ -591,7 +600,7 @@ Index: interpreter/execution/RexxActivation.cpp
   * Check the activation to see if this is trapping a condition.
   * This does not process the trap, but merely indicates that
   * this activation WILL trap the condition.  This is a
-@@ -2643,8 +2859,9 @@
+@@ -2643,8 +2868,9 @@
          return false;
      }
  
@@ -603,7 +612,7 @@ Index: interpreter/execution/RexxActivation.cpp
      {
          if (!condition->strCompare(GlobalNames::SYNTAX))
          {
-@@ -2653,6 +2870,17 @@
+@@ -2653,6 +2879,17 @@
          return true;
      }
  
@@ -621,7 +630,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // no trap table set yet?  can't handle this
      if (settings.traps == OREF_NULL)
      {
-@@ -2690,8 +2918,12 @@
+@@ -2690,8 +2927,12 @@
   */
  RexxObject* RexxActivation::handleNovalueEvent(RexxString *name, RexxObject *defaultValue, RexxVariable *variable)
  {
@@ -635,7 +644,7 @@ Index: interpreter/execution/RexxActivation.cpp
      {
          reportException(Error_Execution_unassigned_variable, name);
      }
-@@ -2711,7 +2943,7 @@
+@@ -2711,7 +2952,7 @@
          return value;
      }
      // raise novalue?
@@ -644,7 +653,7 @@ Index: interpreter/execution/RexxActivation.cpp
      {
          reportNovalue(name);
      }
-@@ -4598,8 +4830,11 @@
+@@ -4598,8 +4839,11 @@
          // these are also not raised if it's a debug pause.
          if (conditionObj != OREF_NULL)
          {
@@ -658,7 +667,7 @@ Index: interpreter/execution/RexxActivation.cpp
              {
                  // we could rework our condition object, but it's easier
                  // to just raise a SYNTAX exception
-@@ -4609,7 +4844,7 @@
+@@ -4609,7 +4853,7 @@
              }
              // next we check for an ::OPTIONS ERROR SYNTAX override (a handler
              // can raise any condition; this applies to ERROR only)
@@ -667,7 +676,7 @@ Index: interpreter/execution/RexxActivation.cpp
              {
                  // just raise a SYNTAX exception
                  reportException(Error_Execution_error_syntax,
-@@ -4626,7 +4861,7 @@
+@@ -4626,7 +4870,7 @@
                  if (failureCondition)
                  {
                      // again, first check for an ::OPTIONS ERROR SYNTAX override
@@ -818,7 +827,7 @@ Index: interpreter/instructions/CatchInstruction.cpp
 ===================================================================
 --- a/interpreter/instructions/CatchInstruction.cpp	(nonexistent)
 +++ b/interpreter/instructions/CatchInstruction.cpp	(working copy)
-@@ -0,0 +1,443 @@
+@@ -0,0 +1,465 @@
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
 +/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
@@ -869,6 +878,7 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +#include "DoBlock.hpp"
 +#include "EndInstruction.hpp"
 +#include "ExpressionBaseVariable.hpp"
++#include "ExpressionVariable.hpp"
 +
 +
 +/**
@@ -986,12 +996,12 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +        {
 +            wholenumber_t wanted = 0;
 +            // a simple variable is read now, in the activation of the
-+            // block: with no value, or a value that is not an error
-+            // number, the clause does not match (and NOVALUE is not raised)
++            // block (its name if it has no value, without NOVALUE); a value
++            // that is not an error number does not match
 +            if (isOfClass(VariableTerm, code))
 +            {
-+                RexxObject *value = ((RexxVariableBase *)code)->getRealValue(context);
-+                if (value == OREF_NULL || !(isString(value) || isInteger(value) || isNumberString(value)))
++                RexxObject *value = readCode(code, context);
++                if (!(isString(value) || isInteger(value) || isNumberString(value)))
 +                {
 +                    continue;
 +                }
@@ -1050,14 +1060,10 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +bool RexxInstructionCatch::sameCode(RexxObject *code, RexxObject *rc, RexxActivation *context)
 +{
 +    // a simple variable is read now, in the activation of the block; with
-+    // no value it matches nothing, and NOVALUE is not raised
++    // no value it is its own name, and NOVALUE is not raised
 +    if (isOfClass(VariableTerm, code))
 +    {
-+        code = ((RexxVariableBase *)code)->getRealValue(context);
-+        if (code == OREF_NULL)
-+        {
-+            return false;
-+        }
++        code = readCode(code, context);
 +    }
 +    bool codeIsString = isString(code) || isInteger(code) || isNumberString(code);
 +    bool rcIsString = isString(rc) || isInteger(rc) || isNumberString(rc);
@@ -1079,6 +1085,28 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +    code->sendMessage(GlobalNames::STRICT_EQUAL, rc, result);
 +    RexxObject *answer = result;
 +    return answer == TheTrueObject;
++}
++
++
++/**
++ * Read a simple variable used as the code of a CATCH clause, in the
++ * activation that owns the block.  A variable with no value has its
++ * own name (in uppercase), as everywhere in Rexx, but NOVALUE is not
++ * raised: the clause is being tested while a condition is raised.
++ *
++ * @param code    The variable.
++ * @param context The activation that owns the block.
++ *
++ * @return The value of the variable, or its name.
++ */
++RexxObject *RexxInstructionCatch::readCode(RexxObject *code, RexxActivation *context)
++{
++    RexxObject *value = ((RexxVariableBase *)code)->getRealValue(context);
++    if (value == OREF_NULL)
++    {
++        value = ((RexxSimpleVariable *)code)->getName();
++    }
++    return value;
 +}
 +
 +
@@ -1214,6 +1242,9 @@ Index: interpreter/instructions/CatchInstruction.cpp
 + * block ends.  Control does not reach the code of a clause this
 + * way: the context jumps there when a condition is caught.
 + *
++ * Either way, what is traced is the END of the block, as it would be
++ * without CATCH clauses: the clause itself does not run.
++ *
 + * @param context The current execution context.
 + * @param stack   The current evaluation stack.
 + */
@@ -1232,7 +1263,7 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +    if (doblock->isInCatch())
 +    {
 +        owner->terminate(context, doblock);
-+        context->traceInstruction(this);
++        context->traceInstruction(owner->end);
 +        return;
 +    }
 +
@@ -1242,7 +1273,7 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +        case LOOP_BLOCK:
 +        {
 +            context->setIndent(doblock->getIndent());
-+            context->traceInstruction(this);
++            context->traceInstruction(owner->end);
 +            ((RexxInstructionBaseLoop *)owner)->reExecute(context, stack, doblock);
 +            break;
 +        }
@@ -1250,14 +1281,14 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +        case SELECT_BLOCK:
 +        {
 +            context->unindent();
-+            context->traceInstruction(this);
++            context->traceInstruction(owner->end);
 +            reportException(Error_When_expected_nootherwise);
 +            break;
 +        }
 +        default:
 +        {
 +            owner->terminate(context, doblock);
-+            context->traceInstruction(this);
++            context->traceInstruction(owner->end);
 +            break;
 +        }
 +    }
@@ -1273,7 +1304,7 @@ Index: interpreter/instructions/CatchInstruction.hpp
 ===================================================================
 --- a/interpreter/instructions/CatchInstruction.hpp	(nonexistent)
 +++ b/interpreter/instructions/CatchInstruction.hpp	(working copy)
-@@ -0,0 +1,98 @@
+@@ -0,0 +1,99 @@
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
 +/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
@@ -1348,6 +1379,7 @@ Index: interpreter/instructions/CatchInstruction.hpp
 +    bool handles(RexxString *condition, DirectoryClass *conditionObj, RexxActivation *context);
 +    static bool sameCode(RexxObject *code, RexxObject *rc, RexxActivation *context);
 +    static wholenumber_t errorNumber(RexxString *text);
++    static RexxObject *readCode(RexxObject *code, RexxActivation *context);
 +    void assignCondition(RexxActivation *context, DirectoryClass *conditionObj);
 +    static RexxInstructionCatch *findClause(DoBlock *doblock, RexxString *condition, DirectoryClass *conditionObj, RexxActivation *context);
 +    static RexxInstructionCatch *firstClause(RexxBlockInstruction *block);
