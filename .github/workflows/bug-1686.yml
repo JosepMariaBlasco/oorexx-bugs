@@ -1,0 +1,45 @@
+# Bug #1686: ADDRESS and ADDRESS ... WITH may run different programs on
+# Windows.  Copies find.exe as findstr.exe next to rexx.exe of the newest
+# portable build and runs tests/bug-1686.
+name: bug-1686
+
+on:
+  workflow_dispatch:
+    inputs:
+      folder:
+        description: SourceForge folder with the portable builds
+        default: oorexx/5.3.0beta
+
+jobs:
+  address:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Portable ooRexx
+        shell: bash
+        run: |
+          set -e
+          list() {
+            curl -sSL --retry 3 --fail "https://sourceforge.net/projects/oorexx/rss?path=/${{ inputs.folder }}" \
+            || curl -sSL --retry 3 --fail "https://sourceforge.net/projects/oorexx/files/${{ inputs.folder }}/"
+          }
+          link=$(list | grep -o "https://sourceforge.net/projects/oorexx/files/[^<>\" ]*windows.x86_64-portable-release.zip/download" \
+                 | awk -F/ '{print $(NF-1), $0}' | sort -uV | tail -1 | cut -d' ' -f2)
+          echo "portable: $link"
+          test -n "$link"
+          curl -sSL --retry 3 --fail -o portable.zip "$link"
+          mkdir pt && (cd pt && unzip -q ../portable.zip)
+          home=$(dirname "$(dirname "$(find pt -path '*/bin/rexx.exe' -type f | head -1)")")
+          echo "OOBIN=$(cygpath -w "$(cd "$home/bin" && pwd)")" >> "$GITHUB_ENV"
+      - name: Run
+        shell: cmd
+        run: |
+          copy C:\Windows\System32\find.exe "%OOBIN%\findstr.exe"
+          set PATH=C:\Windows\System32;%PATH%;%OOBIN%
+          where findstr
+          "%OOBIN%\rexx.exe" tests\bug-1686\run.rex > results.txt 2>&1
+          type results.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bug-1686
+          path: results.txt
