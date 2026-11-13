@@ -2,7 +2,7 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 ===================================================================
 --- a/ooRexx/base/keyword/CATCH.testGroup	(nonexistent)
 +++ b/ooRexx/base/keyword/CATCH.testGroup	(working copy)
-@@ -0,0 +1,1413 @@
+@@ -0,0 +1,1480 @@
 +#!/usr/bin/env rexx
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
@@ -648,9 +648,9 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +  call SysFileDelete compiled
 +  self~assertEquals('SYNTAX 42.3 2', .routine~new('t', code)~call)
 +
-+-- CATCH variable = condition [, condition]...: the variable gets the
-+-- condition object when the clause starts to run (as in NetRexx's
-+-- CATCH variable = exception)
++-- CATCH variable = condition [, condition]...: the variable gets a copy of
++-- the condition object when the clause starts to run (as in NetRexx's
++-- CATCH variable = exception), the copy that CONDITION("O") returns
 +::method test_variable
 +  do
 +    x = 1/0
@@ -661,6 +661,16 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +    self~assertSame(c~code, condition("O")~code)
 +  end
 +  self~assertSame("SYNTAX", c~condition)
++
++-- the variable gets a copy: changing it does not change the condition object
++::method test_variable_is_a_copy
++  do
++    x = 1/0
++  catch c = syntax
++    c~put("changed", "EXTRA")
++    self~assertFalse(condition("O")~hasIndex("EXTRA"))
++    self~assertFalse(c == condition("O"))
++  end
 +
 +::method test_variable_list
 +  do
@@ -1125,9 +1135,54 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +::method test_code_syntax_not_a_number
 +  self~assertSyntaxError(35.937, .array~of("do", "nop", "catch syntax '4x'", "end"))
 +
-+-- a constant, not an expression
++-- a number, a literal, or a simple variable, read when the clause is tested
 +::method test_code_syntax_variable
-+  self~assertSyntaxError(21.904, .array~of("do", "nop", "catch syntax n", "end"))
++  divideByZero = 42.3
++  overflow = 42.2
++  r = ""
++  do
++    x = 1/0
++  catch syntax overflow
++    r = "overflow"
++  catch syntax divideByZero
++    r = "divideByZero"
++  catch syntax
++    r = "other"
++  end
++  self~assertSame("divideByZero", r)
++
++::method test_code_syntax_variable_major
++  arithmetic = 42
++  do
++    x = 1/0
++  catch syntax arithmetic
++    r = "arithmetic" rc
++  end
++  self~assertSame("arithmetic 42", r)
++
++-- a variable with no value, or with a value that is not an error number,
++-- does not match, and NOVALUE is not raised
++::method test_code_syntax_variable_no_match
++  signal on novalue name novalueRaised
++  bad = "xyz"
++  zero = "42.0"
++  obj = .object~new
++  do
++    x = 1/0
++  catch syntax unset, syntax bad, syntax zero, syntax obj
++    r = "matched"
++  catch syntax
++    r = "other"
++  end
++  self~assertSame("other", r)
++  return
++novalueRaised:
++  self~fail("NOVALUE raised")
++
++::method test_code_syntax_compound
++  self~assertSyntaxError(35.1, .array~of("do", "nop", "catch syntax a.b", "end"))
++  self~assertSyntaxError(35.1, .array~of("do", "nop", "catch syntax a.", "end"))
++  self~assertSyntaxError(35.1, .array~of("do", "nop", "catch syntax .nil", "end"))
 +
 +::method test_code_syntax_expression
 +  self~assertSyntaxError(35.1, .array~of("do", "nop", "catch syntax (42)", "end"))
@@ -1225,8 +1280,20 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +::method test_bad_condition_name
 +  self~assertSyntaxError(25.939, .array~of("do", "nop", "catch foo", "end"))
 +
++-- a missing comma after SYNTAX makes a variable code, as after ERROR:
++-- NOTREADY is not caught
 +::method test_missing_comma
-+  self~assertSyntaxError(21.904, .array~of("do", "nop", "catch syntax notready", "end"))
++  do
++    do
++      call stream 'nonexistent.file.CATCH.testGroup', 'C', 'OPEN READ'
++      x = linein('nonexistent.file.CATCH.testGroup')
++    catch syntax notready
++      r = "inner"
++    end
++  catch notready
++    r = "outer"
++  end
++  self~assertSame("outer", r)
 +
 +::method test_user_without_name
 +  self~assertSyntaxError(20.915, .array~of("do", "nop", "catch user", "end"))

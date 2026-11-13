@@ -818,7 +818,7 @@ Index: interpreter/instructions/CatchInstruction.cpp
 ===================================================================
 --- a/interpreter/instructions/CatchInstruction.cpp	(nonexistent)
 +++ b/interpreter/instructions/CatchInstruction.cpp	(working copy)
-@@ -0,0 +1,386 @@
+@@ -0,0 +1,443 @@
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
 +/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
@@ -985,7 +985,26 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +        if (name->strCompare(GlobalNames::SYNTAX))
 +        {
 +            wholenumber_t wanted = 0;
-+            code->numberValue(wanted);
++            // a simple variable is read now, in the activation of the
++            // block: with no value, or a value that is not an error
++            // number, the clause does not match (and NOVALUE is not raised)
++            if (isOfClass(VariableTerm, code))
++            {
++                RexxObject *value = ((RexxVariableBase *)code)->getRealValue(context);
++                if (value == OREF_NULL || !(isString(value) || isInteger(value) || isNumberString(value)))
++                {
++                    continue;
++                }
++                wanted = errorNumber(value->stringValue());
++                if (wanted < 0)
++                {
++                    continue;
++                }
++            }
++            else
++            {
++                code->numberValue(wanted);
++            }
 +            wholenumber_t raised = 0;
 +            RexxObject *raisedCode = (RexxObject *)conditionObj->get(GlobalNames::CODE);
 +            if (raisedCode != OREF_NULL)
@@ -1064,6 +1083,42 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +
 +
 +/**
++ * Convert the code of a SYNTAX clause, an error number written as
++ * "major" or "major.minor" (1 to 99, and 1 to 999), to
++ * major * 1000 + minor, as message numbers are kept.
++ *
++ * @param text   The error number.
++ *
++ * @return The number, or -1 if the text is not a valid error number.
++ */
++wholenumber_t RexxInstructionCatch::errorNumber(RexxString *text)
++{
++    const char *data = text->getStringData();
++    size_t length = text->getLength();
++    wholenumber_t major = 0;
++    wholenumber_t minor = 0;
++    size_t i = 0;
++    size_t digits = 0;
++    for (; i < length && data[i] >= '0' && data[i] <= '9' && digits < 3; i++, digits++)
++    {
++        major = major * 10 + (data[i] - '0');
++    }
++    bool valid = digits > 0 && major >= 1 && major <= 99;
++    if (valid && i < length)
++    {
++        valid = data[i++] == '.';
++        digits = 0;
++        for (; i < length && data[i] >= '0' && data[i] <= '9' && digits < 4; i++, digits++)
++        {
++            minor = minor * 10 + (data[i] - '0');
++        }
++        valid = valid && digits > 0 && i == length && minor >= 1 && minor <= 999;
++    }
++    return valid ? major * 1000 + minor : -1;
++}
++
++
++/**
 + * Find the CATCH clause of an active block that catches a
 + * condition.  The clauses are tried in order, the first one that
 + * catches the condition wins.
@@ -1133,9 +1188,11 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +
 +
 +/**
-+ * Give the condition object to the variable of a CATCH clause
-+ * written as CATCH variable = condition (RFE #31), when the clause
-+ * starts to run.
++ * Give a copy of the condition object to the variable of a CATCH
++ * clause written as CATCH variable = condition (RFE #31), when the
++ * clause starts to run.  It is the same copy that CONDITION('O')
++ * returns, so that CATCH v = c is CATCH c followed by
++ * v = CONDITION('O').
 + *
 + * @param context      The activation that runs the clause.
 + * @param conditionObj The condition object.
@@ -1144,7 +1201,7 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +{
 +    if (variable != OREF_NULL)
 +    {
-+        variable->assign(context, (RexxObject *)conditionObj);
++        variable->assign(context, (RexxObject *)conditionObj->copy());
 +    }
 +}
 +
@@ -1216,7 +1273,7 @@ Index: interpreter/instructions/CatchInstruction.hpp
 ===================================================================
 --- a/interpreter/instructions/CatchInstruction.hpp	(nonexistent)
 +++ b/interpreter/instructions/CatchInstruction.hpp	(working copy)
-@@ -0,0 +1,97 @@
+@@ -0,0 +1,98 @@
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
 +/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
@@ -1290,6 +1347,7 @@ Index: interpreter/instructions/CatchInstruction.hpp
 +
 +    bool handles(RexxString *condition, DirectoryClass *conditionObj, RexxActivation *context);
 +    static bool sameCode(RexxObject *code, RexxObject *rc, RexxActivation *context);
++    static wholenumber_t errorNumber(RexxString *text);
 +    void assignCondition(RexxActivation *context, DirectoryClass *conditionObj);
 +    static RexxInstructionCatch *findClause(DoBlock *doblock, RexxString *condition, DirectoryClass *conditionObj, RexxActivation *context);
 +    static RexxInstructionCatch *firstClause(RexxBlockInstruction *block);
@@ -1883,7 +1941,7 @@ Index: interpreter/parser/InstructionParser.cpp
                  // ELSE instruction...possibly unexpected.
              case KEYWORD_ELSE:
                  return elseNew(first);
-@@ -3083,6 +3089,177 @@
+@@ -3083,6 +3089,165 @@
  
  
  /**
@@ -1970,40 +2028,28 @@ Index: interpreter/parser/InstructionParser.cpp
 +        {
 +            if (condType == CONDITION_SYNTAX)
 +            {
-+                if (!token->isLiteral() && !token->isConstant())
++                // a simple variable is read when the clause is tested
++                if (token->isSymbol() && token->isSubtype(SYMBOL_VARIABLE))
 +                {
-+                    // a variable is not an error number (and a missing comma
-+                    // is the likeliest reason for a condition name here)
-+                    syntaxError(token->isSymbol() ? Error_Invalid_data_condition : Error_Invalid_expression_general, token);
++                    code = (RexxObject *)addVariable(token);
 +                }
-+                RexxString *text = token->value();
-+                // major, or major.minor: kept as major * 1000 + minor
-+                const char *data = text->getStringData();
-+                size_t length = text->getLength();
-+                wholenumber_t major = 0;
-+                wholenumber_t minor = 0;
-+                size_t i = 0;
-+                size_t digits = 0;
-+                for (; i < length && data[i] >= '0' && data[i] <= '9' && digits < 3; i++, digits++)
++                else
 +                {
-+                    major = major * 10 + (data[i] - '0');
-+                }
-+                bool valid = digits > 0 && major >= 1 && major <= 99;
-+                if (valid && i < length)
-+                {
-+                    valid = data[i++] == '.';
-+                    digits = 0;
-+                    for (; i < length && data[i] >= '0' && data[i] <= '9' && digits < 4; i++, digits++)
++                    // a number or a literal string: checked now, and kept as
++                    // major * 1000 + minor
++                    if (!token->isLiteral() && !(token->isSymbol() && token->isSubtype(SYMBOL_CONSTANT)))
 +                    {
-+                        minor = minor * 10 + (data[i] - '0');
++                        // a stem, a compound variable, an environment symbol,
++                        // or not a symbol
++                        syntaxError(Error_Invalid_expression_general, token);
 +                    }
-+                    valid = valid && digits > 0 && i == length && minor >= 1 && minor <= 999;
++                    wholenumber_t number = RexxInstructionCatch::errorNumber(token->value());
++                    if (number < 0)
++                    {
++                        syntaxError(Error_Invalid_expression_catch_syntax, token);
++                    }
++                    code = new_integer(number);
 +                }
-+                if (!valid)
-+                {
-+                    syntaxError(Error_Invalid_expression_catch_syntax, token);
-+                }
-+                code = new_integer(major * 1000 + minor);
 +            }
 +            // ERROR and FAILURE: a number, optionally signed (as on
 +            // ::CONSTANT), a literal string, or a simple variable, which is
