@@ -57,7 +57,7 @@ jobs:
           for %%n in (12471 12472 head) do (
             mkdir build-%%n
             pushd build-%%n
-            cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ..\src-%%n > ..\cmake-%%n.log 2>&1
+            cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ..\src-%%n > ..\cmake-%%n.log 2>&1
             ninja > ..\ninja-%%n.log 2>&1
             popd
           )
@@ -74,20 +74,19 @@ jobs:
           (cd p500 && unzip -q ../p500.zip)
           (cd p520 && unzip -q ../p520.zip)
           ls -la p500 p520
-      - name: Install 4.2.0
+      - name: Unpack 4.2.0 (the NSIS installer, with 7-Zip; no service, no registry)
         shell: pwsh
         run: |
-          $p = Start-Process -FilePath .\oorexx420.exe -ArgumentList '/S','/D=C:\ooRexx420' -PassThru
-          if (-not $p.WaitForExit(300000)) { $p.Kill(); throw 'installer timeout' }
-          Get-ChildItem C:\ooRexx420 | Select-Object -First 20 | Format-Table Name
+          7z x -y -oC:\ooRexx420 .\oorexx420.exe | Select-Object -Last 3
+          Get-ChildItem C:\ooRexx420 -Recurse -Include rexx.exe,rexx.img,rexxapi.dll,rxapi.exe | Format-Table FullName, Length
       - name: Run the test
         shell: pwsh
         run: |
           $ws = $env:GITHUB_WORKSPACE
           $find = { param($dir) (Get-ChildItem -Path $dir -Recurse -Filter rexx.exe | Select-Object -First 1).FullName }
-          # 4.2.0 first: its rxapi runs as a service, which the later versions must not meet
+          # 4.2.0 first; rxapi is stopped after each version, so that none meets another's
           $versions = [ordered]@{
-            '4.2.0'      = 'C:\ooRexx420\rexx.exe'
+            '4.2.0'      = & $find 'C:\ooRexx420'
             '5.0.0'      = & $find "$ws\p500"
             '5.2.0'      = & $find "$ws\p520"
             'r12471'     = "$ws\build-12471\bin\rexx.exe"
