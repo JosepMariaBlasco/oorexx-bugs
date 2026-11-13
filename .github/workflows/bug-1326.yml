@@ -1,0 +1,49 @@
+# Bug #1326: .File and path normalization (doubled separators).
+# Takes the newest portable build from SourceForge and runs tests/bug-1326.
+name: bug-1326
+
+on:
+  workflow_dispatch:
+    inputs:
+      folder:
+        description: SourceForge folder with the portable builds
+        default: oorexx/5.3.0beta
+
+jobs:
+  file:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            pattern: windows.x86_64-portable-release.zip
+          - os: ubuntu-24.04
+            pattern: ubuntu2404.x86_64-portable-release.zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Portable ooRexx
+        shell: bash
+        run: |
+          set -e
+          list() {
+            curl -sSL --retry 3 --fail "https://sourceforge.net/projects/oorexx/rss?path=/${{ inputs.folder }}" \
+            || curl -sSL --retry 3 --fail "https://sourceforge.net/projects/oorexx/files/${{ inputs.folder }}/"
+          }
+          link=$(list | grep -o "https://sourceforge.net/projects/oorexx/files/[^<>\" ]*${{ matrix.pattern }}/download" \
+                 | awk -F/ '{print $(NF-1), $0}' | sort -uV | tail -1 | cut -d' ' -f2)
+          echo "portable: $link"
+          test -n "$link"
+          curl -sSL --retry 3 --fail -o portable.zip "$link"
+          mkdir pt && (cd pt && unzip -q ../portable.zip)
+          home=$(dirname "$(dirname "$(find pt -path '*/bin/rexx*' -type f | head -1)")")
+          echo "OOHOME=$(cd "$home" && pwd)" >> "$GITHUB_ENV"
+      - name: Run
+        shell: bash
+        run: |
+          export PATH="$OOHOME/bin:$PATH" LD_LIBRARY_PATH="$OOHOME/lib"
+          rexx tests/bug-1326/file.rex | tee results.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bug-1326-${{ matrix.os }}
+          path: results.txt
