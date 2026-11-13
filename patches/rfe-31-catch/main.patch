@@ -1,6 +1,6 @@
 Index: CMakeLists.txt
 ===================================================================
---- a/CMakeLists.txt	(revision 13491)
+--- a/CMakeLists.txt	(revision 13503)
 +++ b/CMakeLists.txt	(working copy)
 @@ -869,6 +869,7 @@
              ${build_instructions_dir}/NumericInstruction.cpp
@@ -12,7 +12,7 @@ Index: CMakeLists.txt
              ${build_instructions_dir}/ParseTrigger.cpp
 Index: api/oorexxerrors.h
 ===================================================================
---- a/api/oorexxerrors.h	(revision 13491)
+--- a/api/oorexxerrors.h	(revision 13503)
 +++ b/api/oorexxerrors.h	(working copy)
 @@ -89,6 +89,9 @@
  #define Rexx_Error_Unexpected_end_then                                    10005
@@ -59,7 +59,7 @@ Index: api/oorexxerrors.h
  #define Rexx_Error_Unmatched_parenthesis_paren                            36901
 Index: interpreter/behaviour/ClassTypeCodes.h
 ===================================================================
---- a/interpreter/behaviour/ClassTypeCodes.h	(revision 13491)
+--- a/interpreter/behaviour/ClassTypeCodes.h	(revision 13503)
 +++ b/interpreter/behaviour/ClassTypeCodes.h	(working copy)
 @@ -238,44 +238,45 @@
      T_CommandIOConfiguration = 176,
@@ -143,7 +143,7 @@ Index: interpreter/behaviour/ClassTypeCodes.h
  
 Index: interpreter/behaviour/PrimitiveBehaviourNames.h
 ===================================================================
---- a/interpreter/behaviour/PrimitiveBehaviourNames.h	(revision 13491)
+--- a/interpreter/behaviour/PrimitiveBehaviourNames.h	(revision 13503)
 +++ b/interpreter/behaviour/PrimitiveBehaviourNames.h	(working copy)
 @@ -228,6 +228,7 @@
  #define TheCommandIOConfigurationBehaviour      (&RexxBehaviour::primitiveBehaviours[T_CommandIOConfiguration])
@@ -155,7 +155,7 @@ Index: interpreter/behaviour/PrimitiveBehaviourNames.h
  #define ThePushThroughStackBehaviour      (&RexxBehaviour::primitiveBehaviours[T_PushThroughStack])
 Index: interpreter/behaviour/PrimitiveBehaviours.cpp
 ===================================================================
---- a/interpreter/behaviour/PrimitiveBehaviours.cpp	(revision 13491)
+--- a/interpreter/behaviour/PrimitiveBehaviours.cpp	(revision 13503)
 +++ b/interpreter/behaviour/PrimitiveBehaviours.cpp	(working copy)
 @@ -238,6 +238,7 @@
      RexxBehaviour(T_CommandIOConfiguration, (PCPPM *)RexxObject::operatorMethods),
@@ -167,7 +167,7 @@ Index: interpreter/behaviour/PrimitiveBehaviours.cpp
      RexxBehaviour(T_PushThroughStack, (PCPPM *)RexxObject::operatorMethods),
 Index: interpreter/behaviour/PrimitiveClasses.xml
 ===================================================================
---- a/interpreter/behaviour/PrimitiveClasses.xml	(revision 13491)
+--- a/interpreter/behaviour/PrimitiveClasses.xml	(revision 13503)
 +++ b/interpreter/behaviour/PrimitiveClasses.xml	(working copy)
 @@ -225,6 +225,7 @@
  <Class id="CommandIOConfiguration" class="CommandIOConfiguration" include="CommandIOConfiguration.hpp"/>
@@ -179,7 +179,7 @@ Index: interpreter/behaviour/PrimitiveClasses.xml
  <Class id="Memory" class="MemoryObject" include="RexxMemory.hpp" objectvirtual="true"/>
 Index: interpreter/behaviour/VirtualFunctionTable.cpp
 ===================================================================
---- a/interpreter/behaviour/VirtualFunctionTable.cpp	(revision 13491)
+--- a/interpreter/behaviour/VirtualFunctionTable.cpp	(revision 13503)
 +++ b/interpreter/behaviour/VirtualFunctionTable.cpp	(working copy)
 @@ -160,6 +160,7 @@
  #include "CommandIOConfiguration.hpp"
@@ -202,7 +202,7 @@ Index: interpreter/behaviour/VirtualFunctionTable.cpp
     virtualFunctionTable[T_Memory] = getVftPointer(objectLoc);
 Index: interpreter/concurrency/Activity.cpp
 ===================================================================
---- a/interpreter/concurrency/Activity.cpp	(revision 13491)
+--- a/interpreter/concurrency/Activity.cpp	(revision 13503)
 +++ b/interpreter/concurrency/Activity.cpp	(working copy)
 @@ -596,7 +596,9 @@
  void Activity::checkConditionSyntaxOptions(RexxString *condition, RexxObject *description, RexxObject *result)
@@ -217,7 +217,7 @@ Index: interpreter/concurrency/Activity.cpp
          {
 Index: interpreter/execution/RexxActivation.cpp
 ===================================================================
---- a/interpreter/execution/RexxActivation.cpp	(revision 13491)
+--- a/interpreter/execution/RexxActivation.cpp	(revision 13503)
 +++ b/interpreter/execution/RexxActivation.cpp	(working copy)
 @@ -84,6 +84,7 @@
  #include "CommandIOContext.hpp"
@@ -678,7 +678,7 @@ Index: interpreter/execution/RexxActivation.cpp
                          reportException(Error_Execution_error_syntax,
 Index: interpreter/execution/RexxActivation.hpp
 ===================================================================
---- a/interpreter/execution/RexxActivation.hpp	(revision 13491)
+--- a/interpreter/execution/RexxActivation.hpp	(revision 13503)
 +++ b/interpreter/execution/RexxActivation.hpp	(working copy)
 @@ -72,6 +72,8 @@
  /**
@@ -740,7 +740,7 @@ Index: interpreter/execution/RexxActivation.hpp
   #endif
 Index: interpreter/execution/TrapHandler.cpp
 ===================================================================
---- a/interpreter/execution/TrapHandler.cpp	(revision 13491)
+--- a/interpreter/execution/TrapHandler.cpp	(revision 13503)
 +++ b/interpreter/execution/TrapHandler.cpp	(working copy)
 @@ -47,6 +47,7 @@
  #include "CallInstruction.hpp"
@@ -760,7 +760,7 @@ Index: interpreter/execution/TrapHandler.cpp
  
 Index: interpreter/execution/TrapHandler.hpp
 ===================================================================
---- a/interpreter/execution/TrapHandler.hpp	(revision 13491)
+--- a/interpreter/execution/TrapHandler.hpp	(revision 13503)
 +++ b/interpreter/execution/TrapHandler.hpp	(working copy)
 @@ -72,6 +72,7 @@
      RexxString *getState();
@@ -782,7 +782,7 @@ Index: interpreter/execution/TrapHandler.hpp
  #endif
 Index: interpreter/instructions/BaseDoInstruction.cpp
 ===================================================================
---- a/interpreter/instructions/BaseDoInstruction.cpp	(revision 13491)
+--- a/interpreter/instructions/BaseDoInstruction.cpp	(revision 13503)
 +++ b/interpreter/instructions/BaseDoInstruction.cpp	(working copy)
 @@ -275,11 +275,28 @@
      // all we do here is create a new doblock and make it active
@@ -818,7 +818,7 @@ Index: interpreter/instructions/CatchInstruction.cpp
 ===================================================================
 --- a/interpreter/instructions/CatchInstruction.cpp	(nonexistent)
 +++ b/interpreter/instructions/CatchInstruction.cpp	(working copy)
-@@ -0,0 +1,385 @@
+@@ -0,0 +1,386 @@
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
 +/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
@@ -1058,7 +1058,8 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +    // of the code redefines it
 +    ProtectedObject result;
 +    code->sendMessage(GlobalNames::STRICT_EQUAL, rc, result);
-+    return result == TheTrueObject;
++    RexxObject *answer = result;
++    return answer == TheTrueObject;
 +}
 +
 +
@@ -1322,7 +1323,7 @@ Added: svn:eol-style
 \ No newline at end of property
 Index: interpreter/instructions/DoBlock.cpp
 ===================================================================
---- a/interpreter/instructions/DoBlock.cpp	(revision 13491)
+--- a/interpreter/instructions/DoBlock.cpp	(revision 13503)
 +++ b/interpreter/instructions/DoBlock.cpp	(working copy)
 @@ -46,6 +46,7 @@
  #include "DoBlock.hpp"
@@ -1361,7 +1362,7 @@ Index: interpreter/instructions/DoBlock.cpp
  
 Index: interpreter/instructions/DoBlock.hpp
 ===================================================================
---- a/interpreter/instructions/DoBlock.hpp	(revision 13491)
+--- a/interpreter/instructions/DoBlock.hpp	(revision 13503)
 +++ b/interpreter/instructions/DoBlock.hpp	(working copy)
 @@ -49,6 +49,7 @@
  
@@ -1399,7 +1400,7 @@ Index: interpreter/instructions/DoBlock.hpp
  #endif
 Index: interpreter/instructions/EndInstruction.cpp
 ===================================================================
---- a/interpreter/instructions/EndInstruction.cpp	(revision 13491)
+--- a/interpreter/instructions/EndInstruction.cpp	(revision 13503)
 +++ b/interpreter/instructions/EndInstruction.cpp	(working copy)
 @@ -157,6 +157,16 @@
          }
@@ -1420,7 +1421,7 @@ Index: interpreter/instructions/EndInstruction.cpp
          case LABELED_DO_BLOCK:
 Index: interpreter/instructions/RexxInstruction.hpp
 ===================================================================
---- a/interpreter/instructions/RexxInstruction.hpp	(revision 13491)
+--- a/interpreter/instructions/RexxInstruction.hpp	(revision 13503)
 +++ b/interpreter/instructions/RexxInstruction.hpp	(working copy)
 @@ -113,6 +113,7 @@
      LABELED_SELECT_BLOCK,
@@ -1432,7 +1433,7 @@ Index: interpreter/instructions/RexxInstruction.hpp
  class DoBlock;
 Index: interpreter/instructions/SelectInstruction.cpp
 ===================================================================
---- a/interpreter/instructions/SelectInstruction.cpp	(revision 13491)
+--- a/interpreter/instructions/SelectInstruction.cpp	(revision 13503)
 +++ b/interpreter/instructions/SelectInstruction.cpp	(working copy)
 @@ -367,6 +367,15 @@
      // protect it, as the expression evaluation may trigger a GC
@@ -1468,7 +1469,7 @@ Index: interpreter/instructions/SelectInstruction.cpp
  
 Index: interpreter/instructions/SimpleDoInstruction.cpp
 ===================================================================
---- a/interpreter/instructions/SimpleDoInstruction.cpp	(revision 13491)
+--- a/interpreter/instructions/SimpleDoInstruction.cpp	(revision 13503)
 +++ b/interpreter/instructions/SimpleDoInstruction.cpp	(working copy)
 @@ -46,6 +46,7 @@
  #include "DoBlock.hpp"
@@ -1490,7 +1491,7 @@ Index: interpreter/instructions/SimpleDoInstruction.cpp
          // control stack
 Index: interpreter/memory/GlobalNames.h
 ===================================================================
---- a/interpreter/memory/GlobalNames.h	(revision 13491)
+--- a/interpreter/memory/GlobalNames.h	(revision 13503)
 +++ b/interpreter/memory/GlobalNames.h	(working copy)
 @@ -66,6 +66,7 @@
  GLOBAL_NAME(BRACKETS, "[]")
@@ -1502,7 +1503,7 @@ Index: interpreter/memory/GlobalNames.h
  GLOBAL_NAME(CHARIN, "CHARIN")
 Index: interpreter/messages/RexxErrorCodes.h
 ===================================================================
---- a/interpreter/messages/RexxErrorCodes.h	(revision 13491)
+--- a/interpreter/messages/RexxErrorCodes.h	(revision 13503)
 +++ b/interpreter/messages/RexxErrorCodes.h	(working copy)
 @@ -91,6 +91,9 @@
  Error_Unexpected_end_then                                    = 10005,
@@ -1549,7 +1550,7 @@ Index: interpreter/messages/RexxErrorCodes.h
  Error_Unmatched_parenthesis_paren                            = 36901,
 Index: interpreter/messages/RexxErrorMessages.h
 ===================================================================
---- a/interpreter/messages/RexxErrorMessages.h	(revision 13491)
+--- a/interpreter/messages/RexxErrorMessages.h	(revision 13503)
 +++ b/interpreter/messages/RexxErrorMessages.h	(working copy)
 @@ -93,6 +93,9 @@
      MESSAGE(Error_Unexpected_end_then, "END must not immediately follow THEN.")
@@ -1596,7 +1597,7 @@ Index: interpreter/messages/RexxErrorMessages.h
      MESSAGE(Error_Unmatched_parenthesis_paren, "Left parenthesis \"(\" in position &1 on line &2 requires a corresponding right parenthesis \")\".")
 Index: interpreter/messages/RexxMessageNumbers.h
 ===================================================================
---- a/interpreter/messages/RexxMessageNumbers.h	(revision 13491)
+--- a/interpreter/messages/RexxMessageNumbers.h	(revision 13503)
 +++ b/interpreter/messages/RexxMessageNumbers.h	(working copy)
 @@ -763,6 +763,14 @@
  #define Error_Invalid_subkeyword_options_form_msg                    843
@@ -1615,7 +1616,7 @@ Index: interpreter/messages/RexxMessageNumbers.h
  #endif
 Index: interpreter/messages/RexxMessageTable.h
 ===================================================================
---- a/interpreter/messages/RexxMessageTable.h	(revision 13491)
+--- a/interpreter/messages/RexxMessageTable.h	(revision 13503)
 +++ b/interpreter/messages/RexxMessageTable.h	(working copy)
 @@ -92,6 +92,9 @@
        MINOR(Error_Unexpected_end_then)
@@ -1662,7 +1663,7 @@ Index: interpreter/messages/RexxMessageTable.h
        MINOR(Error_Unmatched_parenthesis_paren)
 Index: interpreter/messages/errnums.xml
 ===================================================================
---- a/interpreter/messages/errnums.xml	(revision 13491)
+--- a/interpreter/messages/errnums.xml	(revision 13503)
 +++ b/interpreter/messages/errnums.xml	(working copy)
 @@ -283,6 +283,24 @@
  <para>END corresponding to SELECT on line <emphasis role="italic">line_number</emphasis> must not have a symbol following it because there is no LABEL; found "<emphasis role="italic">symbol</emphasis>".</para>
@@ -1749,7 +1750,7 @@ Index: interpreter/messages/errnums.xml
  <section id="ERR36">
 Index: interpreter/messages/rexxmsg.xml
 ===================================================================
---- a/interpreter/messages/rexxmsg.xml	(revision 13491)
+--- a/interpreter/messages/rexxmsg.xml	(revision 13503)
 +++ b/interpreter/messages/rexxmsg.xml	(working copy)
 @@ -418,6 +418,33 @@
          <SymbolicName>Error_Unexpected_end_select_nolabel</SymbolicName>
@@ -1860,7 +1861,7 @@ Index: interpreter/messages/rexxmsg.xml
    <Message>
 Index: interpreter/parser/InstructionParser.cpp
 ===================================================================
---- a/interpreter/parser/InstructionParser.cpp	(revision 13491)
+--- a/interpreter/parser/InstructionParser.cpp	(revision 13503)
 +++ b/interpreter/parser/InstructionParser.cpp	(working copy)
 @@ -107,6 +107,7 @@
  #include "DoInstruction.hpp"
@@ -2062,7 +2063,7 @@ Index: interpreter/parser/InstructionParser.cpp
   * @param token  The token for the OTHERWISE keyword.
 Index: interpreter/parser/KeywordConstants.cpp
 ===================================================================
---- a/interpreter/parser/KeywordConstants.cpp	(revision 13491)
+--- a/interpreter/parser/KeywordConstants.cpp	(revision 13503)
 +++ b/interpreter/parser/KeywordConstants.cpp	(working copy)
 @@ -68,6 +68,7 @@
      KeywordEntry("ADDRESS",    KEYWORD_ADDRESS),
@@ -2074,7 +2075,7 @@ Index: interpreter/parser/KeywordConstants.cpp
      KeywordEntry("ELSE",       KEYWORD_ELSE),
 Index: interpreter/parser/LanguageParser.cpp
 ===================================================================
---- a/interpreter/parser/LanguageParser.cpp	(revision 13491)
+--- a/interpreter/parser/LanguageParser.cpp	(revision 13503)
 +++ b/interpreter/parser/LanguageParser.cpp	(working copy)
 @@ -62,6 +62,7 @@
  #include "EndInstruction.hpp"
@@ -2221,7 +2222,7 @@ Index: interpreter/parser/LanguageParser.cpp
          case KEYWORD_WHEN:
 Index: interpreter/parser/LanguageParser.hpp
 ===================================================================
---- a/interpreter/parser/LanguageParser.hpp	(revision 13491)
+--- a/interpreter/parser/LanguageParser.hpp	(revision 13503)
 +++ b/interpreter/parser/LanguageParser.hpp	(working copy)
 @@ -286,6 +286,7 @@
      RexxInstruction *numericNew();
@@ -2233,7 +2234,7 @@ Index: interpreter/parser/LanguageParser.hpp
      RexxInstruction *pushNew();
 Index: interpreter/parser/Token.hpp
 ===================================================================
---- a/interpreter/parser/Token.hpp	(revision 13491)
+--- a/interpreter/parser/Token.hpp	(revision 13503)
 +++ b/interpreter/parser/Token.hpp	(working copy)
 @@ -255,6 +255,7 @@
      KEYWORD_REQUIRES,

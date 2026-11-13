@@ -1429,7 +1429,7 @@ Added: svn:executable
 \ No newline at end of property
 Index: ooRexx/utilities/rexxc/rexxc.testGroup
 ===================================================================
---- a/ooRexx/utilities/rexxc/rexxc.testGroup	(revision 13491)
+--- a/ooRexx/utilities/rexxc/rexxc.testGroup	(revision 13503)
 +++ b/ooRexx/utilities/rexxc/rexxc.testGroup	(working copy)
 @@ -270,6 +270,31 @@
    compiled~delete
