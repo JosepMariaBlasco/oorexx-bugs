@@ -70,7 +70,11 @@ Shot 'after-license'
 "[$Tag] text: $(AllText $procId)"
 
 if ($verdict -eq 'LOCKED-WARNING') {
-  $mb = Windows $procId | Where-Object { ((Texts $_) -join ' ') -match 'is locked' } | Select-Object -First 1
+  # the message box hangs below the wizard's window in the UIA tree
+  $wc = New-Object System.Windows.Automation.PropertyCondition($AE::ControlTypeProperty,
+          [System.Windows.Automation.ControlType]::Window)
+  $mb = Windows $procId | ForEach-Object { $_.FindAll($TS::Descendants, $wc) } |
+          Where-Object { ((Texts $_) -join ' ') -match 'is locked' } | Select-Object -First 1
   Post $mb 2
   Write-Output "[$Tag] pressed Cancel on the warning"
   Start-Sleep -Seconds 3
@@ -78,7 +82,7 @@ if ($verdict -eq 'LOCKED-WARNING') {
   if ($p.HasExited) { "[$Tag] after Cancel on the warning: installer QUIT" }
   else {
     $all = AllText $procId
-    $where = if ($all -match 'Choose Components') { 'Components page' } else { 'other' }
+    $where = if ($all -match 'is locked') { 'warning still up' } elseif ($all -match 'Choose Components') { 'Components page' } else { 'other' }
     "[$Tag] after Cancel on the warning: installer GOES ON ($where)"
     Shot 'after-cancel'
   }
