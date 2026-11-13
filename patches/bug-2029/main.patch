@@ -1,0 +1,75 @@
+Index: extensions/platform/unix/rxunixsys/rxunixsys.cpp
+===================================================================
+--- a/extensions/platform/unix/rxunixsys/rxunixsys.cpp	(revision 13507)
++++ b/extensions/platform/unix/rxunixsys/rxunixsys.cpp	(working copy)
+@@ -392,13 +392,19 @@
+     // pthread_t is opaque, so it shouldn't be converted to anything
+     // but it's documented to return "the current numerical thread id"
+     // we cannot directly cast it to int as it may be e.g. a struct
++    // copy the bytes instead of reading them through a pointer of another
++    // type, which breaks the strict-aliasing rules (bug #2029)
+     if (sizeof(tid) >= 8)
+     {
+-        return context->UnsignedInt64ToObject(*(uint64_t *)&tid);
++        uint64_t id;
++        memcpy(&id, &tid, sizeof(id));
++        return context->UnsignedInt64ToObject(id);
+     }
+     if (sizeof(tid) >= 4)
+     {
+-        return context->UnsignedInt32ToObject(*(uint32_t *)&tid);
++        uint32_t id;
++        memcpy(&id, &tid, sizeof(id));
++        return context->UnsignedInt32ToObject(id);
+     }
+     return context->NullString();
+ }
+Index: interpreter/classes/ObjectClass.cpp
+===================================================================
+--- a/interpreter/classes/ObjectClass.cpp	(revision 13507)
++++ b/interpreter/classes/ObjectClass.cpp	(working copy)
+@@ -596,7 +596,7 @@
+     // be in old space, where a new reference needs the write barrier)
+     if (objectVariables != OREF_NULL)
+     {
+-        OrefSet(newObj, (RexxInternalObject *&)newObj->objectVariables, objectVariables->deepCopy());
++        setOtherField(newObj, objectVariables, objectVariables->deepCopy());
+     }
+ }
+ 
+Index: interpreter/memory/RexxMemory.hpp
+===================================================================
+--- a/interpreter/memory/RexxMemory.hpp	(revision 13507)
++++ b/interpreter/memory/RexxMemory.hpp	(working copy)
+@@ -345,14 +345,29 @@
+     r = v;
+ }
+ 
++// Typed version, used by setField() and setOtherField(). The field is updated through its
++// own type, T *, instead of through a RexxInternalObject *& that aliases it: writing a T *
++// object through an lvalue of another pointer type breaks the strict-aliasing rules
++// (bug #2029). Only pointer values are converted, never the storage that holds them.
++template <typename T, typename V>
++inline void OrefSet(RexxInternalObject *o, T *&r, V v)
++{
++    RexxInternalObject *value = (RexxInternalObject *)v;
++    if (o->isOldSpace())
++    {
++        memoryObject.setOref((RexxInternalObject *)r, value);
++    }
++    r = (T *)value;
++}
++
+ // short cut version of OrefSet().  99% of the uses specify this as the object pointer...this version
+ // saves a little typing :-)
+-#define setField(r, v)  OrefSet(this, (RexxInternalObject *&)this->r, v)
++#define setField(r, v)  OrefSet(this, this->r, v)
+ // OK, I'm lazy...a version of this for nulling out a field.
+ #define clearField(r) setField(r, OREF_NULL)
+ 
+ // cleaner version for setting in another object
+-#define setOtherField(o, r, v) OrefSet(o, (RexxInternalObject *&)o->r, v)
++#define setOtherField(o, r, v) OrefSet(o, o->r, v)
+ 
+ 
+ /**
