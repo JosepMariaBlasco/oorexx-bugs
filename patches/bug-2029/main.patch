@@ -41,7 +41,7 @@ Index: interpreter/memory/RexxMemory.hpp
 ===================================================================
 --- a/interpreter/memory/RexxMemory.hpp	(revision 13507)
 +++ b/interpreter/memory/RexxMemory.hpp	(working copy)
-@@ -345,14 +345,29 @@
+@@ -345,14 +345,28 @@
      r = v;
  }
  
@@ -49,15 +49,14 @@ Index: interpreter/memory/RexxMemory.hpp
 +// own type, T *, instead of through a RexxInternalObject *& that aliases it: writing a T *
 +// object through an lvalue of another pointer type breaks the strict-aliasing rules
 +// (bug #2029). Only pointer values are converted, never the storage that holds them.
-+template <typename T, typename V>
-+inline void OrefSet(RexxInternalObject *o, T *&r, V v)
++template <typename T>
++inline void OrefSet(RexxInternalObject *o, T *&r, RexxInternalObject *v)
 +{
-+    RexxInternalObject *value = (RexxInternalObject *)v;
 +    if (o->isOldSpace())
 +    {
-+        memoryObject.setOref((RexxInternalObject *)r, value);
++        memoryObject.setOref((RexxInternalObject *)r, v);
 +    }
-+    r = (T *)value;
++    r = (T *)v;
 +}
 +
  // short cut version of OrefSet().  99% of the uses specify this as the object pointer...this version
