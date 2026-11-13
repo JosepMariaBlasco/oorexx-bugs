@@ -37,11 +37,12 @@ jobs:
             curl -sSL --retry 3 --fail "https://sourceforge.net/projects/oorexx/rss?path=/${{ inputs.folder }}" \
             || curl -sSL --retry 3 --fail "https://sourceforge.net/projects/oorexx/files/${{ inputs.folder }}/"
           }
-          name=$(list | grep -o "[^/<>\"]*${{ matrix.pattern }}" | sort -uV | tail -1)
-          echo "portable: $name"
-          test -n "$name"
-          curl -sSL --retry 3 --fail -o portable.zip \
-            "https://sourceforge.net/projects/oorexx/files/${{ inputs.folder }}/$name/download"
+          # the RSS gives each file's full path (builds may sit in subfolders)
+          link=$(list | grep -o "https://sourceforge.net/projects/oorexx/files/[^<>\" ]*${{ matrix.pattern }}/download" \
+                 | awk -F/ '{print $(NF-1), $0}' | sort -uV | tail -1 | cut -d' ' -f2)
+          echo "portable: $link"
+          test -n "$link"
+          curl -sSL --retry 3 --fail -o portable.zip "$link"
           mkdir pt && (cd pt && unzip -q ../portable.zip)
           home=$(dirname "$(dirname "$(find pt -path '*/bin/rexx*' -type f | head -1)")")
           echo "home: $home"
