@@ -1,0 +1,34 @@
+Index: ooRexx/base/class/Stream.testGroup
+===================================================================
+--- a/ooRexx/base/class/Stream.testGroup	(revision 13500)
++++ b/ooRexx/base/class/Stream.testGroup	(working copy)
+@@ -1498,6 +1498,29 @@
+   self~assertSame(18, count)
+ 
+ 
++-- A supplier for a transient stream that was not open yet failed with error
++-- 93.958 (bug #2169): its type was asked for before the stream was opened.
++-- The child reads its stdin, a pipe, through two suppliers, which share the
++-- lines of a transient stream
++::method test_stream_supplier_transient_unopened
++  source = .array~of( -
++    's = .stream~new("STDIN")', -
++    'a = s~supplier', -
++    'b = s~supplier', -
++    'say a~index a~item', -
++    'say b~index b~item', -
++    'a~next', -
++    'say a~index a~item')
++  program = .TemporaryTestFile~new(self, "Stream_supplier_2169.tmp.rex")~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName, output, , .array~of("one", "two", "three"))
++  self~assertSame(0, theRC, "rexx ended with rc" theRC":" output~toString(, " | "))
++  self~assertSame(3, output~items, output~toString(, " | "))
++  self~assertSame("1 one", output[1])
++  self~assertSame("1 two", output[2])
++  self~assertSame("2 three", output[3])
++
++
+ -- Regression test for a bug seen at one time.  (Don't know the number.)
+ ::method test_flush_on_close_xxxxxx
+ 
