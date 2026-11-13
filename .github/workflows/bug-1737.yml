@@ -111,12 +111,13 @@ jobs:
             if (-not $exe -or -not (Test-Path $exe)) { "== ${v}: no rexx.exe" | Tee-Object -FilePath $log -Append; continue }
             for ($i = 1; $i -le $rounds; $i++) {
               "== $v round $i" | Tee-Object -FilePath $log -Append
-              $p = Start-Process -FilePath $exe -ArgumentList "testLinein3.rex `"$data`"" -NoNewWindow -PassThru -RedirectStandardOutput o.txt -RedirectStandardError e.txt
+              $p = Start-Process -FilePath $exe -ArgumentList "testLinein3.rex $data" -NoNewWindow -PassThru -RedirectStandardOutput o.txt -RedirectStandardError e.txt
               if (-not $p.WaitForExit(600000)) { $p.Kill(); 'TIMEOUT' | Tee-Object -FilePath $log -Append }
               Get-Content o.txt, e.txt | Tee-Object -FilePath $log -Append
             }
             if ($v -eq '4.2.0') { & $stopRxapi } else { Stop-Process -Name rxapi -Force -ErrorAction SilentlyContinue }
           }
+          exit 0
       - uses: actions/upload-artifact@v4
         if: always()
         with:
