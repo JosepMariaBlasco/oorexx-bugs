@@ -1,0 +1,57 @@
+# Bug #1629, end to end: takes the installers built by two windows-installer
+# runs (without and with the patch), and drives each one through Welcome and
+# License (tests/bug-1629/drive.ps1) from a local folder and from a read-only
+# SMB share, by UNC path and by drive letter.
+name: bug-1629-gui
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: windows-installer run ids, space separated
+        required: true
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  gui:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Installers
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir inst
+          for r in ${{ inputs.runs }}; do
+            gh run download $r -R ${{ github.repository }} -n installer -D inst/$r
+          done
+          find inst -name '*.exe'
+      - name: Drive
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force C:\ro, C:\local, shots | Out-Null
+          New-SmbShare -Name ro -Path C:\ro -ReadAccess Everyone | Out-Null
+          net use R: \\localhost\ro
+          $drive = "$env:GITHUB_WORKSPACE\tests\bug-1629\drive.ps1"
+          $shots = "$env:GITHUB_WORKSPACE\shots"
+          Get-ChildItem -Recurse inst -Filter *.exe | ForEach-Object {
+            $name = $_.Name
+            Copy-Item $_.FullName C:\ro
+            Copy-Item $_.FullName C:\local
+            $sfx = ($name -split '\.')[-2]
+            & $drive -Exe "C:\local\$name" -WorkDir 'C:\local' -Tag "$sfx-local" -ShotDir $shots
+            & $drive -Exe "\\localhost\ro\$name" -WorkDir '\\localhost\ro' -Tag "$sfx-unc" -ShotDir $shots
+            & $drive -Exe "R:\$name" -WorkDir 'R:\' -Tag "$sfx-R" -ShotDir $shots
+            & $drive -Exe "\\localhost\ro\$name" -WorkDir '\\localhost\ro' -Tag "$sfx-unc2" -ShotDir $shots
+          } *>&1 | Tee-Object gui.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bug-1629-gui
+          path: |
+            gui.log
+            shots/
