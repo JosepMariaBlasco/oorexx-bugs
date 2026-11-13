@@ -24,35 +24,37 @@ function Texts($w) {
   $w.FindAll($TS::Descendants, [System.Windows.Automation.Condition]::TrueCondition) |
     ForEach-Object { $_.Current.Name } | Where-Object { $_ }
 }
-function Find-Button($procId, $label) {
-  foreach ($w in Windows $procId) {
-    $c = New-Object System.Windows.Automation.PropertyCondition($AE::ControlTypeProperty,
-           [System.Windows.Automation.ControlType]::Button)
-    foreach ($b in $w.FindAll($TS::Descendants, $c)) {
-      if (($b.Current.Name -replace '&', '') -eq $label -and $b.Current.IsEnabled) { return $b }
-    }
-  }
-  $null
+Add-Type -Namespace W -Name U -MemberDefinition @'
+[DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
+'@
+# NSIS: the Next / I Agree button is control 1, Cancel is 2 (also in a
+# MB_RETRYCANCEL message box)
+function Post($w, $id) {
+  [void][W.U]::PostMessage([IntPtr]$w.Current.NativeWindowHandle, 0x111, [IntPtr]$id, [IntPtr]::Zero)
 }
-function Press($procId, $label, $secs = 60) {
+function Wizard($procId) {
+  Windows $procId | Where-Object { (Texts $_) -match 'Setup|License|Welcome|Components' } | Select-Object -First 1
+}
+function Press($procId, $what, $page, $secs = 60) {
   $t = [DateTime]::Now.AddSeconds($secs)
   while ([DateTime]::Now -lt $t) {
-    $b = Find-Button $procId $label
-    if ($b) {
-      $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
-      "[$Tag] pressed '$label'"; Start-Sleep -Milliseconds 800; return $true
+    $w = Wizard $procId
+    if ($w -and ((Texts $w) -join ' ') -match $page) {
+      Post $w 1
+      Write-Output "[$Tag] pressed $what on the '$page' page"
+      Start-Sleep -Seconds 2; return
     }
-    Start-Sleep -Milliseconds 300
+    Start-Sleep -Milliseconds 500
   }
-  "[$Tag] no '$label' button after $secs s"; $false
+  Write-Output "[$Tag] no '$page' page after $secs s"
 }
 function AllText($procId) { (Windows $procId | ForEach-Object { Texts $_ }) -join ' | ' }
 
 "[$Tag] $Exe from $WorkDir"
 $p = Start-Process -FilePath $Exe -WorkingDirectory $WorkDir -PassThru
 $procId = $p.Id
-Press $procId 'Next >' 90 | Out-Host
-Press $procId 'I Agree' | Out-Host
+Press $procId 'Next' 'Welcome to' 90
+Press $procId 'I Agree' 'License Agreement'
 
 # what follows the License page
 $verdict = 'none'
@@ -68,7 +70,9 @@ Shot 'after-license'
 "[$Tag] text: $(AllText $procId)"
 
 if ($verdict -eq 'LOCKED-WARNING') {
-  Press $procId 'Cancel' 10 | Out-Host
+  $mb = Windows $procId | Where-Object { ((Texts $_) -join ' ') -match 'is locked' } | Select-Object -First 1
+  Post $mb 2
+  Write-Output "[$Tag] pressed Cancel on the warning"
   Start-Sleep -Seconds 3
   $p.Refresh()
   if ($p.HasExited) { "[$Tag] after Cancel on the warning: installer QUIT" }
