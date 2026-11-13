@@ -1,0 +1,91 @@
+# Bug #2063: rxenv.cmd runs "%1 %2 ... %9" (rxenv.sh, "$1 ... $9"): at most
+# seven arguments reach the program, ARG(1) gets trailing blanks on Windows,
+# and "=", "," and ";" (Windows) or quoting (Unix) are lost.
+# Takes the newest portable build from SourceForge, generates the scripts
+# with setupoorexx.rex from trunk, with and without patches/bug-2063, and runs
+# tests/bug-2063 through each.
+name: bug-2063
+
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: SVN revision of setupoorexx.rex
+        default: HEAD
+      folder:
+        description: SourceForge folder with the portable builds
+        default: oorexx/5.3.0beta
+
+jobs:
+  rxenv:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            pattern: windows.x86_64-portable-release.zip
+          - os: ubuntu-24.04
+            pattern: ubuntu2404.x86_64-portable-release.zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Portable ooRexx and setupoorexx.rex, with and without the patch
+        shell: bash
+        run: |
+          set -e
+          name=$(curl -sSL --retry 3 --fail \
+                   "https://sourceforge.net/projects/oorexx/rss?path=/${{ inputs.folder }}&limit=500" \
+                 | grep -o "[^/<>\"]*${{ matrix.pattern }}" | sort -uV | tail -1)
+          echo "portable: $name"
+          test -n "$name"
+          curl -sSL --retry 3 --fail -o portable.zip \
+            "https://sourceforge.net/projects/oorexx/files/${{ inputs.folder }}/$name/download"
+          mkdir pt && (cd pt && unzip -q ../portable.zip)
+          home=$(dirname "$(dirname "$(find pt -path '*/bin/rexx*' -type f | head -1)")")
+          echo "home: $home"
+          mkdir -p tree/support/portable
+          url=https://svn.code.sf.net/p/oorexx/code-0/main/trunk/support/portable/setupoorexx.rex
+          rev="${{ inputs.revision }}"
+          [ -n "$rev" ] && [ "$rev" != HEAD ] && url="$url?p=$rev"
+          curl -sSL --retry 3 --fail -o tree/support/portable/setupoorexx.rex "$url"
+          cp tree/support/portable/setupoorexx.rex setupoorexx-trunk.rex
+          patch -p1 -d tree < patches/bug-2063/main.patch
+          cp tree/support/portable/setupoorexx.rex setupoorexx-patched.rex
+          cd "$home"
+          for v in trunk patched; do
+            cp "$GITHUB_WORKSPACE/setupoorexx-$v.rex" setupoorexx.rex
+            ./bin/rexx setupoorexx.rex > "$GITHUB_WORKSPACE/setup-$v.log" 2>&1 || { cat "$GITHUB_WORKSPACE/setup-$v.log"; exit 1; }
+            for f in rxenv.cmd rxenv.sh; do
+              [ -f "$f" ] && mv "$f" "${f%.*}-$v.${f##*.}"
+            done
+          done
+          ls -l
+          echo "HOME2063=$(cygpath -w "$PWD" 2>/dev/null || pwd)" >> "$GITHUB_ENV"
+      - name: Run (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          type "%HOME2063%\rxenv-patched.cmd"
+          for %%v in (trunk patched) do (
+            echo ======== rxenv.cmd from %%v
+            call tests\bug-2063\run.cmd "%HOME2063%\rxenv-%%v.cmd" "%GITHUB_WORKSPACE%\tests\bug-2063\args.rex"
+          ) >> results.txt 2>&1
+          type results.txt
+      - name: Run (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          cat "$HOME2063/rxenv-patched.sh"
+          chmod +x "$HOME2063"/rxenv-*.sh
+          for v in trunk patched; do
+            echo "======== rxenv.sh from $v"
+            sh tests/bug-2063/run.sh "$HOME2063/rxenv-$v.sh" "$GITHUB_WORKSPACE/tests/bug-2063/args.rex"
+          done > results.txt 2>&1
+          cat results.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bug-2063-${{ runner.os }}
+          path: |
+            results.txt
+            setup-*.log

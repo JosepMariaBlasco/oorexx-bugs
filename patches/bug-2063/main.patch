@@ -1,0 +1,24 @@
+--- a/support/portable/setupoorexx.rex
++++ b/support/portable/setupoorexx.rex
+@@ -522,8 +522,8 @@
+ _HERE_JAVA_HOME_
+ _HERE_PACKAGES_CLASSPATH_
+ 
+-rem %0 is this script, %1 the program to run, %2 the first argument for it, ...
+-%1 %2 %3 %4 %5 %6 %7 %8 %9
++rem run the program and all its arguments exactly as typed after this script's name
++%*
+ endlocal
+ ::END
+ 
+@@ -574,8 +574,8 @@
+ export CPATH=$OOREXX_HOME_REXX_INC_:$CPATH
+ 
+ # Unix allows to prefix environment variables for the command
+-# $0 is this script, $1 the program to run, $2 the first argument for it, ...
+-_HERE_LD_LIBRARY_PATH="$_HERE_LD_LIBRARY_PATH" $1 $2 $3 $4 $5 $6 $7 $8 $9
++# "$@" is the program to run and all its arguments, each one kept as given
++_HERE_LD_LIBRARY_PATH="$_HERE_LD_LIBRARY_PATH" "$@"
+ ::END
+ 
+ ::RESOURCE unix_setenv2rxenv
