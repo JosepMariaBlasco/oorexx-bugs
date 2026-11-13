@@ -41,7 +41,7 @@ Index: ooRexx/base/keyword/ADDRESS.testGroup
      -- cd with a relative path, no blanks, unquoted
      call directory current
      cd dirNoBlanks -- should be handled within same process
-@@ -1379,15 +1379,23 @@
+@@ -1379,17 +1379,26 @@
  
    -- specials
  
@@ -68,4 +68,7 @@ Index: ooRexx/base/keyword/ADDRESS.testGroup
 +
    -- Windows-only: leading "quiet "@"
    if self~isWindows then do
++    call directory pathNoBlanks~absolutePath
      "@CD .."
+     self~assertSame(0, rc, "@CD .. returns" SysgetErrorText(rc))
+     self~assertSame(current, directory())
