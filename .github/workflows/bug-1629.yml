@@ -29,7 +29,7 @@ jobs:
           New-Item -ItemType Directory -Force C:\ro, C:\rw, C:\local | Out-Null
           New-SmbShare -Name ro -Path C:\ro -ReadAccess Everyone | Out-Null
           New-SmbShare -Name rw -Path C:\rw -FullAccess Everyone | Out-Null
-          Copy-Item $exe C:\ro, C:\rw, C:\local
+          foreach ($d in 'C:\ro', 'C:\rw', 'C:\local') { Copy-Item $exe $d }
           net use R: \\localhost\ro
           net use W: \\localhost\rw
           Get-SmbShare ro, rw | Format-Table Name, Path
