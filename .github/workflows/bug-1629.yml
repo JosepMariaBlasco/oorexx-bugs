@@ -1,0 +1,55 @@
+# Bug #1629: "rexx.dll locked" when the installer runs from a read-only share.
+# Compiles tests/bug-1629/probe1629.nsi with the NSIS the ooRexx installers
+# are built with (oorexx-buildutils, Nsis_longStrings.zip, which carries the
+# LockedList plugin) and runs it from a local folder, a read-only SMB share
+# and a writable one, by UNC path and by drive letter.
+name: bug-1629
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: NSIS (ooRexx build utilities)
+        shell: bash
+        run: |
+          curl -sSL --retry 3 --fail -o nsis.zip \
+            "https://sourceforge.net/projects/oorexx/files/oorexx-buildutils/Windows/1.2.0/Nsis_longStrings.zip/download"
+          mkdir nsis && (cd nsis && unzip -q ../nsis.zip)
+          makensis=$(find nsis -iname makensis.exe | head -1)
+          find nsis -iname 'LockedList*.dll'
+          cd tests/bug-1629 && "$GITHUB_WORKSPACE/$makensis" probe1629.nsi
+      - name: Shares and runs
+        shell: powershell
+        run: |
+          $exe = "$env:GITHUB_WORKSPACE\tests\bug-1629\probe1629.exe"
+          New-Item -ItemType Directory -Force C:\ro, C:\rw, C:\local | Out-Null
+          New-SmbShare -Name ro -Path C:\ro -ReadAccess Everyone | Out-Null
+          New-SmbShare -Name rw -Path C:\rw -FullAccess Everyone | Out-Null
+          Copy-Item $exe C:\ro, C:\rw, C:\local
+          net use R: \\localhost\ro
+          net use W: \\localhost\rw
+          Get-SmbShare ro, rw | Format-Table Name, Path
+          Get-SmbShareAccess ro, rw | Format-Table Name, AccountName, AccessRight
+          $log = "$env:TEMP\probe1629.txt"
+          Remove-Item $log -ErrorAction SilentlyContinue
+          foreach ($wd in 'C:\local', '\\localhost\ro', 'R:\', '\\localhost\rw', 'W:\') {
+            foreach ($i in 1..3) {
+              Add-Content $log "== run $i from $wd"
+              Start-Process -FilePath (Join-Path $wd 'probe1629.exe') -WorkingDirectory $wd -Wait
+            }
+          }
+          # control: rexx.dll in the root of the read-only share
+          Copy-Item "$env:WINDIR\System32\kernel32.dll" C:\ro\rexx.dll
+          Add-Content $log "== from \\localhost\ro, with a rexx.dll in the share's root"
+          Start-Process -FilePath '\\localhost\ro\probe1629.exe' -WorkingDirectory '\\localhost\ro' -Wait
+          Get-Content $log
+          Copy-Item $log probe1629-log.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bug-1629
+          path: probe1629-log.txt
