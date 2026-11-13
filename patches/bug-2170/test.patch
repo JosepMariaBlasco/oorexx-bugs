@@ -1,0 +1,81 @@
+Index: ooRexx/base/bif/LINEOUT.testGroup
+===================================================================
+--- a/ooRexx/base/bif/LINEOUT.testGroup	(revision 13504)
++++ b/ooRexx/base/bif/LINEOUT.testGroup	(working copy)
+@@ -219,18 +219,11 @@
+   call stream name, "c", "flush"       -- flush before checking
+   self~assertFile("1    22   333  4444 55555")
+ 
+-/*@@BUG
+-Positioning/closing doesn't work for a binary stream, although docs say:
+-"You can omit the string for persistent streams. If you specify line,
+-the write position is set to the start of the line that was given,
+-nothing is written to the stream, and the function returns 0. If you
+-specify neither line nor string, the stream is closed."
+-*/
+-  self~assertSame(0, lineout(name, , 3)) -- position at record 3, @@instead clears record 2
++  -- at the start of a record, positioning and closing write nothing
++  self~assertSame(0, lineout(name, , 3)) -- position at record 3
+   self~assertSame(0, lineout(name, "three"))
+-  self~assertSame(0, lineout(name)) --@@clears record 4
+---@@lf~assertFile("1    22   three4444 55555")
+-  self~assertFile("1         three     55555") -- @@wrong
++  self~assertSame(0, lineout(name))      -- close
++  self~assertFile("1    22   three4444 55555")
+ 
+ 
+ ::options all syntax
+Index: ooRexx/base/class/Stream.testGroup
+===================================================================
+--- a/ooRexx/base/class/Stream.testGroup	(revision 13504)
++++ b/ooRexx/base/class/Stream.testGroup	(working copy)
+@@ -2586,6 +2586,49 @@
+   return content
+ 
+ 
++-- LINEOUT with no string, on a stream with RECLENGTH, completes a record
++-- that has been started, but writes nothing at the start of a record: it
++-- used to write a whole record of blanks there
++::method test_lineout_no_string_reclength
++  f = .TemporaryTestFile~new(, "test_lineout_no_string_reclength")
++  s = .Stream~new(f)
++
++  do rl = 1 to 4
++    do n = 0 to 2 * rl
++      id = "reclength" rl", charout" n
++      start = "C"~copies(n)
++      expected = start || " "~copies((rl - n // rl) // rl)
++
++      -- closing the stream
++      call open
++      self~assertSame(0, s~lineout, id)
++      self~assertSame(expected, written(), id", lineout()")
++
++      -- positioning by line
++      call open
++      self~assertSame(0, s~lineout( , 1), id)
++      self~assertSame(expected, written(), id", lineout(, 1)")
++    end
++  end
++  f~delete
++  return
++
++  open:
++  s~open("write replace binary reclength" rl)
++  if n > 0 then
++    s~charout(start)
++  return
++
++  -- closes the stream and returns what the file has
++  written: procedure expose s f
++  s~close
++  check = .Stream~new(f)
++  check~open("read")
++  content = check~charin(1, check~chars)
++  check~close
++  return content
++
++
+ -- HANDLE:n streams lost their handle when they were opened: writing crashed
+ -- the interpreter (SIGSEGV), and nothing reached the handle.  In a child
+ -- process, so that a crash cannot take the test suite with it.
