@@ -1,0 +1,129 @@
+# Bug #1737: stream reading (chars/lines + charin/linein) slower in 5.0.0
+# (a beta of Sep 2020) than in 4.2.0, on Windows. Runs Walter Pachl's test
+# (probes/bug-1737, from the ticket) on one Windows runner with: 4.2.0 (the
+# official installer), 5.0.0 and 5.2.0 (official portable builds), and trunk
+# built at r12471 and r12472 (just before and just after [bugs:#1830], which
+# cached the file size in lines()/chars()) and at HEAD.
+name: bug-1737
+
+on:
+  workflow_dispatch:
+    inputs:
+      head:
+        description: trunk revision to compare
+        default: HEAD
+      rounds:
+        description: runs of the test per version
+        default: "3"
+
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    container: debian:bookworm
+    steps:
+      - name: Export trunk at three revisions
+        run: |
+          for try in 1 2 3; do
+            timeout 300 apt-get update -qq > /dev/null && timeout 300 apt-get install -y -qq subversion ca-certificates > /dev/null && break
+            sleep 20
+          done
+          for r in 12471 12472 ${{ inputs.head }}; do
+            n=$r; [ "$r" = HEAD ] && n=head
+            svn export -q -r $r https://svn.code.sf.net/p/oorexx/code-0/main/trunk src-$n
+          done
+          svn info https://svn.code.sf.net/p/oorexx/code-0/main/trunk -r ${{ inputs.head }} | grep '^Last Changed Rev' > head-rev.txt
+          tar czf sources.tgz src-* head-rev.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sources
+          path: sources.tgz
+
+  bench:
+    needs: source
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: sources
+      - name: Unpack
+        shell: bash
+        run: tar xzf sources.tgz && cat head-rev.txt
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Build trunk (r12471, r12472, head)
+        shell: cmd
+        continue-on-error: true
+        run: |
+          for %%n in (12471 12472 head) do (
+            mkdir build-%%n
+            pushd build-%%n
+            cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ..\src-%%n > ..\cmake-%%n.log 2>&1
+            ninja > ..\ninja-%%n.log 2>&1
+            popd
+          )
+          dir build-12471\bin\rexx.exe build-12472\bin\rexx.exe build-head\bin\rexx.exe
+      - name: Official builds (4.2.0 installer, 5.0.0 and 5.2.0 portable)
+        shell: bash
+        run: |
+          set -e
+          get() { curl -sSL --retry 3 --fail -o "$2" "https://sourceforge.net/projects/oorexx/files/oorexx/$1/download"; }
+          get 4.2.0/ooRexx-4.2.0.windows.x86_64.exe oorexx420.exe
+          get 5.0.0/portable/ooRexx-5.0.0-win64-r12583-x86_64-portable-release.zip p500.zip
+          get 5.2.0/portable/oorexx-5.2.0-13156.windows.x86_64-portable-release.zip p520.zip
+          mkdir p500 p520
+          (cd p500 && unzip -q ../p500.zip)
+          (cd p520 && unzip -q ../p520.zip)
+          ls -la p500 p520
+      - name: Install 4.2.0
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath .\oorexx420.exe -ArgumentList '/S','/D=C:\ooRexx420' -PassThru
+          if (-not $p.WaitForExit(300000)) { $p.Kill(); throw 'installer timeout' }
+          Get-ChildItem C:\ooRexx420 | Select-Object -First 20 | Format-Table Name
+      - name: Run the test
+        shell: pwsh
+        run: |
+          $ws = $env:GITHUB_WORKSPACE
+          $find = { param($dir) (Get-ChildItem -Path $dir -Recurse -Filter rexx.exe | Select-Object -First 1).FullName }
+          # 4.2.0 first: its rxapi runs as a service, which the later versions must not meet
+          $versions = [ordered]@{
+            '4.2.0'      = 'C:\ooRexx420\rexx.exe'
+            '5.0.0'      = & $find "$ws\p500"
+            '5.2.0'      = & $find "$ws\p520"
+            'r12471'     = "$ws\build-12471\bin\rexx.exe"
+            'r12472'     = "$ws\build-12472\bin\rexx.exe"
+            'head'       = "$ws\build-head\bin\rexx.exe"
+          }
+          $versions | Format-Table -AutoSize | Out-String | Write-Output
+          $data = "$ws\testdata.txt"
+          Set-Location "$ws\probes\bug-1737"
+          & $versions['5.2.0'] createTextFile.rex
+          Copy-Item testdata.txt $data
+          (Get-Item $data).Length
+          $log = "$ws\bench.log"
+          $stopRxapi = {
+            sc.exe stop RXAPI 2>&1 | Out-Null
+            Stop-Process -Name rxapi -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+          }
+          $rounds = [int]'${{ inputs.rounds }}'
+          foreach ($v in $versions.Keys) {
+            $exe = $versions[$v]
+            if (-not $exe -or -not (Test-Path $exe)) { "== ${v}: no rexx.exe" | Tee-Object -FilePath $log -Append; continue }
+            for ($i = 1; $i -le $rounds; $i++) {
+              "== $v round $i" | Tee-Object -FilePath $log -Append
+              $p = Start-Process -FilePath $exe -ArgumentList "testLinein3.rex `"$data`"" -NoNewWindow -PassThru -RedirectStandardOutput o.txt -RedirectStandardError e.txt
+              if (-not $p.WaitForExit(600000)) { $p.Kill(); 'TIMEOUT' | Tee-Object -FilePath $log -Append }
+              Get-Content o.txt, e.txt | Tee-Object -FilePath $log -Append
+            }
+            if ($v -eq '4.2.0') { & $stopRxapi } else { Stop-Process -Name rxapi -Force -ErrorAction SilentlyContinue }
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs
+          path: |
+            bench.log
+            cmake-*.log
+            ninja-*.log
+            head-rev.txt
