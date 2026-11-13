@@ -2,7 +2,7 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 ===================================================================
 --- a/ooRexx/base/keyword/CATCH.testGroup	(nonexistent)
 +++ b/ooRexx/base/keyword/CATCH.testGroup	(working copy)
-@@ -0,0 +1,901 @@
+@@ -0,0 +1,1163 @@
 +#!/usr/bin/env rexx
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
@@ -689,6 +689,260 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +::method test_variable_strict_equal
 +  self~assertSyntaxError(25.939, .array~of("do", "nop", "catch c == syntax", "end"))
 +
++-- CATCH SYNTAX number, ERROR errorcode, FAILURE failurecode, as on RAISE:
++-- the clause catches the condition only when it has that code
++::method test_code_syntax_minor
++  do
++    x = 1/0
++  catch syntax 42.3
++    r = "42.3"
++  end
++  self~assertSame("42.3", r)
++
++-- a number with no minor part catches every error with that number
++::method test_code_syntax_major
++  do
++    x = 1/0
++  catch syntax 42
++    r = condition('O')~code
++  end
++  self~assertSame("42.3", r)
++
++-- another code does not catch: the next clause, or the next block
++::method test_code_syntax_other_clause
++  do
++    x = 1/0
++  catch syntax 42.1
++    r = "42.1"
++  catch syntax 41
++    r = "41"
++  catch syntax
++    r = "any syntax"
++  end
++  self~assertSame("any syntax", r)
++
++::method test_code_syntax_outer_block
++  r = ""
++  do
++    do
++      x = 1/0
++    catch syntax 40
++      r = r "inner"
++    end
++    r = r "not here"
++  catch syntax 42
++    r = r "outer"
++  end
++  self~assertSame(" outer", r)
++
++::method test_code_syntax_not_caught
++  self~expectSyntax(42.3)
++  do
++    x = 1/0
++  catch syntax 41, syntax 42.1
++    nop
++  end
++
++-- the first clause that catches wins: the general one comes last
++::method test_code_syntax_order
++  do
++    x = 1/0
++  catch syntax
++    r = "general"
++  catch syntax 42.3
++    r = "42.3"
++  end
++  self~assertSame("general", r)
++
++::method test_code_syntax_list
++  r = ""
++  do code over .array~of("x = 1/0", "x = 'a' + 1", "call noSuchRoutineAtAll", "x = abs()")
++    do
++      interpret code
++    catch c = syntax 42.3, syntax 43
++      r = r "A"c~code
++    catch c = syntax 41, user two
++      r = r "B"c~code
++    catch c = syntax
++      r = r "C"c~code
++    end
++  end
++  self~assertSame(" A42.3 B41.1 A43.1 C40.3", r)
++
++-- the number may be a literal string
++::method test_code_syntax_literal
++  do
++    x = 1/0
++  catch syntax "42.3"
++    r = "caught"
++  end
++  self~assertSame("caught", r)
++
++-- a SIGNAL ON trap gets what the clauses of the block do not catch
++::method test_code_syntax_signal_on
++  signal on syntax name trapped
++  do
++    x = 1/0
++  catch syntax 41
++    self~fail("caught by SYNTAX 41")
++  end
++  self~fail("not trapped")
++  return
++trapped:
++  self~assertSame("42.3", condition('O')~code)
++
++-- from an internal routine and from an INTERPRET
++::method test_code_syntax_internal_routine
++  do
++    call divide
++  catch syntax 42
++    r = "caught" sigl
++  end
++  self~assertSame("caught" .line - 4, r)
++  return
++divide: return 1/0
++
++::method test_code_syntax_method
++  do
++    .CatchHelper~new~divide
++  catch syntax 93
++    r = "93"
++  catch syntax 42.3
++    r = "42.3"
++  end
++  self~assertSame("42.3", r)
++
++::method test_code_error
++  do
++    call raiseErrorRc 4
++  catch error 3
++    r = "3"
++  catch error 4
++    r = "4" rc
++  end
++  self~assertSame("4 4", r)
++
++-- the return code is compared as "=" does
++::method test_code_error_numeric
++  do
++    call raiseErrorRc "4.0"
++  catch error 04
++    r = "caught"
++  end
++  self~assertSame("caught", r)
++
++::method test_code_error_negative
++  do
++    call raiseErrorRc -1
++  catch error 1
++    r = "1"
++  catch error -1
++    r = "-1"
++  end
++  self~assertSame("-1", r)
++
++::method test_code_error_string
++  do
++    call raiseErrorRc "Not found"
++  catch error "Not found"
++    r = "caught"
++  end
++  self~assertSame("caught", r)
++
++-- not caught: an ERROR nobody traps is ignored, and the body goes on
++::method test_code_error_not_caught
++  r = ""
++  do
++    call raiseErrorRc 5
++    r = r "body"
++  catch error 4
++    r = r "caught"
++  end
++  self~assertSame(" body", r)
++
++-- a CALL ON trap gets what the clauses do not catch
++::method test_code_error_call_on
++  r = ""
++  call on error name errorHandler
++  do
++    call raiseErrorRc 5
++    r = r "body"
++  catch error 4
++    r = r "caught"
++  end
++  self~assertSame(" handler body", r)
++  return
++errorHandler:
++  r = r "handler"
++  return
++
++::method test_code_failure
++  do
++    call raiseFailureRc 127
++  catch error 127
++    r = "error"
++  catch failure 1, failure 127
++    r = "failure" rc
++  end
++  self~assertSame("failure 127", r)
++
++::method test_code_mixed
++  r = ""
++  do code over .array~of("x = 1/0", "call raiseErrorRc 2", "call raiseFailureRc 2", "call raiseUserTwo")
++    do
++      interpret code
++    catch syntax 42, error 2, user two
++      r = r condition('C')
++    catch any
++      r = r "any"
++    end
++  end
++  self~assertSame(" SYNTAX ERROR any USER TWO", r)
++
++-- a program compiled with rexxc keeps the codes
++::method test_code_compiled
++  source = .TemporaryTestFile~new(self, "catch_code.tmp.rex")~create(.array~of( -
++    "do", "  x = 1/0", "catch syntax 41", "  say 'no'", "catch syntax 42.3", "  say 'yes'", "end"))
++  compiled = .TemporaryTestFile~new(self, "catch_code.tmp.rexc")
++  address system 'rexxc "'source'" "'compiled'" -s -e'
++  self~assertSame(0, rc)
++  output = .array~new
++  theRC = issueCmd('rexx "'compiled'"', output)
++  self~assertSame(0, theRC)
++  self~assertSame("yes", output~lastItem)
++
++::method test_code_syntax_zero
++  self~assertSyntaxError(35.937, .array~of("do", "nop", "catch syntax 0", "end"))
++
++::method test_code_syntax_too_big
++  self~assertSyntaxError(35.937, .array~of("do", "nop", "catch syntax 100", "end"))
++
++::method test_code_syntax_no_minor
++  self~assertSyntaxError(35.937, .array~of("do", "nop", "catch syntax 42.", "end"))
++
++::method test_code_syntax_zero_minor
++  self~assertSyntaxError(35.937, .array~of("do", "nop", "catch syntax 42.0", "end"))
++
++::method test_code_syntax_not_a_number
++  self~assertSyntaxError(35.937, .array~of("do", "nop", "catch syntax '4x'", "end"))
++
++-- a constant, not an expression
++::method test_code_syntax_variable
++  self~assertSyntaxError(21.904, .array~of("do", "nop", "catch syntax n", "end"))
++
++::method test_code_syntax_expression
++  self~assertSyntaxError(35.1, .array~of("do", "nop", "catch syntax (42)", "end"))
++
++::method test_code_error_variable
++  self~assertSyntaxError(21.904, .array~of("do", "nop", "catch error rc", "end"))
++
++-- only SYNTAX, ERROR and FAILURE have a code
++::method test_code_other_condition
++  self~assertSyntaxError(21.904, .array~of("do", "nop", "catch notready 3", "end"))
++
++::method test_code_any
++  self~assertSyntaxError(21.904, .array~of("do", "nop", "catch any 3", "end"))
++
 +-- CATCH is still an ordinary symbol elsewhere
 +::method test_assignment
 +  catch = 1
@@ -892,6 +1146,14 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +  self~assertSame("r=["expected"]", line, output~makeString)
 +  self~assertSame(shown, output~makeString~pos("Error 42.3") > 0, output~makeString)
 +
++
++::routine raiseErrorRc
++  use arg rc
++  raise error (rc)
++
++::routine raiseFailureRc
++  use arg rc
++  raise failure (rc)
 +
 +::routine raiseUserTwo
 +  raise user two

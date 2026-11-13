@@ -49,6 +49,14 @@ Index: api/oorexxerrors.h
  #define Rexx_Error_Environment_name                                       29000
  #define Rexx_Error_Environment_name_name                                  29001
  #define Rexx_Error_Name_too_long                                          30000
+@@ -353,6 +360,7 @@
+ #define Rexx_Error_Invalid_expression_case_when_list                      35934
+ #define Rexx_Error_Invalid_expression_missing_general                     35935
+ #define Rexx_Error_Invalid_expression_missing_constant                    35936
++#define Rexx_Error_Invalid_expression_catch_syntax                        35937
+ #define Rexx_Error_Unmatched_parenthesis                                  36000
+ #define Rexx_Error_Unmatched_parenthesis_user_defined                     36900
+ #define Rexx_Error_Unmatched_parenthesis_paren                            36901
 Index: interpreter/behaviour/ClassTypeCodes.h
 ===================================================================
 --- a/interpreter/behaviour/ClassTypeCodes.h	(revision 13491)
@@ -366,7 +374,7 @@ Index: interpreter/execution/RexxActivation.cpp
 -    if (debugPause)
 +    // are we in a debug pause?  ignore any condition other than a syntax error,
 +    // unless a CATCH clause of a block typed at the pause catches it
-+    if (debugPause && !catches(condition))
++    if (debugPause && !catches(condition, exceptionObject))
      {
          if (!condition->strCompare(GlobalNames::SYNTAX))
          {
@@ -414,7 +422,7 @@ Index: interpreter/execution/RexxActivation.cpp
 +    RexxActivation *catchOwner;
 +    DoBlock *catchingBlock;
 +    RexxInstructionCatch *clause;
-+    if (findCatch(condition, catchOwner, catchingBlock, clause) &&
++    if (findCatch(condition, exceptionObject, catchOwner, catchingBlock, clause) &&
 +        (trapHandler == OREF_NULL || !enabledBelow(trapHandler, catchOwner)))
      {
 -
@@ -440,7 +448,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // if the condition is being trapped, do the CALL or SIGNAL
      if (trapHandler != OREF_NULL)
      {
-@@ -2606,6 +2686,139 @@
+@@ -2606,6 +2686,142 @@
  
  
  /**
@@ -451,13 +459,16 @@ Index: interpreter/execution/RexxActivation.cpp
 + * conditions raised there (RFE #31).
 + *
 + * @param condition The condition name.
++ * @param conditionObj
++ *                  The condition object, or OREF_NULL if there is none
++ *                  yet (the codes of the clauses are not checked then).
 + * @param owner     Returns the activation that owns the block.
 + * @param block     Returns the block.
 + * @param clause    Returns the CATCH clause.
 + *
 + * @return true if a CATCH clause catches the condition.
 + */
-+bool RexxActivation::findCatch(RexxString *condition, RexxActivation *&owner, DoBlock *&block, RexxInstructionCatch *&clause)
++bool RexxActivation::findCatch(RexxString *condition, DirectoryClass *conditionObj, RexxActivation *&owner, DoBlock *&block, RexxInstructionCatch *&clause)
 +{
 +    for (RexxActivation *activation = this; activation != OREF_NULL;
 +         activation = activation->isInternalLevelCall() ? activation->parent : OREF_NULL)
@@ -466,7 +477,7 @@ Index: interpreter/execution/RexxActivation.cpp
 +        {
 +            if (!doblock->isInCatch() && doblock->getCatches() != OREF_NULL)
 +            {
-+                RexxInstructionCatch *c = RexxInstructionCatch::findClause(doblock, condition);
++                RexxInstructionCatch *c = RexxInstructionCatch::findClause(doblock, condition, conditionObj);
 +                if (c != OREF_NULL)
 +                {
 +                    owner = activation;
@@ -523,12 +534,12 @@ Index: interpreter/execution/RexxActivation.cpp
 + *
 + * @return true if one does.
 + */
-+bool RexxActivation::catches(RexxString *condition)
++bool RexxActivation::catches(RexxString *condition, DirectoryClass *conditionObj)
 +{
 +    RexxActivation *owner;
 +    DoBlock *block;
 +    RexxInstructionCatch *clause;
-+    return findCatch(condition, owner, block, clause);
++    return findCatch(condition, conditionObj, owner, block, clause);
 +}
 +
 +
@@ -580,7 +591,7 @@ Index: interpreter/execution/RexxActivation.cpp
   * Check the activation to see if this is trapping a condition.
   * This does not process the trap, but merely indicates that
   * this activation WILL trap the condition.  This is a
-@@ -2643,8 +2856,9 @@
+@@ -2643,8 +2859,9 @@
          return false;
      }
  
@@ -592,7 +603,7 @@ Index: interpreter/execution/RexxActivation.cpp
      {
          if (!condition->strCompare(GlobalNames::SYNTAX))
          {
-@@ -2653,6 +2867,15 @@
+@@ -2653,6 +2870,17 @@
          return true;
      }
  
@@ -600,7 +611,9 @@ Index: interpreter/execution/RexxActivation.cpp
 +    RexxActivation *catchOwner;
 +    DoBlock *catchingBlock;
 +    RexxInstructionCatch *clause;
-+    if (findCatch(condition, catchOwner, catchingBlock, clause))
++    // (the codes of CATCH SYNTAX number and the like are checked by
++    // trap(), once there is a condition object)
++    if (findCatch(condition, OREF_NULL, catchOwner, catchingBlock, clause))
 +    {
 +        return true;
 +    }
@@ -608,7 +621,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // no trap table set yet?  can't handle this
      if (settings.traps == OREF_NULL)
      {
-@@ -2690,8 +2913,12 @@
+@@ -2690,8 +2918,12 @@
   */
  RexxObject* RexxActivation::handleNovalueEvent(RexxString *name, RexxObject *defaultValue, RexxVariable *variable)
  {
@@ -622,7 +635,7 @@ Index: interpreter/execution/RexxActivation.cpp
      {
          reportException(Error_Execution_unassigned_variable, name);
      }
-@@ -2711,7 +2938,7 @@
+@@ -2711,7 +2943,7 @@
          return value;
      }
      // raise novalue?
@@ -648,9 +661,9 @@ Index: interpreter/execution/RexxActivation.hpp
     RexxString      * traceSetting();
     void              iterate(RexxString *);
     void              leaveLoop(RexxString *);
-+   bool              findCatch(RexxString *condition, RexxActivation *&owner, DoBlock *&block, RexxInstructionCatch *&clause);
++   bool              findCatch(RexxString *condition, DirectoryClass *conditionObj, RexxActivation *&owner, DoBlock *&block, RexxInstructionCatch *&clause);
 +   void              processCatch();
-+   bool              catches(RexxString *condition);
++   bool              catches(RexxString *condition, DirectoryClass *conditionObj = OREF_NULL);
 +   bool              enabledBelow(TrapHandler *trap, RexxActivation *owner);
     void              trapOn(RexxString *, RexxInstructionTrapBase *, bool);
     void              trapOff(RexxString *, bool);
@@ -773,7 +786,7 @@ Index: interpreter/instructions/CatchInstruction.cpp
 ===================================================================
 --- a/interpreter/instructions/CatchInstruction.cpp	(nonexistent)
 +++ b/interpreter/instructions/CatchInstruction.cpp	(working copy)
-@@ -0,0 +1,282 @@
+@@ -0,0 +1,338 @@
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
 +/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
@@ -818,6 +831,7 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +#include "RexxCore.h"
 +#include "RexxActivation.hpp"
 +#include "ArrayClass.hpp"
++#include "DirectoryClass.hpp"
 +#include "CatchInstruction.hpp"
 +#include "DoInstruction.hpp"
 +#include "DoBlock.hpp"
@@ -830,10 +844,11 @@ Index: interpreter/instructions/CatchInstruction.cpp
 + *
 + * @param c      The array of condition names caught by this clause.
 + */
-+RexxInstructionCatch::RexxInstructionCatch(ArrayClass *c, RexxVariableBase *v)
++RexxInstructionCatch::RexxInstructionCatch(ArrayClass *c, RexxVariableBase *v, ArrayClass *q)
 +{
 +    conditions = c;
 +    variable = v;
++    codes = q;
 +}
 +
 +
@@ -851,6 +866,7 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +    memory_mark(nextCatch);
 +    memory_mark(firstCatch);
 +    memory_mark(variable);
++    memory_mark(codes);
 +}
 +
 +
@@ -870,6 +886,7 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +    memory_mark_general(nextCatch);
 +    memory_mark_general(firstCatch);
 +    memory_mark_general(variable);
++    memory_mark_general(codes);
 +}
 +
 +
@@ -888,6 +905,7 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +    flattenRef(nextCatch);
 +    flattenRef(firstCatch);
 +    flattenRef(variable);
++    flattenRef(codes);
 +
 +    cleanUpFlatten
 +}
@@ -895,21 +913,72 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +
 +/**
 + * Test if this clause catches a condition.  ANY catches every
-+ * condition, as SIGNAL ON ANY does.
++ * condition, as SIGNAL ON ANY does.  SYNTAX, ERROR and FAILURE can
++ * have a code, as on RAISE: SYNTAX 42 catches every error 42,
++ * SYNTAX 42.3 that error only; ERROR and FAILURE compare their code
++ * with the return code of the condition (RFE #31).
 + *
 + * @param condition The condition name.
++ * @param conditionObj
++ *                  The condition object, or OREF_NULL when only the
++ *                  name is known (the condition object has not
++ *                  been created yet): the codes are not looked at
++ *                  then.
 + *
 + * @return true if the clause catches the condition.
 + */
-+bool RexxInstructionCatch::handles(RexxString *condition)
++bool RexxInstructionCatch::handles(RexxString *condition, DirectoryClass *conditionObj)
 +{
 +    size_t count = conditions->items();
 +    for (size_t i = 1; i <= count; i++)
 +    {
 +        RexxString *name = (RexxString *)conditions->get(i);
-+        if (name->strCompare(condition) || name->strCompare(GlobalNames::ANY))
++        if (name->strCompare(GlobalNames::ANY))
 +        {
 +            return true;
++        }
++        if (!name->strCompare(condition))
++        {
++            continue;
++        }
++        RexxObject *code = codes == OREF_NULL ? TheNilObject : (RexxObject *)codes->get(i);
++        if (code == TheNilObject || conditionObj == OREF_NULL)
++        {
++            return true;
++        }
++        // SYNTAX: the code is major * 1000 + minor, as a message number;
++        // with no minor part, every error with that major number
++        if (name->strCompare(GlobalNames::SYNTAX))
++        {
++            wholenumber_t wanted = 0;
++            code->numberValue(wanted);
++            wholenumber_t raised = 0;
++            RexxObject *raisedCode = (RexxObject *)conditionObj->get(GlobalNames::CODE);
++            if (raisedCode != OREF_NULL)
++            {
++                // "42.3", or "42" for an error with no minor code
++                RexxString *text = raisedCode->requestString();
++                const char *data = text->getStringData();
++                const char *point = strchr(data, '.');
++                raised = strtol(data, NULL, 10) * 1000 + (point == NULL ? 0 : strtol(point + 1, NULL, 10));
++            }
++            if (wanted % 1000 == 0 ? raised / 1000 == wanted / 1000 : raised == wanted)
++            {
++                return true;
++            }
++        }
++        // ERROR and FAILURE: the return code, compared as "=" does
++        else
++        {
++            RexxObject *rc = (RexxObject *)conditionObj->get(GlobalNames::RC);
++            if (rc != OREF_NULL)
++            {
++                RexxString *text = rc->requestString();
++                if (text != TheNilObject && text->comp(code) == 0)
++                {
++                    return true;
++                }
++            }
 +        }
 +    }
 +    return false;
@@ -927,12 +996,12 @@ Index: interpreter/instructions/CatchInstruction.cpp
 + * @return The clause, or OREF_NULL if the block has no clause for
 + *         the condition (or no CATCH clauses at all).
 + */
-+RexxInstructionCatch *RexxInstructionCatch::findClause(DoBlock *doblock, RexxString *condition)
++RexxInstructionCatch *RexxInstructionCatch::findClause(DoBlock *doblock, RexxString *condition, DirectoryClass *conditionObj)
 +{
 +    RexxInstructionCatch *clause = doblock->getCatches();
 +    while (clause != OREF_NULL)
 +    {
-+        if (clause->handles(condition))
++        if (clause->handles(condition, conditionObj))
 +        {
 +            return clause;
 +        }
@@ -1067,7 +1136,7 @@ Index: interpreter/instructions/CatchInstruction.hpp
 ===================================================================
 --- a/interpreter/instructions/CatchInstruction.hpp	(nonexistent)
 +++ b/interpreter/instructions/CatchInstruction.hpp	(working copy)
-@@ -0,0 +1,95 @@
+@@ -0,0 +1,96 @@
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
 +/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
@@ -1129,7 +1198,7 @@ Index: interpreter/instructions/CatchInstruction.hpp
 +{
 + public:
 +    inline RexxInstructionCatch(RESTORETYPE restoreType) { ; };
-+    RexxInstructionCatch(ArrayClass *c, RexxVariableBase *v = OREF_NULL);
++    RexxInstructionCatch(ArrayClass *c, RexxVariableBase *v = OREF_NULL, ArrayClass *q = OREF_NULL);
 +
 +    void live(size_t) override;
 +    void liveGeneral(MarkReason reason) override;
@@ -1139,9 +1208,9 @@ Index: interpreter/instructions/CatchInstruction.hpp
 +    bool isBlock() override { return true; }
 +    void execute(RexxActivation *, ExpressionStack *) override;
 +
-+    bool handles(RexxString *condition);
++    bool handles(RexxString *condition, DirectoryClass *conditionObj);
 +    void assignCondition(RexxActivation *context, DirectoryClass *conditionObj);
-+    static RexxInstructionCatch *findClause(DoBlock *doblock, RexxString *condition);
++    static RexxInstructionCatch *findClause(DoBlock *doblock, RexxString *condition, DirectoryClass *conditionObj);
 +    static RexxInstructionCatch *firstClause(RexxBlockInstruction *block);
 +    static bool hasCatches(RexxBlockInstruction *block);
 +
@@ -1161,6 +1230,7 @@ Index: interpreter/instructions/CatchInstruction.hpp
 +    RexxInstructionCatch *firstCatch;  // the first CATCH clause of the same block
 +    EndBlockType          ownerStyle;  // the END style the block would have without CATCH
 +    RexxVariableBase     *variable;    // CATCH variable = ...: gets the condition object
++    ArrayClass           *codes;       // CATCH SYNTAX number, ERROR code, FAILURE code: one per condition (.nil if none), or null
 +};
 +#endif
 
@@ -1389,6 +1459,14 @@ Index: interpreter/messages/RexxErrorCodes.h
  Error_Environment_name                                       = 29000,
  Error_Environment_name_name                                  = 29001,
  Error_Name_too_long                                          = 30000,
+@@ -355,6 +362,7 @@
+ Error_Invalid_expression_case_when_list                      = 35934,
+ Error_Invalid_expression_missing_general                     = 35935,
+ Error_Invalid_expression_missing_constant                    = 35936,
++Error_Invalid_expression_catch_syntax                        = 35937,
+ Error_Unmatched_parenthesis                                  = 36000,
+ Error_Unmatched_parenthesis_user_defined                     = 36900,
+ Error_Unmatched_parenthesis_paren                            = 36901,
 Index: interpreter/messages/RexxErrorMessages.h
 ===================================================================
 --- a/interpreter/messages/RexxErrorMessages.h	(revision 13491)
@@ -1428,11 +1506,19 @@ Index: interpreter/messages/RexxErrorMessages.h
      MESSAGE(Error_Environment_name, "Environment name too long.")
      MESSAGE(Error_Environment_name_name, "Environment name exceeds &1 characters; found \"&2\".")
      MESSAGE(Error_Name_too_long, "Name or symbol too long.")
+@@ -357,6 +364,7 @@
+     MESSAGE(Error_Invalid_expression_case_when_list, "Missing expression in WHEN case expression list.")
+     MESSAGE(Error_Invalid_expression_missing_general, "Missing expression following &1 keyword of a &2 instruction.")
+     MESSAGE(Error_Invalid_expression_missing_constant, "Missing expression on ::CONSTANT directive.")
++    MESSAGE(Error_Invalid_expression_catch_syntax, "Incorrect error number following SYNTAX keyword of CATCH clause; found \"&1\".")
+     MESSAGE(Error_Unmatched_parenthesis, "Unmatched \"(\" or \"[\" in expression.")
+     MESSAGE(Error_Unmatched_parenthesis_user_defined, "&1.")
+     MESSAGE(Error_Unmatched_parenthesis_paren, "Left parenthesis \"(\" in position &1 on line &2 requires a corresponding right parenthesis \")\".")
 Index: interpreter/messages/RexxMessageNumbers.h
 ===================================================================
 --- a/interpreter/messages/RexxMessageNumbers.h	(revision 13491)
 +++ b/interpreter/messages/RexxMessageNumbers.h	(working copy)
-@@ -763,6 +763,13 @@
+@@ -763,6 +763,14 @@
  #define Error_Invalid_subkeyword_options_form_msg                    843
  #define Error_Variable_reference_use_default_msg                     844
  #define Error_Incorrect_call_error_code_msg                          845
@@ -1443,6 +1529,7 @@ Index: interpreter/messages/RexxMessageNumbers.h
 +#define Error_Invalid_leave_iterate_catch_msg                        850
 +#define Error_Unexpected_end_catch_then_msg                          851
 +#define Error_Unexpected_end_catch_else_msg                          852
++#define Error_Invalid_expression_catch_syntax_msg                    853
  
  
  #endif
@@ -1485,6 +1572,14 @@ Index: interpreter/messages/RexxMessageTable.h
    MAJOR(Error_Environment_name)
        MINOR(Error_Environment_name_name)
    MAJOR(Error_Name_too_long)
+@@ -356,6 +363,7 @@
+       MINOR(Error_Invalid_expression_case_when_list)
+       MINOR(Error_Invalid_expression_missing_general)
+       MINOR(Error_Invalid_expression_missing_constant)
++      MINOR(Error_Invalid_expression_catch_syntax)
+   MAJOR(Error_Unmatched_parenthesis)
+       MINOR(Error_Unmatched_parenthesis_user_defined)
+       MINOR(Error_Unmatched_parenthesis_paren)
 Index: interpreter/messages/errnums.xml
 ===================================================================
 --- a/interpreter/messages/errnums.xml	(revision 13491)
@@ -1559,6 +1654,19 @@ Index: interpreter/messages/errnums.xml
  </variablelist>
  </section>
  <section id="ERR29">
+@@ -2076,6 +2118,12 @@
+ <para>Missing expression on ::CONSTANT directive.</para>
+ </listitem>
+ </varlistentry>
++<varlistentry>
++<term>937</term>
++<listitem>
++<para>Incorrect error number following SYNTAX keyword of CATCH clause; found "<emphasis role="italic">value</emphasis>".</para>
++</listitem>
++</varlistentry>
+ </variablelist>
+ </section>
+ <section id="ERR36">
 Index: interpreter/messages/rexxmsg.xml
 ===================================================================
 --- a/interpreter/messages/rexxmsg.xml	(revision 13491)
@@ -1654,6 +1762,22 @@ Index: interpreter/messages/rexxmsg.xml
      </Subcodes>
    </Message>
    <Message>
+@@ -2943,6 +3006,15 @@
+         <SymbolicName>Error_Invalid_expression_missing_constant</SymbolicName>
+         <Text>Missing expression on ::CONSTANT directive.</Text>
+       </SubMessage>
++      <SubMessage>
++        <Code>35</Code>
++        <Subcode>937</Subcode>
++        <MessageNumber>853</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Invalid_expression_catch_syntax</SymbolicName>
++        <Text>Incorrect error number following SYNTAX keyword of CATCH clause; found <q><Sub position="1" name="value"/></q>.</Text>
++      </SubMessage>
+     </Subcodes>
+   </Message>
+   <Message>
 Index: interpreter/parser/InstructionParser.cpp
 ===================================================================
 --- a/interpreter/parser/InstructionParser.cpp	(revision 13491)
@@ -1678,13 +1802,16 @@ Index: interpreter/parser/InstructionParser.cpp
                  // ELSE instruction...possibly unexpected.
              case KEYWORD_ELSE:
                  return elseNew(first);
-@@ -3083,6 +3089,93 @@
+@@ -3083,6 +3089,157 @@
  
  
  /**
 + * Parse a CATCH clause of a DO, LOOP or SELECT (RFE #31):
 + * CATCH [variable =] condition [, condition]...
 + * The variable gets the condition object when the clause runs.
++ * As on RAISE, SYNTAX can be followed by an error number, and ERROR
++ * and FAILURE by a return code; here they are constants (a literal
++ * string or a constant symbol, with an optional sign).
 + *
 + * @return An executable CATCH instruction object.
 + */
@@ -1722,6 +1849,9 @@ Index: interpreter/parser/InstructionParser.cpp
 +
 +    // a list of conditions, separated by commas
 +    Protected<ArrayClass> conditions = new_array();
++    // the code of each condition, or .nil
++    Protected<ArrayClass> codes = new_array();
++    bool hasCodes = false;
 +    for (;;)
 +    {
 +        RexxToken *token = nextReal();
@@ -1752,6 +1882,64 @@ Index: interpreter/parser/InstructionParser.cpp
 +        conditions->append(conditionName);
 +
 +        token = nextReal();
++        RexxObject *code = TheNilObject;
++        // SYNTAX number, ERROR errorcode, FAILURE failurecode
++        if ((condType == CONDITION_SYNTAX || condType == CONDITION_ERROR || condType == CONDITION_FAILURE) &&
++            !token->isEndOfClause() && !token->isComma())
++        {
++            // a sign is part of the constant
++            bool negative = false;
++            if (condType != CONDITION_SYNTAX && (token->isOperator(OPERATOR_SUBTRACT) || token->isOperator(OPERATOR_PLUS)))
++            {
++                negative = token->isOperator(OPERATOR_SUBTRACT);
++                token = nextToken();
++            }
++            if (!token->isLiteral() && !token->isConstant())
++            {
++                // a variable is not a code (and a missing comma is the
++                // likeliest reason for a condition name here)
++                syntaxError(token->isSymbol() ? Error_Invalid_data_condition : Error_Invalid_expression_general, token);
++            }
++            RexxString *text = token->value();
++            if (condType == CONDITION_SYNTAX)
++            {
++                // major, or major.minor: kept as major * 1000 + minor
++                const char *data = text->getStringData();
++                size_t length = text->getLength();
++                wholenumber_t major = 0;
++                wholenumber_t minor = 0;
++                size_t i = 0;
++                size_t digits = 0;
++                for (; i < length && data[i] >= '0' && data[i] <= '9' && digits < 3; i++, digits++)
++                {
++                    major = major * 10 + (data[i] - '0');
++                }
++                bool valid = digits > 0 && major >= 1 && major <= 99;
++                if (valid && i < length)
++                {
++                    valid = data[i++] == '.';
++                    digits = 0;
++                    for (; i < length && data[i] >= '0' && data[i] <= '9' && digits < 4; i++, digits++)
++                    {
++                        minor = minor * 10 + (data[i] - '0');
++                    }
++                    valid = valid && digits > 0 && i == length && minor >= 1 && minor <= 999;
++                }
++                if (!valid)
++                {
++                    syntaxError(Error_Invalid_expression_catch_syntax, token);
++                }
++                code = new_integer(major * 1000 + minor);
++            }
++            else
++            {
++                code = negative ? text->concatToCstring("-") : text;
++            }
++            hasCodes = true;
++            token = nextReal();
++        }
++        codes->append(code);
++
 +        if (token->isEndOfClause())
 +        {
 +            break;
@@ -1763,7 +1951,7 @@ Index: interpreter/parser/InstructionParser.cpp
 +    }
 +
 +    RexxInstruction *newObject = new_instruction(CATCH, Catch);
-+    ::new ((void *)newObject) RexxInstructionCatch(conditions, variable);
++    ::new ((void *)newObject) RexxInstructionCatch(conditions, variable, hasCodes ? (ArrayClass *)codes : OREF_NULL);
 +    return newObject;
 +}
 +
