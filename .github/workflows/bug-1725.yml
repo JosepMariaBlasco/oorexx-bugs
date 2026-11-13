@@ -1,0 +1,41 @@
+# Bug #1725: SysFileTree lists the current directory for a drive that does not exist, on
+# Windows.  Runs tests/bug-1725 with the newest portable build.
+name: bug-1725
+
+on:
+  workflow_dispatch:
+    inputs:
+      folder:
+        description: SourceForge folder with the portable builds
+        default: oorexx/5.3.0beta
+
+jobs:
+  tree:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Portable ooRexx
+        shell: bash
+        run: |
+          set -e
+          list() {
+            curl -sSL --retry 3 --fail "https://sourceforge.net/projects/oorexx/rss?path=/${{ inputs.folder }}" \
+            || curl -sSL --retry 3 --fail "https://sourceforge.net/projects/oorexx/files/${{ inputs.folder }}/"
+          }
+          link=$(list | grep -o "https://sourceforge.net/projects/oorexx/files/[^<>\" ]*windows.x86_64-portable-release.zip/download" \
+                 | awk -F/ '{print $(NF-1), $0}' | sort -uV | tail -1 | cut -d' ' -f2)
+          echo "portable: $link"
+          test -n "$link"
+          curl -sSL --retry 3 --fail -o portable.zip "$link"
+          mkdir pt && (cd pt && unzip -q ../portable.zip)
+          home=$(dirname "$(dirname "$(find pt -path '*/bin/rexx.exe' -type f | head -1)")")
+          echo "OOBIN=$(cygpath -w "$(cd "$home/bin" && pwd)")" >> "$GITHUB_ENV"
+      - name: Run
+        shell: cmd
+        run: |
+          "%OOBIN%\rexx.exe" tests\bug-1725\tree.rex > results.txt 2>&1
+          type results.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bug-1725
+          path: results.txt
