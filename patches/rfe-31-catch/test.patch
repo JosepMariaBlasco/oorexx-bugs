@@ -2,7 +2,7 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 ===================================================================
 --- a/ooRexx/base/keyword/CATCH.testGroup	(nonexistent)
 +++ b/ooRexx/base/keyword/CATCH.testGroup	(working copy)
-@@ -0,0 +1,1163 @@
+@@ -0,0 +1,1413 @@
 +#!/usr/bin/env rexx
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
@@ -544,6 +544,72 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +    "::options notready syntax")
 +  self~assertEquals('notready 98.974', .routine~new('t', src)~call)
 +
++-- ::OPTIONS ERROR SYNTAX and FAILURE SYNTAX: CATCH ERROR / FAILURE wins, as
++-- SIGNAL ON does, and the option applies after the block
++::method test_options_error_syntax
++  src = .array~of( -
++    "do", -
++    "  'exit 3'", -
++    "catch error", -
++    "  out = 'error' rc", -
++    "end", -
++    "signal on syntax", -
++    "'exit 3'", -
++    "return out 'no syntax'", -
++    "syntax: return out condition('O')~code", -
++    "::options error syntax")
++  self~assertEquals('error 3 98.970', .routine~new('t', src)~call)
++
++::method test_options_failure_syntax
++  src = .array~of( -
++    "do", -
++    "  address nonexistent.environment 'x'", -
++    "catch failure", -
++    "  out = condition('C')", -
++    "end", -
++    "signal on syntax", -
++    "address nonexistent.environment 'x'", -
++    "return out 'no syntax'", -
++    "syntax: return out condition('O')~code", -
++    "::options failure syntax")
++  self~assertEquals('FAILURE 98.971', .routine~new('t', src)~call)
++
++-- with a code, the option still applies when the code does not match
++::method test_options_error_syntax_code
++  src = .array~of( -
++    "do", -
++    "  'exit 3'", -
++    "catch error 4", -
++    "  return 'error 4'", -
++    "catch syntax", -
++    "  return condition('O')~code", -
++    "end", -
++    "::options error syntax")
++  self~assertEquals('98.970', .routine~new('t', src)~call)
++
++-- an untrapped FAILURE becomes ERROR, which CATCH ERROR gets under ERROR SYNTAX
++-- (the return code for an unknown environment is not the same everywhere)
++::method test_options_error_syntax_failure
++  src = .array~of( -
++    "do", -
++    "  address nonexistent.environment 'x'", -
++    "catch error", -
++    "  return condition('C')", -
++    "end", -
++    "::options error syntax")
++  self~assertEquals('ERROR', .routine~new('t', src)~call)
++
++-- ANY counts too
++::method test_options_error_syntax_any
++  src = .array~of( -
++    "do", -
++    "  'exit 3'", -
++    "catch any", -
++    "  return condition('C') rc", -
++    "end", -
++    "::options error syntax")
++  self~assertEquals('ERROR 3', .routine~new('t', src)~call)
++
 +-- compiled programs keep the clauses (rexxc, encoded)
 +::method test_compiled
 +  src = .array~of( -
@@ -823,13 +889,146 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +  self~assertSame("4 4", r)
 +
 +-- the return code is compared as "=" does
++-- the code is compared with RC as "==" does: 4.0 is not 4
 +::method test_code_error_numeric
 +  do
 +    call raiseErrorRc "4.0"
 +  catch error 04
++    r = "04"
++  catch error 4
++    r = "4"
++  catch error 4.0
++    r = "4.0"
++  end
++  self~assertSame("4.0", r)
++
++-- a simple variable as the code, read when the condition is raised
++::method test_code_error_variable_value
++  code = 4
++  do
++    code = 5
++    call raiseErrorRc 5
++  catch error code
 +    r = "caught"
 +  end
 +  self~assertSame("caught", r)
++
++-- the variable of the block's activation, not the routine's
++::method test_code_error_variable_routine
++  code = 7
++  do
++    call codeSeven
++  catch error code
++    r = "caught"
++  end
++  self~assertSame("caught", r)
++  return
++codeSeven: procedure
++  code = 1
++  call raiseErrorRc 7
++  return
++
++-- a variable with no value matches nothing, and NOVALUE is not raised
++::method test_code_error_variable_unset
++  drop code
++  do
++    do
++      call raiseErrorRc 4
++    catch error code
++      r = "code"
++    catch novalue
++      r = "novalue"
++    catch error
++      r = "error"
++    end
++  catch novalue
++    r = "outer novalue"
++  end
++  self~assertSame("error", r)
++
++-- RC can be any object: a variable holding it matches it (identity)
++::method test_code_error_object
++  obj = .object~new
++  do
++    call raiseErrorRc obj
++  catch error 3
++    r = "3"
++  catch error obj
++    r = "obj"
++  end
++  self~assertSame("obj", r)
++
++::method test_code_error_other_object
++  obj = .object~new
++  do
++    call raiseErrorRc .object~new
++  catch error obj
++    r = "obj"
++  catch error
++    r = "error"
++  end
++  self~assertSame("error", r)
++
++-- a string code and an object RC do not match, and no string value is
++-- asked for: NOSTRING is not raised
++::method test_code_error_object_no_nostring
++  do
++    do
++      call raiseErrorRc .object~new
++    catch nostring
++      r = "nostring"
++    catch error 3
++      r = "3"
++    catch error
++      r = "error"
++    end
++  catch nostring
++    r = "outer nostring"
++  end
++  self~assertSame("error", r)
++
++-- not even an object with a string method that returns the code
++::method test_code_error_object_string_method
++  do
++    call raiseErrorRc .catchThree~new
++  catch error 3
++    r = "3"
++  catch error
++    r = "error"
++  end
++  self~assertSame("error", r)
++
++-- the == of the class of the code is used for two objects
++::method test_code_error_object_equality
++  a = .catchAlways~new
++  do
++    call raiseErrorRc .object~new
++  catch error a
++    r = "a"
++  end
++  self~assertSame("a", r)
++
++-- the same through a command handler written in Rexx
++::method test_code_error_command_handler
++  .CommandHandler~register("CATCHTEST", .catchHandler~new)
++  obj = .object~new
++  .local~catch.testGroup.obj = obj
++  address catchtest
++  do
++    do
++      "object"
++    catch nostring
++      r = "nostring"
++    catch error 3
++      r = "3"
++    catch error obj
++      r = "obj"
++    end
++  catch nostring
++    r = "outer nostring"
++  end
++  .CommandHandler~deregister("CATCHTEST")
++  self~assertSame("obj", r)
 +
 +::method test_code_error_negative
 +  do
@@ -933,8 +1132,41 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +::method test_code_syntax_expression
 +  self~assertSyntaxError(35.1, .array~of("do", "nop", "catch syntax (42)", "end"))
 +
-+::method test_code_error_variable
-+  self~assertSyntaxError(21.904, .array~of("do", "nop", "catch error rc", "end"))
++-- ERROR and FAILURE: a signed number, a literal, or a simple variable
++::method test_code_error_sign_literal
++  self~assertSyntaxError(35.1, .array~of("do", "nop", "catch error -'1'", "end"))
++
++::method test_code_error_sign_variable
++  self~assertSyntaxError(35.1, .array~of("do", "nop", "catch error -x", "end"))
++
++::method test_code_error_environment_symbol
++  self~assertSyntaxError(35.1, .array~of("do", "nop", "catch error .nil", "end"))
++
++::method test_code_error_compound
++  self~assertSyntaxError(35.1, .array~of("do", "nop", "catch error a.b", "end"))
++
++::method test_code_error_stem
++  self~assertSyntaxError(35.1, .array~of("do", "nop", "catch failure a.", "end"))
++
++::method test_code_error_constant_symbol
++  self~assertSyntaxError(35.1, .array~of("do", "nop", "catch error 4abc", "end"))
++
++::method test_code_error_expression
++  self~assertSyntaxError(35.1, .array~of("do", "nop", "catch error (rc)", "end"))
++
++-- a missing comma after ERROR makes a variable code: NOTREADY is not caught
++::method test_code_error_missing_comma
++  do
++    do
++      call stream 'nonexistent.file.CATCH.testGroup', 'C', 'OPEN READ'
++      x = linein('nonexistent.file.CATCH.testGroup')
++    catch error notready
++      r = "inner"
++    end
++  catch notready
++    r = "outer"
++  end
++  self~assertSame("outer", r)
 +
 +-- only SYNTAX, ERROR and FAILURE have a code
 +::method test_code_other_condition
@@ -1133,8 +1365,12 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +    "say 'r=['r']'", -
 +    "exit", -
 +    "pauseFails: return 1/0")
-+  program = .TemporaryTestFile~new(self, "catch_trace_pause.tmp.rex")~create(source)
-+  input = .TemporaryTestFile~new(self, "catch_trace_pause.tmp.txt")~create(.array~of(typed, "trace off"))
++  -- a name of its own for each test: a TemporaryTestFile deletes its file
++  -- when it is collected, which can happen after the next test has created
++  -- one with the same name
++  name = "catch_" || self~getName~lower
++  program = .TemporaryTestFile~new(self, name".tmp.rex")~create(source)
++  input = .TemporaryTestFile~new(self, name".tmp.txt")~create(.array~of(typed, "trace off"))
 +  output = .array~new
 +  theRC = issueCmd("rexx" program~quotedName "<" input~quotedName "2>&1", output)
 +  self~assertSame(0, theRC, "rexx ended with rc" theRC":" output~makeString)
@@ -1160,6 +1396,20 @@ Index: ooRexx/base/keyword/CATCH.testGroup
 +
 +::routine raiseUserU5
 +  raise user u5
++
++::class catchThree
++::method string
++  return "3"
++
++::class catchAlways
++::method "=="
++  return .true
++
++::class catchHandler subclass CommandHandler
++::method command
++  use arg command, context
++  context~raiseError(.catch.testGroup.obj)
++  return .catch.testGroup.obj
 +
 +::class CatchHelper
 +::method divide

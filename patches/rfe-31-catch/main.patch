@@ -477,7 +477,7 @@ Index: interpreter/execution/RexxActivation.cpp
 +        {
 +            if (!doblock->isInCatch() && doblock->getCatches() != OREF_NULL)
 +            {
-+                RexxInstructionCatch *c = RexxInstructionCatch::findClause(doblock, condition, conditionObj);
++                RexxInstructionCatch *c = RexxInstructionCatch::findClause(doblock, condition, conditionObj, activation);
 +                if (c != OREF_NULL)
 +                {
 +                    owner = activation;
@@ -644,6 +644,38 @@ Index: interpreter/execution/RexxActivation.cpp
      {
          reportNovalue(name);
      }
+@@ -4598,8 +4830,11 @@
+         // these are also not raised if it's a debug pause.
+         if (conditionObj != OREF_NULL)
+         {
+-            // first check for an ::OPTIONS FAILURE SYNTAX override
+-            if (failureCondition && isFailureSyntaxEnabled())
++            // first check for an ::OPTIONS FAILURE SYNTAX override (an
++            // active CATCH clause for the condition wins over the option, as
++            // a trap does, and the option applies again once the block has
++            // ended; RFE #31)
++            if (failureCondition && isFailureSyntaxEnabled() && !catches(GlobalNames::FAILURE, conditionObj))
+             {
+                 // we could rework our condition object, but it's easier
+                 // to just raise a SYNTAX exception
+@@ -4609,7 +4844,7 @@
+             }
+             // next we check for an ::OPTIONS ERROR SYNTAX override (a handler
+             // can raise any condition; this applies to ERROR only)
+-            if (errorCondition && isErrorSyntaxEnabled())
++            if (errorCondition && isErrorSyntaxEnabled() && !catches(GlobalNames::ERRORNAME, conditionObj))
+             {
+                 // just raise a SYNTAX exception
+                 reportException(Error_Execution_error_syntax,
+@@ -4626,7 +4861,7 @@
+                 if (failureCondition)
+                 {
+                     // again, first check for an ::OPTIONS ERROR SYNTAX override
+-                    if (isErrorSyntaxEnabled())
++                    if (isErrorSyntaxEnabled() && !catches(GlobalNames::ERRORNAME, conditionObj))
+                     {
+                         // if so, just raise a SYNTAX exception
+                         reportException(Error_Execution_error_syntax,
 Index: interpreter/execution/RexxActivation.hpp
 ===================================================================
 --- a/interpreter/execution/RexxActivation.hpp	(revision 13491)
@@ -786,7 +818,7 @@ Index: interpreter/instructions/CatchInstruction.cpp
 ===================================================================
 --- a/interpreter/instructions/CatchInstruction.cpp	(nonexistent)
 +++ b/interpreter/instructions/CatchInstruction.cpp	(working copy)
-@@ -0,0 +1,338 @@
+@@ -0,0 +1,385 @@
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
 +/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
@@ -916,7 +948,7 @@ Index: interpreter/instructions/CatchInstruction.cpp
 + * condition, as SIGNAL ON ANY does.  SYNTAX, ERROR and FAILURE can
 + * have a code, as on RAISE: SYNTAX 42 catches every error 42,
 + * SYNTAX 42.3 that error only; ERROR and FAILURE compare their code
-+ * with the return code of the condition (RFE #31).
++ * with the return code of the condition, as "==" does (RFE #31).
 + *
 + * @param condition The condition name.
 + * @param conditionObj
@@ -924,10 +956,12 @@ Index: interpreter/instructions/CatchInstruction.cpp
 + *                  name is known (the condition object has not
 + *                  been created yet): the codes are not looked at
 + *                  then.
++ * @param context   The activation that owns the block, where a
++ *                  variable used as a code is read.
 + *
 + * @return true if the clause catches the condition.
 + */
-+bool RexxInstructionCatch::handles(RexxString *condition, DirectoryClass *conditionObj)
++bool RexxInstructionCatch::handles(RexxString *condition, DirectoryClass *conditionObj, RexxActivation *context)
 +{
 +    size_t count = conditions->items();
 +    for (size_t i = 1; i <= count; i++)
@@ -971,17 +1005,60 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +        else
 +        {
 +            RexxObject *rc = (RexxObject *)conditionObj->get(GlobalNames::RC);
-+            if (rc != OREF_NULL)
++            if (rc != OREF_NULL && sameCode(code, rc, context))
 +            {
-+                RexxString *text = rc->requestString();
-+                if (text != TheNilObject && text->comp(code) == 0)
-+                {
-+                    return true;
-+                }
++                return true;
 +            }
 +        }
 +    }
 +    return false;
++}
++
++
++/**
++ * Compare the code of an ERROR or FAILURE clause with the return code
++ * of a condition, as "==" does, without running any method when one
++ * of them is a string: a command handler can return any object as
++ * its return code, and asking it for a string value could raise
++ * NOSTRING in the middle of the search for a clause (RFE #31).
++ *
++ * @param code    The code: a string, or a simple variable.
++ * @param rc      The return code of the condition.
++ * @param context The activation that owns the block.
++ *
++ * @return true if they match.
++ */
++bool RexxInstructionCatch::sameCode(RexxObject *code, RexxObject *rc, RexxActivation *context)
++{
++    // a simple variable is read now, in the activation of the block; with
++    // no value it matches nothing, and NOVALUE is not raised
++    if (isOfClass(VariableTerm, code))
++    {
++        code = ((RexxVariableBase *)code)->getRealValue(context);
++        if (code == OREF_NULL)
++        {
++            return false;
++        }
++    }
++    bool codeIsString = isString(code) || isInteger(code) || isNumberString(code);
++    bool rcIsString = isString(rc) || isInteger(rc) || isNumberString(rc);
++    // two strings (or numbers): compared as strings, as "==" does
++    if (codeIsString && rcIsString)
++    {
++        RexxString *a = code->stringValue();
++        RexxString *b = rc->stringValue();
++        return a->getLength() == b->getLength() && memcmp(a->getStringData(), b->getStringData(), a->getLength()) == 0;
++    }
++    // a string and another object never match
++    if (codeIsString || rcIsString)
++    {
++        return false;
++    }
++    // two objects: the "==" message, which is identity unless the class
++    // of the code redefines it
++    ProtectedObject result;
++    code->sendMessage(GlobalNames::STRICT_EQUAL, rc, result);
++    return result == TheTrueObject;
 +}
 +
 +
@@ -992,16 +1069,18 @@ Index: interpreter/instructions/CatchInstruction.cpp
 + *
 + * @param doblock   The block.
 + * @param condition The condition name.
++ * @param conditionObj The condition object, or OREF_NULL.
++ * @param context   The activation that owns the block.
 + *
 + * @return The clause, or OREF_NULL if the block has no clause for
 + *         the condition (or no CATCH clauses at all).
 + */
-+RexxInstructionCatch *RexxInstructionCatch::findClause(DoBlock *doblock, RexxString *condition, DirectoryClass *conditionObj)
++RexxInstructionCatch *RexxInstructionCatch::findClause(DoBlock *doblock, RexxString *condition, DirectoryClass *conditionObj, RexxActivation *context)
 +{
 +    RexxInstructionCatch *clause = doblock->getCatches();
 +    while (clause != OREF_NULL)
 +    {
-+        if (clause->handles(condition, conditionObj))
++        if (clause->handles(condition, conditionObj, context))
 +        {
 +            return clause;
 +        }
@@ -1136,7 +1215,7 @@ Index: interpreter/instructions/CatchInstruction.hpp
 ===================================================================
 --- a/interpreter/instructions/CatchInstruction.hpp	(nonexistent)
 +++ b/interpreter/instructions/CatchInstruction.hpp	(working copy)
-@@ -0,0 +1,96 @@
+@@ -0,0 +1,97 @@
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
 +/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
@@ -1208,9 +1287,10 @@ Index: interpreter/instructions/CatchInstruction.hpp
 +    bool isBlock() override { return true; }
 +    void execute(RexxActivation *, ExpressionStack *) override;
 +
-+    bool handles(RexxString *condition, DirectoryClass *conditionObj);
++    bool handles(RexxString *condition, DirectoryClass *conditionObj, RexxActivation *context);
++    static bool sameCode(RexxObject *code, RexxObject *rc, RexxActivation *context);
 +    void assignCondition(RexxActivation *context, DirectoryClass *conditionObj);
-+    static RexxInstructionCatch *findClause(DoBlock *doblock, RexxString *condition, DirectoryClass *conditionObj);
++    static RexxInstructionCatch *findClause(DoBlock *doblock, RexxString *condition, DirectoryClass *conditionObj, RexxActivation *context);
 +    static RexxInstructionCatch *firstClause(RexxBlockInstruction *block);
 +    static bool hasCatches(RexxBlockInstruction *block);
 +
@@ -1802,7 +1882,7 @@ Index: interpreter/parser/InstructionParser.cpp
                  // ELSE instruction...possibly unexpected.
              case KEYWORD_ELSE:
                  return elseNew(first);
-@@ -3083,6 +3089,157 @@
+@@ -3083,6 +3089,177 @@
  
  
  /**
@@ -1887,22 +1967,15 @@ Index: interpreter/parser/InstructionParser.cpp
 +        if ((condType == CONDITION_SYNTAX || condType == CONDITION_ERROR || condType == CONDITION_FAILURE) &&
 +            !token->isEndOfClause() && !token->isComma())
 +        {
-+            // a sign is part of the constant
-+            bool negative = false;
-+            if (condType != CONDITION_SYNTAX && (token->isOperator(OPERATOR_SUBTRACT) || token->isOperator(OPERATOR_PLUS)))
-+            {
-+                negative = token->isOperator(OPERATOR_SUBTRACT);
-+                token = nextToken();
-+            }
-+            if (!token->isLiteral() && !token->isConstant())
-+            {
-+                // a variable is not a code (and a missing comma is the
-+                // likeliest reason for a condition name here)
-+                syntaxError(token->isSymbol() ? Error_Invalid_data_condition : Error_Invalid_expression_general, token);
-+            }
-+            RexxString *text = token->value();
 +            if (condType == CONDITION_SYNTAX)
 +            {
++                if (!token->isLiteral() && !token->isConstant())
++                {
++                    // a variable is not an error number (and a missing comma
++                    // is the likeliest reason for a condition name here)
++                    syntaxError(token->isSymbol() ? Error_Invalid_data_condition : Error_Invalid_expression_general, token);
++                }
++                RexxString *text = token->value();
 +                // major, or major.minor: kept as major * 1000 + minor
 +                const char *data = text->getStringData();
 +                size_t length = text->getLength();
@@ -1931,9 +2004,36 @@ Index: interpreter/parser/InstructionParser.cpp
 +                }
 +                code = new_integer(major * 1000 + minor);
 +            }
++            // ERROR and FAILURE: a number, optionally signed (as on
++            // ::CONSTANT), a literal string, or a simple variable, which is
++            // read when the clause is tested.  Nothing is evaluated.
++            else if (token->isOperator(OPERATOR_SUBTRACT) || token->isOperator(OPERATOR_PLUS))
++            {
++                bool negative = token->isOperator(OPERATOR_SUBTRACT);
++                token = nextToken();
++                if (!token->isSymbol() || !token->isSubtype(SYMBOL_CONSTANT) || token->value()->numberString() == OREF_NULL)
++                {
++                    syntaxError(Error_Invalid_expression_general, token);
++                }
++                code = negative ? token->value()->concatToCstring("-") : token->value();
++            }
++            else if (token->isLiteral())
++            {
++                code = token->value();
++            }
++            else if (token->isSymbol() && token->isSubtype(SYMBOL_CONSTANT) && token->value()->numberString() != OREF_NULL)
++            {
++                code = token->value();
++            }
++            else if (token->isSymbol() && token->isSubtype(SYMBOL_VARIABLE))
++            {
++                code = (RexxObject *)addVariable(token);
++            }
 +            else
 +            {
-+                code = negative ? text->concatToCstring("-") : text;
++                // a stem, a compound variable, an environment symbol, a
++                // constant symbol that is not a number, or not a symbol
++                syntaxError(Error_Invalid_expression_general, token);
 +            }
 +            hasCodes = true;
 +            token = nextReal();
