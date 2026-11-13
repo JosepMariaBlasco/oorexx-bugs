@@ -1,3 +1,55 @@
+--- a/platform/windows/install/NSIS.template.in
++++ b/platform/windows/install/NSIS.template.in
+@@ -1949,7 +1949,7 @@
+ 
+   StrCpy $CheckRxApiLock 'false'
+   Call CheckLockedFiles
+-  ${If} $$UserRequestAbort == 'true'
++  ${If} $UserRequestAbort == 'true'
+     Quit
+   ${EndIf}
+ 
+@@ -3221,6 +3221,14 @@
+ 
+   StrCpy $UserRequestAbort 'false'
+ 
++  ; With no previous installation there is no location, and the key file
++  ; names below would be relative to the root of the current drive.  When the
++  ; installer runs from a read-only network share, those can not be opened
++  ; for writing, and LockedList reports them as locked (bug #1629).
++  ${If} $RegVal_uninstallLocation == ""
++    goto done_out
++  ${EndIf}
++
+ check_lock_loop:
+ 
+   StrCpy $KeyFileName '$RegVal_uninstallLocation\${KEYFILE1}'
+--- a/platform/windows/install/cpack.nsi
++++ b/platform/windows/install/cpack.nsi
+@@ -1896,7 +1896,7 @@
+ 
+   StrCpy $CheckRxApiLock 'false'
+   Call CheckLockedFiles
+-  ${If} $$UserRequestAbort == 'true'
++  ${If} $UserRequestAbort == 'true'
+     Quit
+   ${EndIf}
+ 
+@@ -3317,6 +3317,14 @@
+ 
+   StrCpy $UserRequestAbort 'false'
+ 
++  ; With no previous installation there is no location, and the key file
++  ; names below would be relative to the root of the current drive.  When the
++  ; installer runs from a read-only network share, those can not be opened
++  ; for writing, and LockedList reports them as locked (bug #1629).
++  ${If} $RegVal_uninstallLocation == ""
++    goto done_out
++  ${EndIf}
++
+ check_lock_loop:
+ 
+   StrCpy $KeyFileName '$RegVal_uninstallLocation\${KEYFILE1}'
 --- a/platform/windows/install/cpack.nsi.template.in
 +++ b/platform/windows/install/cpack.nsi.template.in
 @@ -1027,7 +1027,7 @@
@@ -10,6 +62,32 @@
    ${EndIf}
  
 @@ -2331,6 +2331,14 @@
+ 
+   StrCpy $UserRequestAbort 'false'
+ 
++  ; With no previous installation there is no location, and the key file
++  ; names below would be relative to the root of the current drive.  When the
++  ; installer runs from a read-only network share, those can not be opened
++  ; for writing, and LockedList reports them as locked (bug #1629).
++  ${If} $RegVal_uninstallLocation == ""
++    goto done_out
++  ${EndIf}
++
+ check_lock_loop:
+ 
+   StrCpy $KeyFileName '$RegVal_uninstallLocation\${KEYFILE1}'
+--- a/platform/windows/install/oorexx.nsi
++++ b/platform/windows/install/oorexx.nsi
+@@ -1905,7 +1905,7 @@
+ 
+   StrCpy $CheckRxApiLock 'false'
+   Call CheckLockedFiles
+-  ${If} $$UserRequestAbort == 'true'
++  ${If} $UserRequestAbort == 'true'
+     Quit
+   ${EndIf}
+ 
+@@ -3326,6 +3326,14 @@
  
    StrCpy $UserRequestAbort 'false'
  
