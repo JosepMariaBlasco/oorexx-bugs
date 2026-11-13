@@ -1,0 +1,44 @@
+Index: ooRexx/base/rexxutil/platform/windows/SysFileTree.testGroup
+===================================================================
+--- a/ooRexx/base/rexxutil/platform/windows/SysFileTree.testGroup	(revision 13509)
++++ b/ooRexx/base/rexxutil/platform/windows/SysFileTree.testGroup	(working copy)
+@@ -191,4 +191,39 @@
+   end
+ 
+ 
++-- bug #1725: a drive designator without a path ("X:*") searches the current
++-- directory of that drive; for a drive that does not exist, nothing is found
++::method test_bug_1725
++  -- the current drive: the same as no drive at all
++  drive = filespec("drive", directory())
++  self~assertSame(0, SysFileTree("*", here., "o"))
++  self~assertSame(0, SysFileTree(drive"*", there., "o"))
++  self~assertSame(here.0, there.0, drive"* finds the files of the current directory")
++  do i = 1 to here.0
++    self~assertSame(here.i, there.i)
++  end
++
++  -- a drive that does not exist
++  map = SysDriveMap("A:")
++  missing = ""
++  do c over "Z Y X W V U T S R Q P O N M L K J I H G F E D C B"~makeArray(" ")
++    if \map~caselessContainsWord(c":") then do
++      missing = c":"
++      leave
++    end
++  end
++  if missing \== "" then do
++    do spec over missing"*", missing"\*", missing"x*"
++      self~assertSame(0, SysFileTree(spec, files., "o"), spec)
++      self~assertSame(0, files.0, spec "should find nothing")
++    end
++  end
++
++  -- an illegal drive letter
++  do spec over "_:*", "1:*"
++    self~assertSame(0, SysFileTree(spec, files., "o"), spec)
++    self~assertSame(0, files.0, spec "should find nothing")
++  end
++
++
+ ::options novalue syntax
