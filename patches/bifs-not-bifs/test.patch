@@ -38,9 +38,9 @@ Index: ooRexx/base/bif/BEEP.testGroup
 +    self~expectSyntax(40.927)
      retc = beep(32768, 1)
  
---- a/bug #2009: an argument that is not a whole number is reported by name, as
---- a/"must be a whole number", and not with the range of a C whole number;
---- a/a whole number out of range, however large, gets BEEP's own range
+--- bug #2009: an argument that is not a whole number is reported by name, as
+--- "must be a whole number", and not with the range of a C whole number;
+--- a whole number out of range, however large, gets BEEP's own range
 +-- bug #2009: an argument that is not a whole number is reported as "must
 +-- be a whole number", with BEEP's own name and the argument's position,
 +-- and a whole number out of range gets BEEP's range; since BEEP is a
