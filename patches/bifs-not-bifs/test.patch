@@ -1,0 +1,375 @@
+Index: ooRexx/base/bif/BEEP.testGroup
+===================================================================
+--- a/ooRexx/base/bif/BEEP.testGroup	(revision 13513)
++++ b/ooRexx/base/bif/BEEP.testGroup	(working copy)
+@@ -52,15 +52,15 @@
+    self~assertSame('', retc)
+ 
+ ::method "test_2"
+-    self~expectSyntax(88.901)
++    self~expectSyntax(40.3)
+     retc = beep()
+ 
+ ::method "test_3"
+-    self~expectSyntax(88.901)
++    self~expectSyntax(40.5)
+     retc = beep( , 1)
+ 
+ ::method "test_4"
+-    self~expectSyntax(88.901)
++    self~expectSyntax(40.3)
+     retc = beep(38, )
+ 
+ ::method "test_5"
+@@ -68,7 +68,7 @@
+   self~assertSame("", retc)
+ 
+ ::method "test_6"
+-    self~expectSyntax(88.907);
++    self~expectSyntax(40.927)
+     retc = beep(36, 1)
+ 
+ ::method "test_7"
+@@ -76,23 +76,28 @@
+   self~assertSame("", retc)
+ 
+ ::method "test_8"
+-    self~expectSyntax(88.907)
++    self~expectSyntax(40.927)
+     retc = beep(32768, 1)
+ 
+--- a/bug #2009: an argument that is not a whole number is reported by name, as
+--- a/"must be a whole number", and not with the range of a C whole number;
+--- a/a whole number out of range, however large, gets BEEP's own range
++-- bug #2009: an argument that is not a whole number is reported as "must
++-- be a whole number", with BEEP's own name and the argument's position,
++-- and a whole number out of range gets BEEP's range; since BEEP is a
++-- built-in function, these are 40.12 and 40.927, as for any other one
+ ::method test_not_a_whole_number
+-    self~assertBeepError(88.903, "frequency", '"*"')
+-    self~assertBeepError(88.903, "frequency", '"*", 1')
+-    self~assertBeepError(88.903, "frequency", '440.5, 1')
+-    self~assertBeepError(88.903, "duration", '440, "x"')
+-    self~assertBeepError(88.903, "duration", '440, 0.5')
+-    self~assertBeepError(88.907, "frequency", '1E30, 1')
+-    self~assertBeepError(88.901, 2, '440')
++    self~assertBeepError(40.3,   2, '"*"')
++    self~assertBeepError(40.12,  1, '"*", 1')
++    self~assertBeepError(40.12,  1, '440.5, 1')
++    self~assertBeepError(40.12,  2, '440, "x"')
++    self~assertBeepError(40.12,  2, '440, 0.5')
++    self~assertBeepError(40.12,  1, '1E30, 1')
++    self~assertBeepError(40.927, 1, '36, 1')
++    self~assertBeepError(40.927, 2, '440, 60001')
++    self~assertBeepError(40.927, 2, '440, -1')
++    self~assertBeepError(40.3,   2, '440')
++    self~assertBeepError(40.4,   2, '440, 1, 1')
+ 
+ ::method assertBeepError
+-    use strict arg code, name, arguments
++    use strict arg code, position, arguments
+     signal on syntax
+     interpret "call beep" arguments
+     self~fail("BEEP" arguments "should raise" code)
+@@ -100,8 +105,17 @@
+ syntax:
+     co = condition("o")
+     self~assertSame(code, co~code, "BEEP" arguments)
+-    self~assertSame(name, co~additional[1], "BEEP" arguments)
++    self~assertSame("BEEP", co~additional[1], "BEEP" arguments)
++    self~assertSame(position, co~additional[2], "BEEP" arguments)
+ 
++::method test_range_message
++    signal on syntax
++    call beep 36, 1
++    self~fail("BEEP 36, 1 should raise 40.927")
++    return
++syntax:
++    self~assertSame('BEEP argument 1 must be in the range 37 to 32767; found "36".', condition("o")~message)
++
+ ::method test_beep_duration
+   -- Except for Windows and Linux there is generally no frequency and
+   -- duration support available.  And even on Linux this will typically
+Index: ooRexx/base/bif/FILESPEC.testGroup
+===================================================================
+--- a/ooRexx/base/bif/FILESPEC.testGroup	(revision 13513)
++++ b/ooRexx/base/bif/FILESPEC.testGroup	(working copy)
+@@ -154,19 +154,19 @@
+   end
+ 
+ ::method testSyntax01
+-  self~expectSyntax(88.901)
++  self~expectSyntax(40.3)
+   x = filespec()
+ 
+ ::method testSyntax02
+-  self~expectSyntax(88.901)
++  self~expectSyntax(40.3)
+   x = filespec('E')
+ 
+ ::method testSyntax03
+-  self~expectSyntax(88.901)
++  self~expectSyntax(40.5)
+   x = filespec(,'a.b')
+ 
+ ::method testSyntax04
+-  self~expectSyntax(88.922)
++  self~expectSyntax(40.4)
+   x = filespec('e', 'a.b', 'x')
+ 
+ ::method testSyntax05
+Index: ooRexx/base/bif/DIRECTORY.testGroup
+===================================================================
+--- a/ooRexx/base/bif/DIRECTORY.testGroup	(nonexistent)
++++ b/ooRexx/base/bif/DIRECTORY.testGroup	(working copy)
+@@ -0,0 +1,76 @@
++#!/usr/bin/env rexx
++/*----------------------------------------------------------------------------*/
++/*                                                                            */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
++/*                                                                            */
++/* This program and the accompanying materials are made available under       */
++/* the terms of the Common Public License v1.0 which accompanies this         */
++/* distribution. A copy is also available at the following address:           */
++/* https://www.oorexx.org/license.html                                        */
++/*                                                                            */
++/* Redistribution and use in source and binary forms, with or                 */
++/* without modification, are permitted provided that the following            */
++/* conditions are met:                                                        */
++/*                                                                            */
++/* Redistributions of source code must retain the above copyright             */
++/* notice, this list of conditions and the following disclaimer.              */
++/* Redistributions in binary form must reproduce the above copyright          */
++/* notice, this list of conditions and the following disclaimer in            */
++/* the documentation and/or other materials provided with the distribution.   */
++/*                                                                            */
++/* Neither the name of Rexx Language Association nor the names                */
++/* of its contributors may be used to endorse or promote products             */
++/* derived from this software without specific prior written permission.      */
++/*                                                                            */
++/* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS        */
++/* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT          */
++/* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS          */
++/* FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT   */
++/* OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,      */
++/* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED   */
++/* TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,        */
++/* OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY     */
++/* OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING    */
++/* NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS         */
++/* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.               */
++/*                                                                            */
++/*----------------------------------------------------------------------------*/
++  parse source . . fileSpec
++  group = .TestGroup~new(fileSpec)
++
++  group~add(.DIRECTORY.testGroup)
++
++  if group~isAutomatedTest then return group
++
++  testResult = group~suite~execute~~print
++
++return testResult
++
++::requires 'ooTest.frm' -- load the ooRexxUnit classes
++
++::class "DIRECTORY.testGroup" subclass ooTestCase public
++
++::method test_current
++  d = directory()
++  self~assertSame(qualify("."), d)
++  self~assertSame(d, directory(d))
++
++::method test_change
++  d = directory()
++  parent = .File~new(d)~parent
++  if parent == .nil then return   -- d is a root directory
++  self~assertSame(qualify(parent), directory(parent))
++  self~assertSame(qualify(parent), directory())
++  self~assertSame(d, directory(d))
++
++::method test_not_a_directory
++  d = directory()
++  self~assertSame("", directory(d || .File~separator || "no-such-directory-" || random(1, 99999)))
++  self~assertSame(d, directory())
++
++::method test_syntax_1
++  self~expectSyntax(40.4)
++  x = directory(".", ".")
++
++
++::options novalue error
+
+Property changes on: ooRexx/base/bif/DIRECTORY.testGroup
+___________________________________________________________________
+Added: svn:eol-style
+## -0,0 +1 ##
++native
+\ No newline at end of property
+Added: svn:executable
+## -0,0 +1 ##
++*
+\ No newline at end of property
+Index: ooRexx/base/bif/BuiltinSearchOrder.testGroup
+===================================================================
+--- a/ooRexx/base/bif/BuiltinSearchOrder.testGroup	(nonexistent)
++++ b/ooRexx/base/bif/BuiltinSearchOrder.testGroup	(working copy)
+@@ -0,0 +1,107 @@
++#!/usr/bin/env rexx
++/*----------------------------------------------------------------------------*/
++/*                                                                            */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
++/*                                                                            */
++/* This program and the accompanying materials are made available under       */
++/* the terms of the Common Public License v1.0 which accompanies this         */
++/* distribution. A copy is also available at the following address:           */
++/* https://www.oorexx.org/license.html                                        */
++/*                                                                            */
++/* Redistribution and use in source and binary forms, with or                 */
++/* without modification, are permitted provided that the following            */
++/* conditions are met:                                                        */
++/*                                                                            */
++/* Redistributions of source code must retain the above copyright             */
++/* notice, this list of conditions and the following disclaimer.              */
++/* Redistributions in binary form must reproduce the above copyright          */
++/* notice, this list of conditions and the following disclaimer in            */
++/* the documentation and/or other materials provided with the distribution.   */
++/*                                                                            */
++/* Neither the name of Rexx Language Association nor the names                */
++/* of its contributors may be used to endorse or promote products             */
++/* derived from this software without specific prior written permission.      */
++/*                                                                            */
++/* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS        */
++/* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT          */
++/* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS          */
++/* FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT   */
++/* OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,      */
++/* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED   */
++/* TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,        */
++/* OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY     */
++/* OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING    */
++/* NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS         */
++/* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.               */
++/*                                                                            */
++/*----------------------------------------------------------------------------*/
++  parse source . . fileSpec
++  group = .TestGroup~new(fileSpec)
++
++  group~add(.BuiltinSearchOrder.testGroup)
++
++  if group~isAutomatedTest then return group
++
++  testResult = group~suite~execute~~print
++
++return testResult
++
++::requires 'ooTest.frm' -- load the ooRexxUnit classes
++
++::class "BuiltinSearchOrder.testGroup" subclass ooTestCase public
++
++-- BEEP, DIRECTORY and FILESPEC are built-in functions like the others
++-- since 5.3.0; before, they were routines of the REXX package, searched
++-- for as external routines. Built-in functions come before external
++-- routines in the search order, so a ::ROUTINE of the same name does not
++-- replace them (only an internal label does), and calling them does not
++-- go through the CALL method of a security manager (bug #1885).
++
++::method test_routine_does_not_replace
++  cases = .Array~of( -
++    .Array~of("LENGTH",    "length('abc')",             3), -
++    .Array~of("FILESPEC",  "filespec('name', '/a/b.c')", "b.c"), -
++    .Array~of("DIRECTORY", "directory()",               qualify(".")), -
++    .Array~of("BEEP",      "beep(37, 0)",               "") -
++  )
++  do case over cases
++    r = .Routine~new("t", .Array~of("return" case[2], "::routine" case[1] "; return 'routine'"))
++    self~assertSame(case[3], r~call, case[2] "with a ::ROUTINE" case[1])
++  end
++
++::method test_internal_label_replaces
++  do name over "LENGTH", "FILESPEC", "DIRECTORY", "BEEP"
++    r = .Routine~new("t", .Array~of("return" name"('x', 'y')", name": return 'label'"))
++    self~assertSame("label", r~call, name)
++  end
++
++::method test_security_manager_1885
++  manager = .CallRecorder~new
++  do source over "length('abc')", "filespec('name', '/a/b.c')", "directory()", "beep(37, 0)"
++    r = .Routine~new("t", "return" source)
++    r~setSecurityManager(manager)
++    manager~calls = .Array~new
++    x = r~call
++    self~assertSame(0, manager~calls~items, source "should not reach the security manager's CALL method")
++  end
++
++-- RxFuncQuery, RxFuncAdd and RxFuncDrop answer for BEEP, DIRECTORY and
++-- FILESPEC what they answer for any other built-in function: there is no
++-- external function of that name (the routines the REXX package keeps for
++-- programs compiled by older releases are not reported)
++::method test_rxfunc
++  do name over "FILESPEC", "DIRECTORY", "BEEP"
++    self~assertSame(rxfuncquery("LENGTH"), rxfuncquery(name), "RxFuncQuery" name)
++    self~assertSame(1, rxfuncquery(name), "RxFuncQuery" name)
++    self~assertSame(rxfuncdrop("LENGTH"), rxfuncdrop(name), "RxFuncDrop" name)
++  end
++
++::class CallRecorder
++::attribute calls
++::method call
++  use arg info
++  self~calls~append(info~name)
++  return 0                      -- let the interpreter perform the call
++
++
++::options novalue error
+
+Property changes on: ooRexx/base/bif/BuiltinSearchOrder.testGroup
+___________________________________________________________________
+Added: svn:eol-style
+## -0,0 +1 ##
++native
+\ No newline at end of property
+Added: svn:executable
+## -0,0 +1 ##
++*
+\ No newline at end of property
+Index: ooRexx/utilities/rexxc/rexxc.testGroup
+===================================================================
+--- a/ooRexx/utilities/rexxc/rexxc.testGroup	(revision 13513)
++++ b/ooRexx/utilities/rexxc/rexxc.testGroup	(working copy)
+@@ -270,6 +270,35 @@
+   compiled~delete
+ 
+ 
++-- BEEP, DIRECTORY and FILESPEC are built-in functions since 5.3.0 (6.07);
++-- before, they were routines of the REXX package, so an older release has
++-- no code for them. A name that resolves to an internal label is not the
++-- built-in function.
++::method test_beep_directory_filespec_level
++  nl = .endOfLine
++  cases = .Array~of( -
++    .Array~of(60700, "x = beep(37, 0)"), -
++    .Array~of(60700, "call beep 37, 0"), -
++    .Array~of(60700, "x = directory()"), -
++    .Array~of(60700, "x = 'DIRECTORY'()"), -
++    .Array~of(60700, "x = filespec('n', 'a.b')"), -
++    .Array~of(60700, "call filespec 'n', 'a.b'"), -
++    .Array~of(60700, "call on halt name beep"), -
++    .Array~of(60500, "x = filespec('n', 'a.b')" || nl || "exit" || nl || "filespec: return 1"), -
++    .Array~of(60500, "call directory" || nl || "exit" || nl || "directory: return") -
++  )
++  source = .TemporaryTestFile~new(self, "test_bif_level.rex")
++  compiled = .TemporaryTestFile~new(self, "test_bif_level.rexc")
++  do case over cases
++    source~create(case[2])
++    address "" "rexxc" self~q(source~fullName) self~q(compiled~fullName) "-s" with output stem o. error stem e.
++    self~assertRc(0, rc, "rexxc expected to compile" case[2] "with rc 0")
++    self~assertSame(case[1], requiredLanguageLevel(compiled), "required language level of:" case[2])
++  end
++  source~delete
++  compiled~delete
++
++
+ -- the language level stored in the header of a program compiled by rexxc:
+ -- after the shebang line, a 16-byte tag ("/**/@REXX"), four 16-bit fields
+ -- (magic number, image version, word size, big-endian flag) and the level

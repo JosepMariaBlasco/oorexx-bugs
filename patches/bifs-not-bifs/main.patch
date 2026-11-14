@@ -1,0 +1,782 @@
+Index: api/oorexxerrors.h
+===================================================================
+--- a/api/oorexxerrors.h	(revision 13513)
++++ b/api/oorexxerrors.h	(working copy)
+@@ -415,6 +415,7 @@
+ #define Rexx_Error_Incorrect_call_stem_sparse_array                       40924
+ #define Rexx_Error_Incorrect_call_noarray_nostem                          40925
+ #define Rexx_Error_Incorrect_call_error_code                              40926
++#define Rexx_Error_Incorrect_call_range_limits                            40927
+ #define Rexx_Error_Conversion                                             41000
+ #define Rexx_Error_Conversion_operator                                    41001
+ #define Rexx_Error_Conversion_prefix                                      41003
+Index: interpreter/expression/BuiltinFunctionSupport.hpp
+===================================================================
+--- a/interpreter/expression/BuiltinFunctionSupport.hpp	(nonexistent)
++++ b/interpreter/expression/BuiltinFunctionSupport.hpp	(working copy)
+@@ -0,0 +1,83 @@
++/*----------------------------------------------------------------------------*/
++/*                                                                            */
++/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
++/*                                                                            */
++/* This program and the accompanying materials are made available under       */
++/* the terms of the Common Public License v1.0 which accompanies this         */
++/* distribution. A copy is also available at the following address:           */
++/* https://www.oorexx.org/license.html                                        */
++/*                                                                            */
++/* Redistribution and use in source and binary forms, with or                 */
++/* without modification, are permitted provided that the following            */
++/* conditions are met:                                                        */
++/*                                                                            */
++/* Redistributions of source code must retain the above copyright             */
++/* notice, this list of conditions and the following disclaimer.              */
++/* Redistributions in binary form must reproduce the above copyright          */
++/* notice, this list of conditions and the following disclaimer in            */
++/* the documentation and/or other materials provided with the distribution.   */
++/*                                                                            */
++/* Neither the name of Rexx Language Association nor the names                */
++/* of its contributors may be used to endorse or promote products             */
++/* derived from this software without specific prior written permission.      */
++/*                                                                            */
++/* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS        */
++/* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT          */
++/* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS          */
++/* FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT   */
++/* OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,      */
++/* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED   */
++/* TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,        */
++/* OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY     */
++/* OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING    */
++/* NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS         */
++/* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.               */
++/*                                                                            */
++/*----------------------------------------------------------------------------*/
++/******************************************************************************/
++/* REXX Kernel                                    BuiltinFunctionSupport.hpp  */
++/*                                                                            */
++/* The work of the BEEP, DIRECTORY and FILESPEC built-in functions, shared    */
++/* with the routines of the REXX package that implemented them before 5.3.0.  */
++/*                                                                            */
++/******************************************************************************/
++#ifndef BuiltinFunctionSupport_INCLUDED
++#define BuiltinFunctionSupport_INCLUDED
++
++#include "rexx.h"
++
++class FileNameBuffer;
++
++/**
++ * BEEP, DIRECTORY and FILESPEC are built-in functions since 5.3.0.  Before,
++ * they were routines of the REXX package, searched for as external routines,
++ * and programs compiled by those releases still call them that way, so the
++ * routines stay (runtime/InternalPackage.cpp), hidden from RxFuncQuery,
++ * RxFuncAdd and RxFuncDrop (PackageManager::isRetiredRoutine()).  They can be
++ * removed when MinimumLanguageLevel goes past 6.06, since then no program
++ * that needs them can be run.
++ *
++ * So that there is one version of each function, the work is done here and
++ * both callers only convert their arguments and results: the built-in
++ * functions with the interpreter's objects, the routines with the native API
++ * (which runs them without the interpreter lock, so nothing here creates an
++ * object or raises an error).
++ */
++class BuiltinFunctionSupport
++{
++ public:
++    // BEEP's limits
++    static const wholenumber_t MinBeepFrequency = 37;
++    static const wholenumber_t MaxBeepFrequency = 32767;
++    static const wholenumber_t MinBeepDuration = 0;
++    static const wholenumber_t MaxBeepDuration = 60000;
++
++    // FILESPEC's options, for the error message
++    static const char *const FilespecOptions;
++
++    static void beep(wholenumber_t frequency, wholenumber_t duration);
++    static bool directory(const char *newDirectory, FileNameBuffer &qualified, FileNameBuffer &current);
++    static bool filespec(char option, const char *name, const char *&part, size_t &length);
++};
++
++#endif
+
+Property changes on: interpreter/expression/BuiltinFunctionSupport.hpp
+___________________________________________________________________
+Added: svn:eol-style
+## -0,0 +1 ##
++native
+\ No newline at end of property
+Index: interpreter/expression/BuiltinFunctions.cpp
+===================================================================
+--- a/interpreter/expression/BuiltinFunctions.cpp	(revision 13513)
++++ b/interpreter/expression/BuiltinFunctions.cpp	(working copy)
+@@ -57,6 +57,8 @@
+ #include "PackageManager.hpp"
+ #include "SystemInterpreter.hpp"
+ #include "SysFileSystem.hpp"
++#include "SysProcess.hpp"
++#include "BuiltinFunctionSupport.hpp"
+ #include "MethodArguments.hpp"
+ #include "NumberStringClass.hpp"
+ 
+@@ -3127,6 +3129,224 @@
+ }
+ 
+ 
++/**
++ * Raise 40.927: a built-in function argument outside its range.
++ *
++ * @param function The function name.
++ * @param position The argument position.
++ * @param minimum  The smallest value allowed.
++ * @param maximum  The largest value allowed.
++ * @param value    The value found.
++ */
++static void reportRangeError(const char *function, size_t position, wholenumber_t minimum,
++    wholenumber_t maximum, wholenumber_t value)
++{
++    Protected<ArrayClass> subs = new_array((size_t)5);
++    subs->put(new_string(function), 1);
++    subs->put(new_integer(position), 2);
++    subs->put(new_integer(minimum), 3);
++    subs->put(new_integer(maximum), 4);
++    subs->put(new_integer(value), 5);
++    reportException(Error_Incorrect_call_range_limits, subs);
++}
++
++
++// the shared work of BEEP, DIRECTORY and FILESPEC (see BuiltinFunctionSupport.hpp)
++
++const char *const BuiltinFunctionSupport::FilespecOptions = "DELNP";
++
++/**
++ * Sound the speaker.  The arguments have been checked by the caller.
++ *
++ * @param frequency The frequency, in Hertz.
++ * @param duration  The duration, in milliseconds.
++ */
++void BuiltinFunctionSupport::beep(wholenumber_t frequency, wholenumber_t duration)
++{
++    SysProcess::beep((int)frequency, (int)duration);
++}
++
++
++/**
++ * Get the current directory, after changing it first if a new one is given.
++ *
++ * @param newDirectory
++ *                  The directory to change to, or NULL.
++ * @param qualified A buffer for the qualified name of the new directory.
++ * @param current   The buffer that receives the current directory.
++ *
++ * @return false if the new directory could not be set (and the current
++ *         directory has not been retrieved).
++ */
++bool BuiltinFunctionSupport::directory(const char *newDirectory, FileNameBuffer &qualified, FileNameBuffer &current)
++{
++    if (newDirectory != NULL)
++    {
++        SysFileSystem::qualifyStreamName(newDirectory, qualified);
++        if (!SysFileSystem::setCurrentDirectory(qualified))
++        {
++            return false;
++        }
++    }
++    SysFileSystem::getCurrentDirectory(current);
++    return true;
++}
++
++
++/**
++ * Find a part of a file specification.
++ *
++ * @param option The part (uppercase): D (drive), E (extension), L (location:
++ *               drive and path), N (name) or P (path, without the drive).
++ * @param name   The file specification.  It ends at its first null
++ *               character, as it always has.
++ * @param part   Receives the start of the part.
++ * @param length Receives the length of the part (0 if there is none).
++ *
++ * @return false for an unknown option.
++ */
++bool BuiltinFunctionSupport::filespec(char option, const char *name, const char *&part, size_t &length)
++{
++    const char *endPtr = name + strlen(name);
++
++    const char *pathStart = SysFileSystem::getPathStart(name);
++    const char *pathEnd = SysFileSystem::getPathEnd(name);
++
++    // pathEnd is made one character past the end of the path, so that the
++    // length is pathEnd - pathStart even when there is no path
++    pathEnd = pathEnd == NULL ? pathStart : pathEnd + 1;
++    // and the name starts at the beginning when there is no path at all
++    const char *nameStart = pathEnd == name ? name : pathEnd;
++
++    switch (option)
++    {
++        case 'P':                        // the path, without the drive
++            part = pathStart;
++            length = pathEnd - pathStart;
++            return true;
++
++        case 'N':                        // the file name
++            part = nameStart;
++            length = endPtr - nameStart;
++            return true;
++
++        case 'L':                        // the location: drive and path
++            part = name;
++            length = pathEnd - name;
++            return true;
++
++        case 'D':                        // the drive (nothing if none)
++            part = name;
++            length = pathStart - name;
++            return true;
++
++        case 'E':                        // the extension, without the period
++        {
++            const char *lastDot = strrchr(name, '.');
++            if (lastDot != NULL && lastDot >= nameStart)
++            {
++                part = lastDot + 1;
++                length = endPtr - part;
++            }
++            else
++            {
++                part = endPtr;
++                length = 0;
++            }
++            return true;
++        }
++
++        default:
++            return false;
++    }
++}
++
++
++/**
++ * Sound the speaker at a frequency (in Hertz) for a duration (in
++ * milliseconds).
++ */
++BUILTIN(BEEP)
++{
++    const size_t BEEP_Min = 2;
++    const size_t BEEP_Max = 2;
++    const size_t BEEP_frequency = 1;
++    const size_t BEEP_duration = 2;
++
++    check_args(BEEP);
++
++    wholenumber_t frequency = required_integer(BEEP, frequency)->getValue();
++    if (frequency < BuiltinFunctionSupport::MinBeepFrequency || frequency > BuiltinFunctionSupport::MaxBeepFrequency)
++    {
++        reportRangeError("BEEP", BEEP_frequency, BuiltinFunctionSupport::MinBeepFrequency,
++            BuiltinFunctionSupport::MaxBeepFrequency, frequency);
++    }
++    wholenumber_t duration = required_integer(BEEP, duration)->getValue();
++    if (duration < BuiltinFunctionSupport::MinBeepDuration || duration > BuiltinFunctionSupport::MaxBeepDuration)
++    {
++        reportRangeError("BEEP", BEEP_duration, BuiltinFunctionSupport::MinBeepDuration,
++            BuiltinFunctionSupport::MaxBeepDuration, duration);
++    }
++
++    BuiltinFunctionSupport::beep(frequency, duration);
++    return GlobalNames::NULLSTRING;
++}
++
++
++/**
++ * Return the current directory, after changing it first if a
++ * new one is given.  A directory that cannot be set returns
++ * the null string.
++ */
++BUILTIN(DIRECTORY)
++{
++    const size_t DIRECTORY_Min = 0;
++    const size_t DIRECTORY_Max = 1;
++    const size_t DIRECTORY_name = 1;
++
++    check_args(DIRECTORY);
++
++    RexxString *name = optional_string(DIRECTORY, name);
++
++    FileNameBuffer qualified;
++    FileNameBuffer current;
++    if (!BuiltinFunctionSupport::directory(name == OREF_NULL ? NULL : name->getStringData(), qualified, current))
++    {
++        return GlobalNames::NULLSTRING;
++    }
++    return new_string((const char *)current);
++}
++
++
++/**
++ * Return a part of a file specification: its drive, path,
++ * location (drive and path), name or extension.
++ */
++BUILTIN(FILESPEC)
++{
++    const size_t FILESPEC_Min = 2;
++    const size_t FILESPEC_Max = 2;
++    const size_t FILESPEC_option = 1;
++    const size_t FILESPEC_name = 2;
++
++    check_args(FILESPEC);
++
++    RexxString *option = required_string(FILESPEC, option);
++    RexxString *name = required_string(FILESPEC, name);
++
++    char optionChar = option->getLength() == 0 ? '\0' : Utilities::toUpper(option->getChar(0));
++    const char *part;
++    size_t length;
++    if (!BuiltinFunctionSupport::filespec(optionChar, name->getStringData(), part, length))
++    {
++        // as always, only the first character of the option is shown
++        reportException(Error_Incorrect_call_list, "FILESPEC", IntegerOne, BuiltinFunctionSupport::FilespecOptions,
++            option->getLength() == 0 ? GlobalNames::NULLSTRING : option->extract(0, 1));
++    }
++    return new_string(part, length);
++}
++
++
+ // the following builtin function table must maintain the same order
+ // as the BuiltinCode type defined by the RexxToken class.
+ pbuiltin LanguageParser::builtinTable[] =
+@@ -3213,5 +3433,8 @@
+     &builtin_function_SETLOCAL         ,
+     &builtin_function_QUALIFY          ,
+     &builtin_function_GC               ,
++    &builtin_function_BEEP             ,
++    &builtin_function_DIRECTORY        ,
++    &builtin_function_FILESPEC         ,
+ };
+ 
+Index: interpreter/messages/RexxErrorCodes.h
+===================================================================
+--- a/interpreter/messages/RexxErrorCodes.h	(revision 13513)
++++ b/interpreter/messages/RexxErrorCodes.h	(working copy)
+@@ -417,6 +417,7 @@
+ Error_Incorrect_call_stem_sparse_array                       = 40924,
+ Error_Incorrect_call_noarray_nostem                          = 40925,
+ Error_Incorrect_call_error_code                              = 40926,
++Error_Incorrect_call_range_limits                            = 40927,
+ Error_Conversion                                             = 41000,
+ Error_Conversion_operator                                    = 41001,
+ Error_Conversion_prefix                                      = 41003,
+Index: interpreter/messages/RexxErrorMessages.h
+===================================================================
+--- a/interpreter/messages/RexxErrorMessages.h	(revision 13513)
++++ b/interpreter/messages/RexxErrorMessages.h	(working copy)
+@@ -419,6 +419,7 @@
+     MESSAGE(Error_Incorrect_call_stem_sparse_array, "Stem element at position \"&1\" is not set.")
+     MESSAGE(Error_Incorrect_call_noarray_nostem, "Argument &1 must be an array object, a stem object, or a stem name value; found \"&2\".")
+     MESSAGE(Error_Incorrect_call_error_code, "&1 argument &2 must be an error code nn.nnn, with nn in the range 0-99 and nnn in the range 0-999; found \"&3\".")
++    MESSAGE(Error_Incorrect_call_range_limits, "&1 argument &2 must be in the range &3 to &4; found \"&5\".")
+     MESSAGE(Error_Conversion, "Bad arithmetic conversion.")
+     MESSAGE(Error_Conversion_operator, "Nonnumeric value (\"&1\") used in arithmetic operation.")
+     MESSAGE(Error_Conversion_prefix, "Nonnumeric value (\"&1\") used with prefix operator.")
+Index: interpreter/messages/RexxMessageNumbers.h
+===================================================================
+--- a/interpreter/messages/RexxMessageNumbers.h	(revision 13513)
++++ b/interpreter/messages/RexxMessageNumbers.h	(working copy)
+@@ -763,6 +763,7 @@
+ #define Error_Invalid_subkeyword_options_form_msg                    843
+ #define Error_Variable_reference_use_default_msg                     844
+ #define Error_Incorrect_call_error_code_msg                          845
++#define Error_Incorrect_call_range_limits_msg                        860
+ 
+ 
+ #endif
+Index: interpreter/messages/RexxMessageTable.h
+===================================================================
+--- a/interpreter/messages/RexxMessageTable.h	(revision 13513)
++++ b/interpreter/messages/RexxMessageTable.h	(working copy)
+@@ -418,6 +418,7 @@
+       MINOR(Error_Incorrect_call_stem_sparse_array)
+       MINOR(Error_Incorrect_call_noarray_nostem)
+       MINOR(Error_Incorrect_call_error_code)
++      MINOR(Error_Incorrect_call_range_limits)
+   MAJOR(Error_Conversion)
+       MINOR(Error_Conversion_operator)
+       MINOR(Error_Conversion_prefix)
+Index: interpreter/messages/errnums.xml
+===================================================================
+--- a/interpreter/messages/errnums.xml	(revision 13513)
++++ b/interpreter/messages/errnums.xml	(working copy)
+@@ -2511,6 +2511,13 @@
+ <emphasis role="italic">function_name</emphasis> argument <emphasis role="italic">argument_number</emphasis> must be an error code nn.nnn, with nn in the range 0-99 and nnn in the range 0-999; found "<emphasis role="italic">value</emphasis>".</para>
+ </listitem>
+ </varlistentry>
++<varlistentry>
++<term>927</term>
++<listitem>
++<para>
++<emphasis role="italic">function_name</emphasis> argument <emphasis role="italic">argument_number</emphasis> must be in the range <emphasis role="italic">minimum</emphasis> to <emphasis role="italic">maximum</emphasis>; found "<emphasis role="italic">value</emphasis>".</para>
++</listitem>
++</varlistentry>
+ </variablelist>
+ </section>
+ <section id="ERR41">
+Index: interpreter/messages/rexxmsg.xml
+===================================================================
+--- a/interpreter/messages/rexxmsg.xml	(revision 13513)
++++ b/interpreter/messages/rexxmsg.xml	(working copy)
+@@ -3527,6 +3527,15 @@
+         <SymbolicName>Error_Incorrect_call_error_code</SymbolicName>
+         <Text><Sub position="1" name="function_name"/> argument <Sub position="2" name="argument_number"/> must be an error code nn.nnn, with nn in the range 0-99 and nnn in the range 0-999; found <q><Sub position="3" name="value"/></q>.</Text>
+       </SubMessage>
++      <SubMessage>
++        <Code>40</Code>
++        <Subcode>927</Subcode>
++        <MessageNumber>860</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Incorrect_call_range_limits</SymbolicName>
++        <Text><Sub position="1" name="function_name"/> argument <Sub position="2" name="argument_number"/> must be in the range <Sub position="3" name="minimum"/> to <Sub position="4" name="maximum"/>; found <q><Sub position="5" name="value"/></q>.</Text>
++      </SubMessage>
+     </Subcodes>
+   </Message>
+   <Message>
+Index: interpreter/package/PackageManager.cpp
+===================================================================
+--- a/interpreter/package/PackageManager.cpp	(revision 13513)
++++ b/interpreter/package/PackageManager.cpp	(working copy)
+@@ -423,6 +423,26 @@
+ 
+ 
+ /**
++ * Test for one of the retired routines of the REXX package: BEEP, DIRECTORY
++ * and FILESPEC, built-in functions since 5.3.0 (see
++ * BuiltinFunctionSupport.hpp).  The routines stay in packageRoutines, where
++ * callNativeRoutine() finds them for the programs compiled by older
++ * releases, which call them as external routines.  But, as for any other
++ * built-in function, RxFuncQuery() must not report an external function of
++ * that name, and RxFuncAdd() must be able to register one (which a call in
++ * source code does not reach, as for any other built-in function).
++ *
++ * @param name   The uppercase function name.
++ *
++ * @return true for BEEP, DIRECTORY and FILESPEC.
++ */
++bool PackageManager::isRetiredRoutine(RexxString *name)
++{
++    return name->strCompare("BEEP") || name->strCompare("DIRECTORY") || name->strCompare("FILESPEC");
++}
++
++
++/**
+  * Locate an already loaded function.
+  *
+  * @param function  The function name.
+@@ -432,11 +452,12 @@
+  */
+ RoutineClass *PackageManager::getLoadedRoutine(RexxString *function)
+ {
+-    // see if we have this one already as a package function
++    // see if we have this one already as a package function (the retired
++    // routines of the REXX package are not reported: see isRetiredRoutine())
+     RoutineClass *func = (RoutineClass *)packageRoutines->get(function);
+ 
+     // if we have this, then we can return it directly.
+-    if (func != OREF_NULL)
++    if (func != OREF_NULL && !isRetiredRoutine(function))
+     {
+         return func;
+     }
+@@ -686,7 +707,8 @@
+     // all of our tables use uppercase names...make this a case-insensitive lookup
+     name = name->upper();
+ 
+-    // package functions come first
++    // package functions come first (the retired routines of the REXX package
++    // included: only programs compiled by older releases get here for them)
+     RoutineClass *function = (RoutineClass *)packageRoutines->get(name);
+     if (function != OREF_NULL)
+     {
+Index: interpreter/package/PackageManager.hpp
+===================================================================
+--- a/interpreter/package/PackageManager.hpp	(revision 13513)
++++ b/interpreter/package/PackageManager.hpp	(working copy)
+@@ -78,6 +78,7 @@
+     static RoutineClass *resolveRoutine(RexxString *function);
+     static RoutineClass *createRegisteredRoutine(RexxString *function);
+     static RoutineClass *getLoadedRoutine(RexxString *function);
++    static bool isRetiredRoutine(RexxString *name);
+     static PNATIVEMETHOD resolveMethodEntry(RexxString *package, RexxString *name);
+     static PNATIVEROUTINE resolveRoutineEntry(RexxString *package, RexxString *name);
+     static PREGISTEREDROUTINE resolveRegisteredRoutineEntry(RexxString *package, RexxString *name);
+Index: interpreter/parser/KeywordConstants.cpp
+===================================================================
+--- a/interpreter/parser/KeywordConstants.cpp	(revision 13513)
++++ b/interpreter/parser/KeywordConstants.cpp	(working copy)
+@@ -165,6 +165,7 @@
+     KeywordEntry("ABS",            BUILTIN_ABS),
+     KeywordEntry("ADDRESS",        BUILTIN_ADDRESS),
+     KeywordEntry("ARG",            BUILTIN_ARG),
++    KeywordEntry("BEEP",           BUILTIN_BEEP),
+     KeywordEntry("BITAND",         BUILTIN_BITAND),
+     KeywordEntry("BITOR",          BUILTIN_BITOR),
+     KeywordEntry("BITXOR",         BUILTIN_BITXOR),
+@@ -186,10 +187,12 @@
+     KeywordEntry("DELSTR",         BUILTIN_DELSTR),
+     KeywordEntry("DELWORD",        BUILTIN_DELWORD),
+     KeywordEntry("DIGITS",         BUILTIN_DIGITS),
++    KeywordEntry("DIRECTORY",      BUILTIN_DIRECTORY),
+     KeywordEntry("D2C",            BUILTIN_D2C),
+     KeywordEntry("D2X",            BUILTIN_D2X),
+     KeywordEntry("ENDLOCAL",       BUILTIN_ENDLOCAL),
+     KeywordEntry("ERRORTEXT",      BUILTIN_ERRORTEXT),
++    KeywordEntry("FILESPEC",       BUILTIN_FILESPEC),
+     KeywordEntry("FORM",           BUILTIN_FORM),
+     KeywordEntry("FORMAT",         BUILTIN_FORMAT),
+     KeywordEntry("FUZZ",           BUILTIN_FUZZ),
+@@ -248,6 +251,7 @@
+     KeywordEntry("ADDRESS",        BUILTIN_ADDRESS),
+     KeywordEntry("ARG",            BUILTIN_ARG),
+     KeywordEntry("B2X",            BUILTIN_B2X),
++    KeywordEntry("BEEP",           BUILTIN_BEEP),
+     KeywordEntry("BITAND",         BUILTIN_BITAND),
+     KeywordEntry("BITOR",          BUILTIN_BITOR),
+     KeywordEntry("BITXOR",         BUILTIN_BITXOR),
+@@ -270,8 +274,10 @@
+     KeywordEntry("DELSTR",         BUILTIN_DELSTR),
+     KeywordEntry("DELWORD",        BUILTIN_DELWORD),
+     KeywordEntry("DIGITS",         BUILTIN_DIGITS),
++    KeywordEntry("DIRECTORY",      BUILTIN_DIRECTORY),
+     KeywordEntry("ENDLOCAL",       BUILTIN_ENDLOCAL),
+     KeywordEntry("ERRORTEXT",      BUILTIN_ERRORTEXT),
++    KeywordEntry("FILESPEC",       BUILTIN_FILESPEC),
+     KeywordEntry("FORM",           BUILTIN_FORM),
+     KeywordEntry("FORMAT",         BUILTIN_FORMAT),
+     KeywordEntry("FUZZ",           BUILTIN_FUZZ),
+Index: interpreter/parser/LanguageParser.cpp
+===================================================================
+--- a/interpreter/parser/LanguageParser.cpp	(revision 13513)
++++ b/interpreter/parser/LanguageParser.cpp	(working copy)
+@@ -831,6 +831,14 @@
+             requireLanguageLevel(LanguageLevel0606);
+             break;
+ 
++        // built-in functions since 5.3.0 (routines of the REXX package
++        // before): an older interpreter has no code for them
++        case BUILTIN_BEEP:
++        case BUILTIN_DIRECTORY:
++        case BUILTIN_FILESPEC:
++            requireLanguageLevel(LanguageLevel0607);
++            break;
++
+         // the second argument is new in 5.3.0
+         case BUILTIN_ERRORTEXT:
+             if (argCount > 1)
+Index: interpreter/parser/Token.hpp
+===================================================================
+--- a/interpreter/parser/Token.hpp	(revision 13513)
++++ b/interpreter/parser/Token.hpp	(working copy)
+@@ -512,6 +512,11 @@
+     BUILTIN_SETLOCAL,
+     BUILTIN_QUALIFY,
+     BUILTIN_GC,
++    // new in 5.3.0: these three used to be routines of the REXX package;
++    // they go at the end, because compiled programs store these codes
++    BUILTIN_BEEP,
++    BUILTIN_DIRECTORY,
++    BUILTIN_FILESPEC,
+ } BuiltinCode;
+ 
+ 
+Index: interpreter/runtime/InternalPackage.cpp
+===================================================================
+--- a/interpreter/runtime/InternalPackage.cpp	(revision 13513)
++++ b/interpreter/runtime/InternalPackage.cpp	(working copy)
+@@ -46,41 +46,34 @@
+ #include "PackageManager.hpp"
+ #include "SysFileSystem.hpp"
+ #include "ExternalFileBuffer.hpp"
+-#include "SysProcess.hpp"
++#include "BuiltinFunctionSupport.hpp"
++#include "Utilities.hpp"
+ 
+ #include <ctype.h>
+ #include <math.h>
+ 
+-// FILESPEC function options
+-#define FILESPEC_PATH         'P'
+-#define FILESPEC_NAME         'N'
+-#define FILESPEC_LOCATION     'L'
+-#define FILESPEC_EXTENSION    'E'
+-#define FILESPEC_DRIVE        'D'
++// BEEP, DIRECTORY and FILESPEC are built-in functions since 5.3.0.  These
++// routines are kept only for the programs compiled by older releases, which
++// call them as external routines of this package; they are hidden from
++// RxFuncQuery, RxFuncAdd and RxFuncDrop (PackageManager::isRetiredRoutine()).
++// The work is shared with the built-in functions (BuiltinFunctionSupport);
++// here, only the arguments are converted, with the native API, and the errors
++// are those these routines always gave.  They can go when MinimumLanguageLevel
++// passes 6.06 (see BuiltinFunctionSupport.hpp).
+ 
+-
+ /****************************************************************************/
+ /* sysDirectory                                                             */
+ /****************************************************************************/
+ RexxRoutine1(RexxStringObject, sysDirectory, OPTIONAL_CSTRING, dir)
+ {
+-    if (dir != NO_CSTRING)
++    RoutineFileNameBuffer qualified(context);
++    RoutineFileNameBuffer current(context);
++    if (!BuiltinFunctionSupport::directory(dir, qualified, current))
+     {
+-        RoutineQualifiedName qualifiedName(context, dir);
+-
+-        if (!SysFileSystem::setCurrentDirectory(qualifiedName))
+-        {
+-            // return a NULL string if we can't change the directory
+-            // to indicate an error
+-            return context->NullString();
+-        }
++        // a null string if we can't change the directory
++        return context->NullString();
+     }
+-
+-    RoutineFileNameBuffer newDir(context);
+-
+-    // obtain the current directory
+-    SysFileSystem::getCurrentDirectory(newDir);
+-    return context->NewStringFromAsciiz(newDir);
++    return context->NewStringFromAsciiz(current);
+ }
+ 
+ 
+@@ -89,80 +82,23 @@
+ /********************************************************************************************/
+ RexxRoutine2(RexxStringObject, sysFilespec, CSTRING, option, CSTRING, name)
+ {
+-    const char *endPtr = name + strlen(name);        // point to last character
+-
+-    const char *pathStart = SysFileSystem::getPathStart(name);
+-    const char *pathEnd = SysFileSystem::getPathEnd(name);
+-
+-    // get the end of the path portion (if any)
+-    // note that pathend is one character past the end of the path.
+-    // this means the length is easily calculated as pathEnd - pathStart,
+-    // even in the cases where there is no patch portion
+-    pathEnd = pathEnd == NULL ? pathStart : pathEnd + 1;
+-    // this one needs a little adjustment for the case where this is all name
+-    const char *nameStart = pathEnd == name ? name : pathEnd;
+-
+-    switch (Utilities::toUpper(*option)) // process each option
++    const char *part;
++    size_t length;
++    if (!BuiltinFunctionSupport::filespec(Utilities::toUpper(*option), name, part, length))
+     {
+-        case FILESPEC_PATH:              // extract the path (without drive)
+-        {
+-            return context->String(pathStart, pathEnd - pathStart);
+-        }
++        char optionChar[2];
++        optionChar[0] = *option;
++        optionChar[1] = '\0';
+ 
+-        case FILESPEC_NAME:              // extract the file name
+-        {
+-            return context->String(nameStart, endPtr - nameStart);
+-        }
+-
+-        case FILESPEC_LOCATION:          // extract the path (including drive)
+-        {
+-            return context->String(name, pathEnd - name);
+-        }
+-
+-        case FILESPEC_DRIVE:             // extract the drive
+-        {
+-            // this will return a null string if nothing is before the pathStart
+-            return context->String(name, pathStart - name);
+-        }
+-
+-        case FILESPEC_EXTENSION:           // extract the file extension
+-        {
+-            // find the position of the last dot
+-            const char *lastDot = strrchr(name, '.');
+-
+-            if (lastDot >= nameStart)
+-            {
+-                // we don't extract the period
+-                lastDot++;
+-                return context->String(lastDot, endPtr - lastDot);
+-            }
+-            else
+-            {
+-                return context->NullString();        // nothing found, return the empty string
+-            }
+-
+-        }
+-        default:                           /* unknown option                    */
+-        {
+-            char optionChar[2];
+-            optionChar[0] = *option;
+-            optionChar[1] = '\0';
+-
+-            RexxArrayObject subs = context->Array(context->String("FILESPEC"), context->WholeNumberToObject(1),
+-                                                  context->String("DELNP"), context->String(optionChar));
+-            /* raise an error                    */
+-            context->RaiseException(Rexx_Error_Incorrect_call_list, subs);
+-            return NULLOBJECT;
+-        }
++        RexxArrayObject subs = context->Array(context->String("FILESPEC"), context->WholeNumberToObject(1),
++                                              context->String(BuiltinFunctionSupport::FilespecOptions), context->String(optionChar));
++        context->RaiseException(Rexx_Error_Incorrect_call_list, subs);
++        return NULLOBJECT;
+     }
++    return context->String(part, length);
+ }
+ 
+ 
+-#define  MAX_FREQUENCY 32767
+-#define  MIN_FREQUENCY    37
+-#define  MAX_DURATION  60000
+-#define  MIN_DURATION      0
+-
+ /**
+  * Get one of BEEP's arguments: a whole number in a range.  A value that is
+  * not a whole number gets "must be a whole number"; a whole number outside
+@@ -210,7 +146,8 @@
+     // range of a wholenumber_t (bug #2009); duration is required, but it is
+     // declared optional so that a bad frequency is reported first
+     wholenumber_t frequency, duration;
+-    if (!beepArgument(context, frequencyArg, "frequency", MIN_FREQUENCY, MAX_FREQUENCY, frequency))
++    if (!beepArgument(context, frequencyArg, "frequency", BuiltinFunctionSupport::MinBeepFrequency,
++        BuiltinFunctionSupport::MaxBeepFrequency, frequency))
+     {
+         return NULL;
+     }
+@@ -219,12 +156,13 @@
+         context->RaiseException1(Rexx_Error_Invalid_argument_noarg, context->WholeNumberToObject(2));
+         return NULL;
+     }
+-    if (!beepArgument(context, durationArg, "duration", MIN_DURATION, MAX_DURATION, duration))
++    if (!beepArgument(context, durationArg, "duration", BuiltinFunctionSupport::MinBeepDuration,
++        BuiltinFunctionSupport::MaxBeepDuration, duration))
+     {
+         return NULL;
+     }
+ 
+-    SysProcess::beep((int)frequency, (int)duration);
++    BuiltinFunctionSupport::beep(frequency, duration);
+     return "";                           /* always returns a null      */
+ }
+ 
+Index: interpreter/runtime/NativeFunctions.h
+===================================================================
+--- a/interpreter/runtime/NativeFunctions.h	(revision 13513)
++++ b/interpreter/runtime/NativeFunctions.h	(working copy)
+@@ -45,6 +45,10 @@
+ //NOTE:  This file gets included multiple times to define different tables, so
+ // it does not have standard #ifndef multiple include protections.
+ 
++// DIRECTORY, FILESPEC and BEEP are built-in functions since 5.3.0.  The
++// routines stay because programs compiled by older releases call them as
++// external routines of this package; RxFuncQuery and RxFuncAdd do not see
++// them (PackageManager::isRetiredRoutine()).  See BuiltinFunctionSupport.hpp.
+ INTERNAL_ROUTINE(Directory, sysDirectory)
+ INTERNAL_ROUTINE(Filespec, sysFilespec)
+ INTERNAL_ROUTINE(Beep, sysBeep)
