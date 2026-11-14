@@ -1,7 +1,6 @@
-Index: CMakeLists.txt
-===================================================================
---- a/CMakeLists.txt	(revision 13491)
-+++ b/CMakeLists.txt	(working copy)
+diff -ruN '--exclude=.svn' main/CMakeLists.txt main-f/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
 @@ -869,6 +869,8 @@
              ${build_instructions_dir}/NumericInstruction.cpp
              ${build_instructions_dir}/OptionsInstruction.cpp
@@ -11,10 +10,9 @@ Index: CMakeLists.txt
              ${build_instructions_dir}/ParseInstruction.cpp
              ${build_instructions_dir}/ParseTarget.cpp
              ${build_instructions_dir}/ParseTrigger.cpp
-Index: api/oorexxerrors.h
-===================================================================
---- a/api/oorexxerrors.h	(revision 13491)
-+++ b/api/oorexxerrors.h	(working copy)
+diff -ruN '--exclude=.svn' main/api/oorexxerrors.h main-f/api/oorexxerrors.h
+--- a/api/oorexxerrors.h
++++ b/api/oorexxerrors.h
 @@ -89,6 +89,13 @@
  #define Rexx_Error_Unexpected_end_then                                    10005
  #define Rexx_Error_Unexpected_end_else                                    10006
@@ -78,10 +76,9 @@ Index: api/oorexxerrors.h
  
  
  #endif
-Index: interpreter/behaviour/ClassTypeCodes.h
-===================================================================
---- a/interpreter/behaviour/ClassTypeCodes.h	(revision 13491)
-+++ b/interpreter/behaviour/ClassTypeCodes.h	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/behaviour/ClassTypeCodes.h main-f/interpreter/behaviour/ClassTypeCodes.h
+--- a/interpreter/behaviour/ClassTypeCodes.h
++++ b/interpreter/behaviour/ClassTypeCodes.h
 @@ -238,44 +238,46 @@
      T_CommandIOConfiguration = 176,
      T_AddressWithInstruction = 177,
@@ -163,10 +160,9 @@ Index: interpreter/behaviour/ClassTypeCodes.h
      
  } ClassTypeCode;
  
-Index: interpreter/behaviour/PrimitiveBehaviourNames.h
-===================================================================
---- a/interpreter/behaviour/PrimitiveBehaviourNames.h	(revision 13491)
-+++ b/interpreter/behaviour/PrimitiveBehaviourNames.h	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/behaviour/PrimitiveBehaviourNames.h main-f/interpreter/behaviour/PrimitiveBehaviourNames.h
+--- a/interpreter/behaviour/PrimitiveBehaviourNames.h
++++ b/interpreter/behaviour/PrimitiveBehaviourNames.h
 @@ -228,6 +228,8 @@
  #define TheCommandIOConfigurationBehaviour      (&RexxBehaviour::primitiveBehaviours[T_CommandIOConfiguration])
  #define TheAddressWithInstructionBehaviour      (&RexxBehaviour::primitiveBehaviours[T_AddressWithInstruction])
@@ -176,10 +172,9 @@ Index: interpreter/behaviour/PrimitiveBehaviourNames.h
  #define TheMemoryBehaviour      (&RexxBehaviour::primitiveBehaviours[T_Memory])
  #define TheInternalStackBehaviour      (&RexxBehaviour::primitiveBehaviours[T_InternalStack])
  #define ThePushThroughStackBehaviour      (&RexxBehaviour::primitiveBehaviours[T_PushThroughStack])
-Index: interpreter/behaviour/PrimitiveBehaviours.cpp
-===================================================================
---- a/interpreter/behaviour/PrimitiveBehaviours.cpp	(revision 13491)
-+++ b/interpreter/behaviour/PrimitiveBehaviours.cpp	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/behaviour/PrimitiveBehaviours.cpp main-f/interpreter/behaviour/PrimitiveBehaviours.cpp
+--- a/interpreter/behaviour/PrimitiveBehaviours.cpp
++++ b/interpreter/behaviour/PrimitiveBehaviours.cpp
 @@ -238,6 +238,8 @@
      RexxBehaviour(T_CommandIOConfiguration, (PCPPM *)RexxObject::operatorMethods),
      RexxBehaviour(T_AddressWithInstruction, (PCPPM *)RexxObject::operatorMethods),
@@ -189,10 +184,9 @@ Index: interpreter/behaviour/PrimitiveBehaviours.cpp
      RexxBehaviour(T_Memory, (PCPPM *)RexxObject::operatorMethods),
      RexxBehaviour(T_InternalStack, (PCPPM *)RexxObject::operatorMethods),
      RexxBehaviour(T_PushThroughStack, (PCPPM *)RexxObject::operatorMethods),
-Index: interpreter/behaviour/PrimitiveClasses.xml
-===================================================================
---- a/interpreter/behaviour/PrimitiveClasses.xml	(revision 13491)
-+++ b/interpreter/behaviour/PrimitiveClasses.xml	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/behaviour/PrimitiveClasses.xml main-f/interpreter/behaviour/PrimitiveClasses.xml
+--- a/interpreter/behaviour/PrimitiveClasses.xml
++++ b/interpreter/behaviour/PrimitiveClasses.xml
 @@ -225,6 +225,8 @@
  <Class id="CommandIOConfiguration" class="CommandIOConfiguration" include="CommandIOConfiguration.hpp"/>
  <Class id="AddressWithInstruction" class="RexxInstructionAddressWith" include="AddressWithInstruction.hpp"/>
@@ -202,10 +196,9 @@ Index: interpreter/behaviour/PrimitiveClasses.xml
  </Internal>
  <Transient>
  <Class id="Memory" class="MemoryObject" include="RexxMemory.hpp" objectvirtual="true"/>
-Index: interpreter/behaviour/VirtualFunctionTable.cpp
-===================================================================
---- a/interpreter/behaviour/VirtualFunctionTable.cpp	(revision 13491)
-+++ b/interpreter/behaviour/VirtualFunctionTable.cpp	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/behaviour/VirtualFunctionTable.cpp main-f/interpreter/behaviour/VirtualFunctionTable.cpp
+--- a/interpreter/behaviour/VirtualFunctionTable.cpp
++++ b/interpreter/behaviour/VirtualFunctionTable.cpp
 @@ -160,6 +160,8 @@
  #include "CommandIOConfiguration.hpp"
  #include "AddressWithInstruction.hpp"
@@ -230,10 +223,9 @@ Index: interpreter/behaviour/VirtualFunctionTable.cpp
     static_assert(sizeof(RexxObject) <= sizeof(objectBuffer), "objectBuffer is too small for RexxObject");
     objectPtr = ::new (objectLoc) RexxObject(RESTOREIMAGE);
     virtualFunctionTable[T_Memory] = getVftPointer(objectLoc);
-Index: interpreter/concurrency/Activity.cpp
-===================================================================
---- a/interpreter/concurrency/Activity.cpp	(revision 13491)
-+++ b/interpreter/concurrency/Activity.cpp	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/concurrency/Activity.cpp main-f/interpreter/concurrency/Activity.cpp
+--- a/interpreter/concurrency/Activity.cpp
++++ b/interpreter/concurrency/Activity.cpp
 @@ -596,7 +596,9 @@
  void Activity::checkConditionSyntaxOptions(RexxString *condition, RexxObject *description, RexxObject *result)
  {
@@ -245,10 +237,9 @@ Index: interpreter/concurrency/Activity.cpp
      {
          if (activation->isErrorSyntaxEnabled() && condition->strCompare(GlobalNames::ERRORNAME))
          {
-Index: interpreter/execution/RexxActivation.cpp
-===================================================================
---- a/interpreter/execution/RexxActivation.cpp	(revision 13491)
-+++ b/interpreter/execution/RexxActivation.cpp	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/execution/RexxActivation.cpp main-f/interpreter/execution/RexxActivation.cpp
+--- a/interpreter/execution/RexxActivation.cpp
++++ b/interpreter/execution/RexxActivation.cpp
 @@ -84,6 +84,8 @@
  #include "CommandIOContext.hpp"
  #include "LibraryPackage.hpp"
@@ -354,7 +345,24 @@ Index: interpreter/execution/RexxActivation.cpp
                      stopExecution(RETURNED);
                  }
  
-@@ -1100,7 +1135,7 @@
+@@ -902,11 +937,12 @@
+             // the condition object of this occurrence
+             DirectoryClass *conditionObj = (DirectoryClass *)pending->get(2);
+             trapHandler->setConditionObject(conditionObj);
+-            // see if we have something to assign to the RC variable
+-            RexxInternalObject *rc = conditionObj->get(GlobalNames::RC);
+-            if (rc != OREF_NULL)
++            // see if we have something to assign to the RC variable (a
++            // SIGNAL ON trap sets it when the jump is taken, after the
++            // FINALLY clauses of the blocks it ends: see signalTrap())
++            if (!trapHandler->isSignal())
+             {
+-                setLocalVariable(GlobalNames::RC, VARIABLE_RC, (RexxObject *)rc);
++                setTrapRc(conditionObj);
+             }
+ 
+             // it's possible that the condition can raise an error because of a
+@@ -1100,7 +1136,7 @@
   *
   * @param resultObj the return result object.
   */
@@ -363,7 +371,7 @@ Index: interpreter/execution/RexxActivation.cpp
  {
      // already had a reply and trying to return a result?  There is nobody
      // to receive this result, so this is an error.
-@@ -1108,12 +1143,24 @@
+@@ -1108,12 +1144,24 @@
      {
          reportException(Error_Execution_reply_return);
      }
@@ -389,7 +397,7 @@ Index: interpreter/execution/RexxActivation.cpp
      }
      // normal termination.
      else
-@@ -1139,60 +1186,61 @@
+@@ -1139,60 +1187,61 @@
   */
  void RexxActivation::iterate(RexxString *name)
  {
@@ -474,13 +482,13 @@ Index: interpreter/execution/RexxActivation.cpp
      {
 -        reportException(Error_Invalid_leave_iterate);
 +        reportException(Error_Invalid_leave_iterate_name, name);
-     }
++    }
 +    // terminate the blocks inside the loop.  If one of them has a FINALLY
 +    // clause, it runs first, and the ITERATE goes on when it reaches its END.
 +    if (!leaveBlocks(doblock, FINALLY_ITERATE, name))
 +    {
 +        return;
-+    }
+     }
 +    // reset the indentation
 +    setIndent(doblock->getIndent());
 +    // have the loop handle a re-execution.  This will
@@ -489,7 +497,7 @@ Index: interpreter/execution/RexxActivation.cpp
  }
  
  
-@@ -1203,49 +1251,52 @@
+@@ -1203,49 +1252,52 @@
   */
  void RexxActivation::leaveLoop(RexxString *name)
  {
@@ -532,6 +540,10 @@ Index: interpreter/execution/RexxActivation.cpp
 -            loop->terminate(this, doblock);
 -            return;
 +            reportException(Error_Invalid_leave_leavevar, name);
++        }
++        else
++        {
++            reportException(Error_Invalid_leave_leave);
          }
 -
 -        // top one is not the one we need...remove this block
@@ -539,10 +551,6 @@ Index: interpreter/execution/RexxActivation.cpp
 -
 -        popBlockInstruction();
 -        doblock = topBlockInstruction();
-+        else
-+        {
-+            reportException(Error_Invalid_leave_leave);
-+        }
      }
  
 -    // if we get here, we did not find anything to leave.  This is either
@@ -570,7 +578,7 @@ Index: interpreter/execution/RexxActivation.cpp
  }
  
  
-@@ -1401,6 +1452,27 @@
+@@ -1401,6 +1453,27 @@
          {
              reportException(Error_Execution_reply_exit);
          }
@@ -598,7 +606,7 @@ Index: interpreter/execution/RexxActivation.cpp
          // poof, we just became invisible
          settings.setForwarded(true);
          // we terminate the execution loop for this activation
-@@ -1434,6 +1506,15 @@
+@@ -1434,6 +1507,15 @@
   */
  void RexxActivation::exitFrom(RexxObject *resultObj)
  {
@@ -614,7 +622,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // stop the loop execution
      stopExecution(RETURNED);
      result = resultObj;
-@@ -1466,6 +1547,12 @@
+@@ -1466,6 +1548,12 @@
              ActivityManager::currentActivity.load()->popStackFrame(false);
              //. go to the next level
              activation = ActivityManager::currentActivity.load()->getCurrentRexxFrame();
@@ -627,7 +635,7 @@ Index: interpreter/execution/RexxActivation.cpp
          }
          while (!activation->isTopLevel());
  
-@@ -1784,6 +1871,35 @@
+@@ -1784,6 +1872,35 @@
          return;
      }
  
@@ -663,7 +671,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // are we at the top level?  This is basically an
      // exit instruction because there's nobody able to handle this.
      if (parent == OREF_NULL)
-@@ -1801,6 +1917,11 @@
+@@ -1801,6 +1918,11 @@
          // terminate the activation and remove from the stack
          termination();
          activity->popStackFrame(false);
@@ -675,7 +683,7 @@ Index: interpreter/execution/RexxActivation.cpp
          // propagate to the parent
          parent->raiseExit(condition, rc, description, additional, resultObj, conditionobj);
      }
-@@ -1826,6 +1947,37 @@
+@@ -1826,6 +1948,37 @@
  
      Protected<DirectoryClass> p = conditionobj;
  
@@ -713,7 +721,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // are we propagating an existing condition?
      if (condition->strCompare(GlobalNames::PROPAGATE))
      {
-@@ -1929,7 +2081,7 @@
+@@ -1929,7 +2082,7 @@
          }
  
          // process the return part, then unwind the call stack
@@ -722,7 +730,7 @@ Index: interpreter/execution/RexxActivation.cpp
          throw this;
      }
  }
-@@ -2125,14 +2277,28 @@
+@@ -2125,14 +2278,28 @@
   *
   * @param target The target of the signal instruction.
   */
@@ -753,7 +761,65 @@ Index: interpreter/execution/RexxActivation.cpp
      }
      // need to clean up some things in a SIGNAL.  Start with
      // setting the SIGL variable to the current linenumber, then
-@@ -2501,6 +2667,11 @@
+@@ -2151,6 +2318,57 @@
+ 
+ 
+ /**
++ * Set RC from a condition object, if it has a return code.
++ *
++ * @param conditionObj The condition object.
++ */
++void RexxActivation::setTrapRc(DirectoryClass *conditionObj)
++{
++    RexxInternalObject *rc = conditionObj->get(GlobalNames::RC);
++    if (rc != OREF_NULL)
++    {
++        setLocalVariable(GlobalNames::RC, VARIABLE_RC, (RexxObject *)rc);
++    }
++}
++
++
++/**
++ * Take the jump of a SIGNAL ON trap.  The FINALLY clauses of the
++ * active blocks run first, innermost first, and they see nothing of
++ * the trapped condition, as on the way to a CATCH clause: CONDITION()
++ * and RC are set when the jump is taken, and SIGL by signalTo()
++ * (RFE #31).
++ *
++ * @param target       The label.
++ * @param conditionObj The trapped condition.
++ */
++void RexxActivation::signalTrap(RexxInstruction *target, DirectoryClass *conditionObj)
++{
++    // an interpret (or a debug pause) leaves its own blocks, and then its
++    // parent takes the jump; the parent's settings are what the interpret
++    // pushes back to it when it ends
++    if (isInterpret())
++    {
++        if (!leaveBlocks(OREF_NULL, FINALLY_SIGNAL_TRAP, conditionObj, target))
++        {
++            return;
++        }
++        stopExecution(RETURNED);
++        parent->signalTrap(target, conditionObj);
++        setConditionObj(parent->getConditionObj());
++        return;
++    }
++    if (!leaveBlocks(OREF_NULL, FINALLY_SIGNAL_TRAP, conditionObj, target))
++    {
++        return;
++    }
++    setConditionObj(conditionObj);
++    setTrapRc(conditionObj);
++    signalTo(target, true);
++}
++
++
++/**
+  * Toggle the address setting between the current and alternate
+  */
+ void RexxActivation::toggleAddress()
+@@ -2501,6 +2719,11 @@
          // we are not really here, so we can't handle this
          return false;
      }
@@ -765,7 +831,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // do we need to notify a message object of a syntax error?
      // send it the notification message.
      if (notifyObject != OREF_NULL && condition->strCompare(GlobalNames::SYNTAX))
-@@ -2508,8 +2679,9 @@
+@@ -2508,8 +2731,9 @@
          notifyObject->error(exceptionObject);
      }
  
@@ -777,7 +843,7 @@ Index: interpreter/execution/RexxActivation.cpp
      {
          if (!condition->strCompare(GlobalNames::SYNTAX))
          {
-@@ -2518,29 +2690,40 @@
+@@ -2518,29 +2742,40 @@
          // display the errors encountered during debug, then do the
          // error unwind to terminate the debug pause activation.
          activity->displayDebug(exceptionObject);
@@ -789,16 +855,17 @@ Index: interpreter/execution/RexxActivation.cpp
 -    {
 -        return false;
 -    }
-+    // see if we have a handler for this condition (the traps of the
-+    // program are ignored at a debug pause)
-+    TrapHandler *trapHandler = debugPause ? OREF_NULL : findTrapHandler(condition);
- 
+-
 -    // see if we have a handler for this condition
 -    TrapHandler *trapHandler = (TrapHandler *)settings.traps->get(condition);
 -
 -    // nothing there for the specific condition.  We could have an ANY
 -    // trap enabled, so check that.
 -    if (trapHandler == OREF_NULL)
++    // see if we have a handler for this condition (the traps of the
++    // program are ignored at a debug pause)
++    TrapHandler *trapHandler = debugPause ? OREF_NULL : findTrapHandler(condition);
++
 +    // a CATCH clause of an active block (here, or in the code that runs
 +    // this internal routine or INTERPRET) wins over a trap, wherever the
 +    // trap was enabled: the clause has the scope of its block, a trap
@@ -834,7 +901,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // if the condition is being trapped, do the CALL or SIGNAL
      if (trapHandler != OREF_NULL)
      {
-@@ -2606,6 +2789,519 @@
+@@ -2606,6 +2841,527 @@
  
  
  /**
@@ -1033,8 +1100,7 @@ Index: interpreter/execution/RexxActivation.cpp
 +        // CONDITION() and so on describe the trapped condition again,
 +        // whatever the code of the clause did
 +        case FINALLY_SIGNAL_TRAP:
-+            setConditionObj((DirectoryClass *)pending);
-+            signalTo(instruction, true);
++            signalTrap(instruction, (DirectoryClass *)pending);
 +            break;
 +
 +        case FINALLY_CATCH:
@@ -1239,7 +1305,7 @@ Index: interpreter/execution/RexxActivation.cpp
 +        {
 +            if (!doblock->isInCatch() && doblock->getCatches() != OREF_NULL)
 +            {
-+                RexxInstructionCatch *c = RexxInstructionCatch::findClause(doblock, condition, conditionObj);
++                RexxInstructionCatch *c = RexxInstructionCatch::findClause(doblock, condition, conditionObj, activation);
 +                if (c != OREF_NULL)
 +                {
 +                    owner = activation;
@@ -1347,6 +1413,15 @@ Index: interpreter/execution/RexxActivation.cpp
 +    // CATCH variable = condition
 +    clause->assignCondition(this, conditionObj);
 +    next = clause->nextInstruction;
++    // interactive tracing pauses at the clause, as it does at the label
++    // of a SIGNAL ON trap, before any of its instructions run: RC, SIGL,
++    // CONDITION() and the variable can be inspected.  "=" cannot run the
++    // clause that raised the condition again (its block has ended), so
++    // there it just continues.
++    if (conditionalPauseInstruction())
++    {
++        next = clause->nextInstruction;
++    }
 +}
 +
 +
@@ -1354,7 +1429,7 @@ Index: interpreter/execution/RexxActivation.cpp
   * Check the activation to see if this is trapping a condition.
   * This does not process the trap, but merely indicates that
   * this activation WILL trap the condition.  This is a
-@@ -2643,8 +3339,9 @@
+@@ -2643,8 +3399,9 @@
          return false;
      }
  
@@ -1366,7 +1441,7 @@ Index: interpreter/execution/RexxActivation.cpp
      {
          if (!condition->strCompare(GlobalNames::SYNTAX))
          {
-@@ -2653,6 +3350,17 @@
+@@ -2653,6 +3410,17 @@
          return true;
      }
  
@@ -1384,7 +1459,7 @@ Index: interpreter/execution/RexxActivation.cpp
      // no trap table set yet?  can't handle this
      if (settings.traps == OREF_NULL)
      {
-@@ -2690,8 +3398,12 @@
+@@ -2690,8 +3458,12 @@
   */
  RexxObject* RexxActivation::handleNovalueEvent(RexxString *name, RexxObject *defaultValue, RexxVariable *variable)
  {
@@ -1398,7 +1473,7 @@ Index: interpreter/execution/RexxActivation.cpp
      {
          reportException(Error_Execution_unassigned_variable, name);
      }
-@@ -2711,7 +3423,7 @@
+@@ -2711,7 +3483,7 @@
          return value;
      }
      // raise novalue?
@@ -1407,10 +1482,41 @@ Index: interpreter/execution/RexxActivation.cpp
      {
          reportNovalue(name);
      }
-Index: interpreter/execution/RexxActivation.hpp
-===================================================================
---- a/interpreter/execution/RexxActivation.hpp	(revision 13491)
-+++ b/interpreter/execution/RexxActivation.hpp	(working copy)
+@@ -4598,8 +5370,11 @@
+         // these are also not raised if it's a debug pause.
+         if (conditionObj != OREF_NULL)
+         {
+-            // first check for an ::OPTIONS FAILURE SYNTAX override
+-            if (failureCondition && isFailureSyntaxEnabled())
++            // first check for an ::OPTIONS FAILURE SYNTAX override (an
++            // active CATCH clause for the condition wins over the option, as
++            // a trap does, and the option applies again once the block has
++            // ended; RFE #31)
++            if (failureCondition && isFailureSyntaxEnabled() && !catches(GlobalNames::FAILURE, conditionObj))
+             {
+                 // we could rework our condition object, but it's easier
+                 // to just raise a SYNTAX exception
+@@ -4609,7 +5384,7 @@
+             }
+             // next we check for an ::OPTIONS ERROR SYNTAX override (a handler
+             // can raise any condition; this applies to ERROR only)
+-            if (errorCondition && isErrorSyntaxEnabled())
++            if (errorCondition && isErrorSyntaxEnabled() && !catches(GlobalNames::ERRORNAME, conditionObj))
+             {
+                 // just raise a SYNTAX exception
+                 reportException(Error_Execution_error_syntax,
+@@ -4626,7 +5401,7 @@
+                 if (failureCondition)
+                 {
+                     // again, first check for an ::OPTIONS ERROR SYNTAX override
+-                    if (isErrorSyntaxEnabled())
++                    if (isErrorSyntaxEnabled() && !catches(GlobalNames::ERRORNAME, conditionObj))
+                     {
+                         // if so, just raise a SYNTAX exception
+                         reportException(Error_Execution_error_syntax,
+diff -ruN '--exclude=.svn' main/interpreter/execution/RexxActivation.hpp main-f/interpreter/execution/RexxActivation.hpp
+--- a/interpreter/execution/RexxActivation.hpp
++++ b/interpreter/execution/RexxActivation.hpp
 @@ -72,6 +72,8 @@
  /**
   * An activation of a section of Rexx code.
@@ -1429,12 +1535,14 @@ Index: interpreter/execution/RexxActivation.hpp
     void              exitFrom(RexxObject *);
     void              procedureExpose(RexxVariableBase **variables, size_t count);
     void              expose(RexxVariableBase **variables, size_t count);
-@@ -200,12 +202,32 @@
+@@ -200,12 +202,34 @@
     ActivationBase  * senderActivation(RexxString *conditionName);
     RexxActivation  * external();
     void              interpret(RexxString *);
 -   void              signalTo(RexxInstruction *);
 +   void              signalTo(RexxInstruction *, bool trapped = false);
++   void              signalTrap(RexxInstruction *, DirectoryClass *);
++   void              setTrapRc(DirectoryClass *);
     void              guardWait();
     void              debugSkip(wholenumber_t);
     RexxString      * traceSetting();
@@ -1463,7 +1571,7 @@ Index: interpreter/execution/RexxActivation.hpp
     void              trapOn(RexxString *, RexxInstructionTrapBase *, bool);
     void              trapOff(RexxString *, bool);
     void              setAddress(RexxString *, CommandIOConfiguration *config);
-@@ -220,6 +242,10 @@
+@@ -220,6 +244,10 @@
     RexxObject      * internalCallTrap(RexxString *, RexxInstruction *, DirectoryClass *, ProtectedObject &);
     bool              callMacroSpaceFunction(RexxString *, RexxObject **, size_t, RexxString *, int, ProtectedObject &);
     static RoutineClass* getMacroCode(RexxString *macroName);
@@ -1474,7 +1582,7 @@ Index: interpreter/execution/RexxActivation.hpp
     RexxString       *resolveProgramName(RexxString *name, ResolveType type);
     RexxClass        *findClass(RexxString *name);
     RexxObject       *resolveDotVariable(RexxString *name, RexxObject *&);
-@@ -308,7 +334,13 @@
+@@ -308,7 +336,13 @@
     inline DoBlock *topBlockInstruction() { return doStack; }
     inline void terminateBlockInstruction(size_t _indent) { popBlockInstruction(); settings.traceIndent = _indent; }
     inline void terminateBlockInstruction() { popBlockInstruction();  }
@@ -1489,7 +1597,7 @@ Index: interpreter/execution/RexxActivation.hpp
     inline void removeBlockInstruction()
     {
         blockNest--;
-@@ -633,6 +665,7 @@
+@@ -633,6 +667,7 @@
      RexxInstruction     *current;       // current execution pointer
      RexxInstruction     *next;          // next instruction to execute
      bool                 debugPause;    // executing a debug pause
@@ -1497,7 +1605,7 @@ Index: interpreter/execution/RexxActivation.hpp
      bool                 clauseBoundary;// special flag for clause boundary checks
      bool                 traceEntryAllowed; // true if first instruction (other than expose)
      bool                 traceEntryDone;// true if the entry in a routine or method has been traced
-@@ -653,5 +686,11 @@
+@@ -653,5 +688,11 @@
      size_t               blockNest;     // block instruction nesting level
      size_t               instructionCount;  // The number of instructions since we last yielded control
      uint32_t             idntfr;        // idntfr for concurrency trace
@@ -1509,10 +1617,9 @@ Index: interpreter/execution/RexxActivation.hpp
 +    uint64_t             entrySequence; // when this internal routine was entered (see TrapHandler)
   };
   #endif
-Index: interpreter/execution/TrapHandler.cpp
-===================================================================
---- a/interpreter/execution/TrapHandler.cpp	(revision 13491)
-+++ b/interpreter/execution/TrapHandler.cpp	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/execution/TrapHandler.cpp main-f/interpreter/execution/TrapHandler.cpp
+--- a/interpreter/execution/TrapHandler.cpp
++++ b/interpreter/execution/TrapHandler.cpp
 @@ -47,6 +47,7 @@
  #include "CallInstruction.hpp"
  #include "DirectoryClass.hpp"
@@ -1529,10 +1636,9 @@ Index: interpreter/execution/TrapHandler.cpp
  }
  
  
-Index: interpreter/execution/TrapHandler.hpp
-===================================================================
---- a/interpreter/execution/TrapHandler.hpp	(revision 13491)
-+++ b/interpreter/execution/TrapHandler.hpp	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/execution/TrapHandler.hpp main-f/interpreter/execution/TrapHandler.hpp
+--- a/interpreter/execution/TrapHandler.hpp
++++ b/interpreter/execution/TrapHandler.hpp
 @@ -72,6 +72,7 @@
      RexxString *getState();
      void disable();
@@ -1551,10 +1657,9 @@ Index: interpreter/execution/TrapHandler.hpp
  };
  
  #endif
-Index: interpreter/instructions/BaseDoInstruction.cpp
-===================================================================
---- a/interpreter/instructions/BaseDoInstruction.cpp	(revision 13491)
-+++ b/interpreter/instructions/BaseDoInstruction.cpp	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/instructions/BaseDoInstruction.cpp main-f/interpreter/instructions/BaseDoInstruction.cpp
+--- a/interpreter/instructions/BaseDoInstruction.cpp
++++ b/interpreter/instructions/BaseDoInstruction.cpp
 @@ -115,6 +115,9 @@
          // if we have a doblock for this, do termination cleanup
          if (doblock != OREF_NULL)
@@ -1619,11 +1724,10 @@ Index: interpreter/instructions/BaseDoInstruction.cpp
      // pop the block instruction and remove the execution nest.
      context->popBlockInstruction();
      // jump to the loop end
-Index: interpreter/instructions/CatchInstruction.cpp
-===================================================================
---- a/interpreter/instructions/CatchInstruction.cpp	(nonexistent)
-+++ b/interpreter/instructions/CatchInstruction.cpp	(working copy)
-@@ -0,0 +1,376 @@
+diff -ruN '--exclude=.svn' main/interpreter/instructions/CatchInstruction.cpp main-f/interpreter/instructions/CatchInstruction.cpp
+--- a/interpreter/instructions/CatchInstruction.cpp
++++ b/interpreter/instructions/CatchInstruction.cpp
+@@ -0,0 +1,501 @@
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
 +/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
@@ -1674,6 +1778,7 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +#include "DoBlock.hpp"
 +#include "EndInstruction.hpp"
 +#include "ExpressionBaseVariable.hpp"
++#include "ExpressionVariable.hpp"
 +
 +
 +/**
@@ -1753,7 +1858,7 @@ Index: interpreter/instructions/CatchInstruction.cpp
 + * condition, as SIGNAL ON ANY does.  SYNTAX, ERROR and FAILURE can
 + * have a code, as on RAISE: SYNTAX 42 catches every error 42,
 + * SYNTAX 42.3 that error only; ERROR and FAILURE compare their code
-+ * with the return code of the condition (RFE #31).
++ * with the return code of the condition, as "==" does (RFE #31).
 + *
 + * @param condition The condition name.
 + * @param conditionObj
@@ -1761,10 +1866,12 @@ Index: interpreter/instructions/CatchInstruction.cpp
 + *                  name is known (the condition object has not
 + *                  been created yet): the codes are not looked at
 + *                  then.
++ * @param context   The activation that owns the block, where a
++ *                  variable used as a code is read.
 + *
 + * @return true if the clause catches the condition.
 + */
-+bool RexxInstructionCatch::handles(RexxString *condition, DirectoryClass *conditionObj)
++bool RexxInstructionCatch::handles(RexxString *condition, DirectoryClass *conditionObj, RexxActivation *context)
 +{
 +    size_t count = conditions->items();
 +    for (size_t i = 1; i <= count; i++)
@@ -1788,7 +1895,26 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +        if (name->strCompare(GlobalNames::SYNTAX))
 +        {
 +            wholenumber_t wanted = 0;
-+            code->numberValue(wanted);
++            // a simple variable is read now, in the activation of the
++            // block (its name if it has no value, without NOVALUE); a value
++            // that is not an error number does not match
++            if (isOfClass(VariableTerm, code))
++            {
++                RexxObject *value = readCode(code, context);
++                if (!(isString(value) || isInteger(value) || isNumberString(value)))
++                {
++                    continue;
++                }
++                wanted = errorNumber(value->stringValue());
++                if (wanted < 0)
++                {
++                    continue;
++                }
++            }
++            else
++            {
++                code->numberValue(wanted);
++            }
 +            wholenumber_t raised = 0;
 +            RexxObject *raisedCode = (RexxObject *)conditionObj->get(GlobalNames::CODE);
 +            if (raisedCode != OREF_NULL)
@@ -1808,17 +1934,115 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +        else
 +        {
 +            RexxObject *rc = (RexxObject *)conditionObj->get(GlobalNames::RC);
-+            if (rc != OREF_NULL)
++            if (rc != OREF_NULL && sameCode(code, rc, context))
 +            {
-+                RexxString *text = rc->requestString();
-+                if (text != TheNilObject && text->comp(code) == 0)
-+                {
-+                    return true;
-+                }
++                return true;
 +            }
 +        }
 +    }
 +    return false;
++}
++
++
++/**
++ * Compare the code of an ERROR or FAILURE clause with the return code
++ * of a condition, as "==" does, without running any method when one
++ * of them is a string: a command handler can return any object as
++ * its return code, and asking it for a string value could raise
++ * NOSTRING in the middle of the search for a clause (RFE #31).
++ *
++ * @param code    The code: a string, or a simple variable.
++ * @param rc      The return code of the condition.
++ * @param context The activation that owns the block.
++ *
++ * @return true if they match.
++ */
++bool RexxInstructionCatch::sameCode(RexxObject *code, RexxObject *rc, RexxActivation *context)
++{
++    // a simple variable is read now, in the activation of the block; with
++    // no value it is its own name, and NOVALUE is not raised
++    if (isOfClass(VariableTerm, code))
++    {
++        code = readCode(code, context);
++    }
++    bool codeIsString = isString(code) || isInteger(code) || isNumberString(code);
++    bool rcIsString = isString(rc) || isInteger(rc) || isNumberString(rc);
++    // two strings (or numbers): compared as strings, as "==" does
++    if (codeIsString && rcIsString)
++    {
++        RexxString *a = code->stringValue();
++        RexxString *b = rc->stringValue();
++        return a->getLength() == b->getLength() && memcmp(a->getStringData(), b->getStringData(), a->getLength()) == 0;
++    }
++    // a string and another object never match
++    if (codeIsString || rcIsString)
++    {
++        return false;
++    }
++    // two objects: the "==" message, which is identity unless the class
++    // of the code redefines it
++    ProtectedObject result;
++    code->sendMessage(GlobalNames::STRICT_EQUAL, rc, result);
++    RexxObject *answer = result;
++    return answer == TheTrueObject;
++}
++
++
++/**
++ * Read a simple variable used as the code of a CATCH clause, in the
++ * activation that owns the block.  A variable with no value has its
++ * own name (in uppercase), as everywhere in Rexx, but NOVALUE is not
++ * raised: the clause is being tested while a condition is raised.
++ *
++ * @param code    The variable.
++ * @param context The activation that owns the block.
++ *
++ * @return The value of the variable, or its name.
++ */
++RexxObject *RexxInstructionCatch::readCode(RexxObject *code, RexxActivation *context)
++{
++    RexxObject *value = ((RexxVariableBase *)code)->getRealValue(context);
++    if (value == OREF_NULL)
++    {
++        value = ((RexxSimpleVariable *)code)->getName();
++    }
++    return value;
++}
++
++
++/**
++ * Convert the code of a SYNTAX clause, an error number written as
++ * "major" or "major.minor" (1 to 99, and 1 to 999), to
++ * major * 1000 + minor, as message numbers are kept.
++ *
++ * @param text   The error number.
++ *
++ * @return The number, or -1 if the text is not a valid error number.
++ */
++wholenumber_t RexxInstructionCatch::errorNumber(RexxString *text)
++{
++    const char *data = text->getStringData();
++    size_t length = text->getLength();
++    wholenumber_t major = 0;
++    wholenumber_t minor = 0;
++    size_t i = 0;
++    size_t digits = 0;
++    for (; i < length && data[i] >= '0' && data[i] <= '9' && digits < 3; i++, digits++)
++    {
++        major = major * 10 + (data[i] - '0');
++    }
++    bool valid = digits > 0 && major >= 1 && major <= 99;
++    if (valid && i < length)
++    {
++        valid = data[i++] == '.';
++        digits = 0;
++        for (; i < length && data[i] >= '0' && data[i] <= '9' && digits < 4; i++, digits++)
++        {
++            minor = minor * 10 + (data[i] - '0');
++        }
++        valid = valid && digits > 0 && i == length && minor >= 1 && minor <= 999;
++    }
++    return valid ? major * 1000 + minor : -1;
 +}
 +
 +
@@ -1829,17 +2053,19 @@ Index: interpreter/instructions/CatchInstruction.cpp
 + *
 + * @param doblock   The block.
 + * @param condition The condition name.
++ * @param conditionObj The condition object, or OREF_NULL.
++ * @param context   The activation that owns the block.
 + *
 + * @return The clause, or OREF_NULL if the block has no clause for
 + *         the condition (or no CATCH clauses at all).
 + */
-+RexxInstructionCatch *RexxInstructionCatch::findClause(DoBlock *doblock, RexxString *condition, DirectoryClass *conditionObj)
++RexxInstructionCatch *RexxInstructionCatch::findClause(DoBlock *doblock, RexxString *condition, DirectoryClass *conditionObj, RexxActivation *context)
 +{
 +    RexxInstructionCatch *clause = doblock->getCatches();
 +    while (clause != OREF_NULL)
 +    {
 +        // a FINALLY clause, the last one of the chain, catches nothing
-+        if (!clause->isFinally() && clause->handles(condition, conditionObj))
++        if (!clause->isFinally() && clause->handles(condition, conditionObj, context))
 +        {
 +            return clause;
 +        }
@@ -1912,9 +2138,11 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +
 +
 +/**
-+ * Give the condition object to the variable of a CATCH clause
-+ * written as CATCH variable = condition (RFE #31), when the clause
-+ * starts to run.
++ * Give a copy of the condition object to the variable of a CATCH
++ * clause written as CATCH variable = condition (RFE #31), when the
++ * clause starts to run.  It is the same copy that CONDITION('O')
++ * returns, so that CATCH v = c is CATCH c followed by
++ * v = CONDITION('O').
 + *
 + * @param context      The activation that runs the clause.
 + * @param conditionObj The condition object.
@@ -1923,7 +2151,7 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +{
 +    if (variable != OREF_NULL)
 +    {
-+        variable->assign(context, (RexxObject *)conditionObj);
++        variable->assign(context, (RexxObject *)conditionObj->copy());
 +    }
 +}
 +
@@ -1935,6 +2163,9 @@ Index: interpreter/instructions/CatchInstruction.cpp
 + * the code of a CATCH clause runs into the next one, and then the
 + * block ends.  Control does not reach the code of a clause this
 + * way: the context jumps there when a condition is caught.
++ *
++ * Either way, what is traced is the END of the block, as it would be
++ * without CATCH clauses: the clause itself does not run.
 + *
 + * @param context The current execution context.
 + * @param stack   The current evaluation stack.
@@ -1953,16 +2184,15 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +    // the code of a CATCH clause has finished: the block ends
 +    if (doblock->isInCatch())
 +    {
-+        // the FINALLY clause of the block runs now: trace this clause first
++        // the FINALLY clause of the block runs now (it traces itself);
++        // the END is traced when its code reaches it
 +        if (doblock->hasFinallyToRun())
 +        {
-+            context->setIndent(doblock->getIndent());
-+            context->traceInstruction(this);
 +            owner->terminate(context, doblock);
 +            return;
 +        }
 +        owner->terminate(context, doblock);
-+        context->traceInstruction(this);
++        context->traceInstruction(owner->end);
 +        return;
 +    }
 +
@@ -1972,7 +2202,7 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +        case LOOP_BLOCK:
 +        {
 +            context->setIndent(doblock->getIndent());
-+            context->traceInstruction(this);
++            context->traceInstruction(owner->end);
 +            ((RexxInstructionBaseLoop *)owner)->reExecute(context, stack, doblock);
 +            break;
 +        }
@@ -1980,38 +2210,29 @@ Index: interpreter/instructions/CatchInstruction.cpp
 +        case SELECT_BLOCK:
 +        {
 +            context->unindent();
-+            context->traceInstruction(this);
++            context->traceInstruction(owner->end);
 +            reportException(Error_When_expected_nootherwise);
 +            break;
 +        }
 +        default:
 +        {
-+            // the FINALLY clause of the block runs now: trace this clause first
++            // the FINALLY clause of the block runs now (it traces itself);
++            // the END is traced when its code reaches it
 +            if (doblock->hasFinallyToRun())
 +            {
-+                context->setIndent(doblock->getIndent());
-+                context->traceInstruction(this);
 +                owner->terminate(context, doblock);
 +                break;
 +            }
 +            owner->terminate(context, doblock);
-+            context->traceInstruction(this);
++            context->traceInstruction(owner->end);
 +            break;
 +        }
 +    }
 +}
-
-Property changes on: interpreter/instructions/CatchInstruction.cpp
-___________________________________________________________________
-Added: svn:eol-style
-## -0,0 +1 ##
-+native
-\ No newline at end of property
-Index: interpreter/instructions/CatchInstruction.hpp
-===================================================================
---- a/interpreter/instructions/CatchInstruction.hpp	(nonexistent)
-+++ b/interpreter/instructions/CatchInstruction.hpp	(working copy)
-@@ -0,0 +1,101 @@
+diff -ruN '--exclude=.svn' main/interpreter/instructions/CatchInstruction.hpp main-f/interpreter/instructions/CatchInstruction.hpp
+--- a/interpreter/instructions/CatchInstruction.hpp
++++ b/interpreter/instructions/CatchInstruction.hpp
+@@ -0,0 +1,104 @@
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
 +/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
@@ -2086,9 +2307,12 @@ Index: interpreter/instructions/CatchInstruction.hpp
 +    bool isBlock() override { return true; }
 +    void execute(RexxActivation *, ExpressionStack *) override;
 +
-+    bool handles(RexxString *condition, DirectoryClass *conditionObj);
++    bool handles(RexxString *condition, DirectoryClass *conditionObj, RexxActivation *context);
++    static bool sameCode(RexxObject *code, RexxObject *rc, RexxActivation *context);
++    static wholenumber_t errorNumber(RexxString *text);
++    static RexxObject *readCode(RexxObject *code, RexxActivation *context);
 +    void assignCondition(RexxActivation *context, DirectoryClass *conditionObj);
-+    static RexxInstructionCatch *findClause(DoBlock *doblock, RexxString *condition, DirectoryClass *conditionObj);
++    static RexxInstructionCatch *findClause(DoBlock *doblock, RexxString *condition, DirectoryClass *conditionObj, RexxActivation *context);
 +    static RexxInstructionCatch *firstClause(RexxBlockInstruction *block);
 +    static bool hasCatches(RexxBlockInstruction *block);
 +    static RexxInstructionCatch *finallyClause(RexxInstructionCatch *first);
@@ -2113,17 +2337,9 @@ Index: interpreter/instructions/CatchInstruction.hpp
 +    ArrayClass           *codes;       // CATCH SYNTAX number, ERROR code, FAILURE code: one per condition (.nil if none), or null
 +};
 +#endif
-
-Property changes on: interpreter/instructions/CatchInstruction.hpp
-___________________________________________________________________
-Added: svn:eol-style
-## -0,0 +1 ##
-+native
-\ No newline at end of property
-Index: interpreter/instructions/DoBlock.cpp
-===================================================================
---- a/interpreter/instructions/DoBlock.cpp	(revision 13491)
-+++ b/interpreter/instructions/DoBlock.cpp	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/instructions/DoBlock.cpp main-f/interpreter/instructions/DoBlock.cpp
+--- a/interpreter/instructions/DoBlock.cpp
++++ b/interpreter/instructions/DoBlock.cpp
 @@ -46,6 +46,7 @@
  #include "DoBlock.hpp"
  #include "RexxActivation.hpp"
@@ -2177,18 +2393,17 @@ Index: interpreter/instructions/DoBlock.cpp
  }
  
  
-Index: interpreter/instructions/DoBlock.hpp
-===================================================================
---- a/interpreter/instructions/DoBlock.hpp	(revision 13491)
-+++ b/interpreter/instructions/DoBlock.hpp	(working copy)
-@@ -49,8 +49,30 @@
+diff -ruN '--exclude=.svn' main/interpreter/instructions/DoBlock.hpp main-f/interpreter/instructions/DoBlock.hpp
+--- a/interpreter/instructions/DoBlock.hpp
++++ b/interpreter/instructions/DoBlock.hpp
+@@ -49,6 +49,28 @@
  
  class RexxBlockInstruction;
  class RexxVariableBase;
 +class RexxInstructionCatch;
 +class RexxInstruction;
- 
- /**
++
++/**
 + * What goes on when the code of a FINALLY clause reaches the END of
 + * its block: the reason control was leaving the block (RFE #31).
 + */
@@ -2207,12 +2422,10 @@ Index: interpreter/instructions/DoBlock.hpp
 +    FINALLY_RAISE,         // RAISE ... RETURN
 +    FINALLY_RAISE_EXIT,    // RAISE ... EXIT
 +} FinallyAction;
-+
-+/**
+ 
+ /**
   * A container for state of active block instructions (DO LOOP, or SELECT)
-  */
- class DoBlock : public RexxInternalObject
-@@ -87,7 +109,36 @@
+@@ -87,6 +109,35 @@
      inline void newIteration() { counter++; };
      void setCounter(RexxActivation *context);
  
@@ -2223,7 +2436,7 @@ Index: interpreter/instructions/DoBlock.hpp
 +    inline bool isInCatch() { return inCatch; }
 +    inline void setNest(size_t n) { nest = n; }
 +    inline size_t getNest() { return nest; }
- 
++
 +    // FINALLY clause
 +    inline RexxInstructionCatch *getFinally() { return finallyClause; }
 +    inline void setFinally(RexxInstructionCatch *c) { finallyClause = c; }
@@ -2245,10 +2458,9 @@ Index: interpreter/instructions/DoBlock.hpp
 +    inline DoBlock *getPendingBlock() { return pendingBlock; }
 +    inline RexxInstruction *getPendingCurrent() { return pendingCurrent; }
 +
-+
+ 
  protected:
  
-     DoBlock           *previous;         // previous stacked Do Block
 @@ -105,5 +156,17 @@
      TokenSubclass      compare;          // type of comparison
      RexxVariableBase  *countVariable;    // control variable for counter
@@ -2267,10 +2479,9 @@ Index: interpreter/instructions/DoBlock.hpp
 +    RexxInstruction   *pendingCurrent;   // ...and the instruction that was leaving the block
  };
  #endif
-Index: interpreter/instructions/EndIf.cpp
-===================================================================
---- a/interpreter/instructions/EndIf.cpp	(revision 13491)
-+++ b/interpreter/instructions/EndIf.cpp	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/instructions/EndIf.cpp main-f/interpreter/instructions/EndIf.cpp
+--- a/interpreter/instructions/EndIf.cpp
++++ b/interpreter/instructions/EndIf.cpp
 @@ -136,6 +136,11 @@
      // END.
      if (this->instructionType == KEYWORD_ENDWHEN)
@@ -2283,10 +2494,9 @@ Index: interpreter/instructions/EndIf.cpp
          // remove the select block and reset the indent
          context->terminateBlockInstruction();
          // branch to the END of the SELECT.
-Index: interpreter/instructions/EndInstruction.cpp
-===================================================================
---- a/interpreter/instructions/EndInstruction.cpp	(revision 13491)
-+++ b/interpreter/instructions/EndInstruction.cpp	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/instructions/EndInstruction.cpp main-f/interpreter/instructions/EndInstruction.cpp
+--- a/interpreter/instructions/EndInstruction.cpp
++++ b/interpreter/instructions/EndInstruction.cpp
 @@ -157,6 +157,23 @@
          }
  
@@ -2311,11 +2521,10 @@ Index: interpreter/instructions/EndInstruction.cpp
          case OTHERWISE_BLOCK:
          case LABELED_OTHERWISE_BLOCK:
          case LABELED_DO_BLOCK:
-Index: interpreter/instructions/FinallyInstruction.cpp
-===================================================================
---- a/interpreter/instructions/FinallyInstruction.cpp	(nonexistent)
-+++ b/interpreter/instructions/FinallyInstruction.cpp	(working copy)
-@@ -0,0 +1,106 @@
+diff -ruN '--exclude=.svn' main/interpreter/instructions/FinallyInstruction.cpp main-f/interpreter/instructions/FinallyInstruction.cpp
+--- a/interpreter/instructions/FinallyInstruction.cpp
++++ b/interpreter/instructions/FinallyInstruction.cpp
+@@ -0,0 +1,107 @@
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
 +/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
@@ -2401,11 +2610,12 @@ Index: interpreter/instructions/FinallyInstruction.cpp
 +    // the END would have done
 +    if (!doblock->isInCatch())
 +    {
-+        // a loop goes round again; when it ends, the code of this clause runs
++        // a loop goes round again (the END is traced, as without clauses,
++        // and as a CATCH clause does); when it ends, the code of this clause runs
 +        if (ownerStyle == LOOP_BLOCK)
 +        {
 +            context->setIndent(doblock->getIndent());
-+            context->traceInstruction(this);
++            context->traceInstruction(owner->end);
 +            ((RexxInstructionBaseLoop *)owner)->reExecute(context, stack, doblock);
 +            return;
 +        }
@@ -2414,7 +2624,7 @@ Index: interpreter/instructions/FinallyInstruction.cpp
 +        if (ownerStyle == SELECT_BLOCK)
 +        {
 +            context->unindent();
-+            context->traceInstruction(this);
++            context->traceInstruction(owner->end);
 +            reportException(Error_When_expected_nootherwise);
 +        }
 +    }
@@ -2422,17 +2632,9 @@ Index: interpreter/instructions/FinallyInstruction.cpp
 +    // the block ends: this starts the code of the clause (and traces it)
 +    owner->terminate(context, doblock);
 +}
-
-Property changes on: interpreter/instructions/FinallyInstruction.cpp
-___________________________________________________________________
-Added: svn:eol-style
-## -0,0 +1 ##
-+native
-\ No newline at end of property
-Index: interpreter/instructions/FinallyInstruction.hpp
-===================================================================
---- a/interpreter/instructions/FinallyInstruction.hpp	(nonexistent)
-+++ b/interpreter/instructions/FinallyInstruction.hpp	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/instructions/FinallyInstruction.hpp main-f/interpreter/instructions/FinallyInstruction.hpp
+--- a/interpreter/instructions/FinallyInstruction.hpp
++++ b/interpreter/instructions/FinallyInstruction.hpp
 @@ -0,0 +1,65 @@
 +/*----------------------------------------------------------------------------*/
 +/*                                                                            */
@@ -2499,17 +2701,9 @@ Index: interpreter/instructions/FinallyInstruction.hpp
 +    void execute(RexxActivation *, ExpressionStack *) override;
 +};
 +#endif
-
-Property changes on: interpreter/instructions/FinallyInstruction.hpp
-___________________________________________________________________
-Added: svn:eol-style
-## -0,0 +1 ##
-+native
-\ No newline at end of property
-Index: interpreter/instructions/RexxInstruction.hpp
-===================================================================
---- a/interpreter/instructions/RexxInstruction.hpp	(revision 13491)
-+++ b/interpreter/instructions/RexxInstruction.hpp	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/instructions/RexxInstruction.hpp main-f/interpreter/instructions/RexxInstruction.hpp
+--- a/interpreter/instructions/RexxInstruction.hpp
++++ b/interpreter/instructions/RexxInstruction.hpp
 @@ -113,6 +113,7 @@
      LABELED_SELECT_BLOCK,
      LABELED_OTHERWISE_BLOCK,
@@ -2518,10 +2712,9 @@ Index: interpreter/instructions/RexxInstruction.hpp
  } EndBlockType;
  
  class DoBlock;
-Index: interpreter/instructions/SelectInstruction.cpp
-===================================================================
---- a/interpreter/instructions/SelectInstruction.cpp	(revision 13491)
-+++ b/interpreter/instructions/SelectInstruction.cpp	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/instructions/SelectInstruction.cpp main-f/interpreter/instructions/SelectInstruction.cpp
+--- a/interpreter/instructions/SelectInstruction.cpp
++++ b/interpreter/instructions/SelectInstruction.cpp
 @@ -141,6 +141,8 @@
      // if we've been asked to re-execute.
      if (context->conditionalPauseInstruction())
@@ -2543,7 +2736,7 @@ Index: interpreter/instructions/SelectInstruction.cpp
      // we terminate this doblock
      context->terminateBlockInstruction(doblock->getIndent());
      // and we jump to the instruction after our END
-@@ -367,6 +374,15 @@
+@@ -367,13 +374,29 @@
      // protect it, as the expression evaluation may trigger a GC
      Protected<DoBlock> doblock = new DoBlock (context, this);
  
@@ -2559,7 +2752,6 @@ Index: interpreter/instructions/SelectInstruction.cpp
      // evaluate the CASE instruction and store in the doblock so the WHEN
      // instructions can retrieve it.
      ProtectedObject caseResult = caseExpr->evaluate(context, stack);
-@@ -373,7 +389,14 @@
      context->traceKeywordResult(GlobalNames::CASE, caseResult);
  
      // set the block to the top of the context stack.
@@ -2584,22 +2776,30 @@ Index: interpreter/instructions/SelectInstruction.cpp
          terminate(context, doblock);
      }
  }
-Index: interpreter/instructions/SignalInstruction.cpp
-===================================================================
---- a/interpreter/instructions/SignalInstruction.cpp	(revision 13491)
-+++ b/interpreter/instructions/SignalInstruction.cpp	(working copy)
-@@ -356,6 +356,6 @@
-     // set the new condition object
-     context->setConditionObj(conditionObj);
-     // and jump to the condition target
+diff -ruN '--exclude=.svn' main/interpreter/instructions/SignalInstruction.cpp main-f/interpreter/instructions/SignalInstruction.cpp
+--- a/interpreter/instructions/SignalInstruction.cpp
++++ b/interpreter/instructions/SignalInstruction.cpp
+@@ -350,12 +350,13 @@
+     // we don't have a resolved label.
+     if (targetInstruction == OREF_NULL)
+     {
++        // RC is set before the error, as it always was
++        context->setTrapRc(conditionObj);
+         reportException(Error_Label_not_found_name, targetName);
+     }
+ 
+-    // set the new condition object
+-    context->setConditionObj(conditionObj);
+-    // and jump to the condition target
 -    context->signalTo(targetInstruction);
-+    context->signalTo(targetInstruction, true);
++    // jump to the condition target: the FINALLY clauses of the blocks it
++    // ends run first, and then the condition object and RC are set (RFE #31)
++    context->signalTrap(targetInstruction, conditionObj);
  }
  
-Index: interpreter/instructions/SimpleDoInstruction.cpp
-===================================================================
---- a/interpreter/instructions/SimpleDoInstruction.cpp	(revision 13491)
-+++ b/interpreter/instructions/SimpleDoInstruction.cpp	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/instructions/SimpleDoInstruction.cpp main-f/interpreter/instructions/SimpleDoInstruction.cpp
+--- a/interpreter/instructions/SimpleDoInstruction.cpp
++++ b/interpreter/instructions/SimpleDoInstruction.cpp
 @@ -46,6 +46,7 @@
  #include "DoBlock.hpp"
  #include "EndInstruction.hpp"
@@ -2618,10 +2818,9 @@ Index: interpreter/instructions/SimpleDoInstruction.cpp
      {
          // create an active block, and make this the top of the
          // control stack
-Index: interpreter/memory/GlobalNames.h
-===================================================================
---- a/interpreter/memory/GlobalNames.h	(revision 13491)
-+++ b/interpreter/memory/GlobalNames.h	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/memory/GlobalNames.h main-f/interpreter/memory/GlobalNames.h
+--- a/interpreter/memory/GlobalNames.h
++++ b/interpreter/memory/GlobalNames.h
 @@ -66,6 +66,7 @@
  GLOBAL_NAME(BRACKETS, "[]")
  GLOBAL_NAME(BY, "BY")
@@ -2630,10 +2829,9 @@ Index: interpreter/memory/GlobalNames.h
  GLOBAL_NAME(CASE, "CASE")
  GLOBAL_NAME(CHAR, "CHAR")
  GLOBAL_NAME(CHARIN, "CHARIN")
-Index: interpreter/messages/RexxErrorCodes.h
-===================================================================
---- a/interpreter/messages/RexxErrorCodes.h	(revision 13491)
-+++ b/interpreter/messages/RexxErrorCodes.h	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/messages/RexxErrorCodes.h main-f/interpreter/messages/RexxErrorCodes.h
+--- a/interpreter/messages/RexxErrorCodes.h
++++ b/interpreter/messages/RexxErrorCodes.h
 @@ -91,6 +91,13 @@
  Error_Unexpected_end_then                                    = 10005,
  Error_Unexpected_end_else                                    = 10006,
@@ -2697,10 +2895,9 @@ Index: interpreter/messages/RexxErrorCodes.h
  Error_at_line                                                = 101000,
  Message_Translations_error                                   = 101001,
  Message_Translations_running                                 = 101002,
-Index: interpreter/messages/RexxErrorMessages.h
-===================================================================
---- a/interpreter/messages/RexxErrorMessages.h	(revision 13491)
-+++ b/interpreter/messages/RexxErrorMessages.h	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/messages/RexxErrorMessages.h main-f/interpreter/messages/RexxErrorMessages.h
+--- a/interpreter/messages/RexxErrorMessages.h
++++ b/interpreter/messages/RexxErrorMessages.h
 @@ -93,6 +93,13 @@
      MESSAGE(Error_Unexpected_end_then, "END must not immediately follow THEN.")
      MESSAGE(Error_Unexpected_end_else, "END must not immediately follow ELSE.")
@@ -2764,10 +2961,9 @@ Index: interpreter/messages/RexxErrorMessages.h
      MESSAGE(Error_at_line, "Error &1 running &2, line &3:.")
      MESSAGE(Message_Translations_error, "Error")
      MESSAGE(Message_Translations_running, "running")
-Index: interpreter/messages/RexxMessageNumbers.h
-===================================================================
---- a/interpreter/messages/RexxMessageNumbers.h	(revision 13491)
-+++ b/interpreter/messages/RexxMessageNumbers.h	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/messages/RexxMessageNumbers.h main-f/interpreter/messages/RexxMessageNumbers.h
+--- a/interpreter/messages/RexxMessageNumbers.h
++++ b/interpreter/messages/RexxMessageNumbers.h
 @@ -763,6 +763,20 @@
  #define Error_Invalid_subkeyword_options_form_msg                    843
  #define Error_Variable_reference_use_default_msg                     844
@@ -2789,10 +2985,9 @@ Index: interpreter/messages/RexxMessageNumbers.h
  
  
  #endif
-Index: interpreter/messages/RexxMessageTable.h
-===================================================================
---- a/interpreter/messages/RexxMessageTable.h	(revision 13491)
-+++ b/interpreter/messages/RexxMessageTable.h	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/messages/RexxMessageTable.h main-f/interpreter/messages/RexxMessageTable.h
+--- a/interpreter/messages/RexxMessageTable.h
++++ b/interpreter/messages/RexxMessageTable.h
 @@ -92,6 +92,13 @@
        MINOR(Error_Unexpected_end_then)
        MINOR(Error_Unexpected_end_else)
@@ -2856,10 +3051,9 @@ Index: interpreter/messages/RexxMessageTable.h
    MAJOR(Error_at_line)
        MINOR(Message_Translations_error)
        MINOR(Message_Translations_running)
-Index: interpreter/messages/errnums.xml
-===================================================================
---- a/interpreter/messages/errnums.xml	(revision 13491)
-+++ b/interpreter/messages/errnums.xml	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/messages/errnums.xml main-f/interpreter/messages/errnums.xml
+--- a/interpreter/messages/errnums.xml
++++ b/interpreter/messages/errnums.xml
 @@ -283,6 +283,48 @@
  <para>END corresponding to SELECT on line <emphasis role="italic">line_number</emphasis> must not have a symbol following it because there is no LABEL; found "<emphasis role="italic">symbol</emphasis>".</para>
  </listitem>
@@ -2995,10 +3189,9 @@ Index: interpreter/messages/errnums.xml
  </variablelist>
  </section>
  </section>
-Index: interpreter/messages/rexxmsg.xml
-===================================================================
---- a/interpreter/messages/rexxmsg.xml	(revision 13491)
-+++ b/interpreter/messages/rexxmsg.xml	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/messages/rexxmsg.xml main-f/interpreter/messages/rexxmsg.xml
+--- a/interpreter/messages/rexxmsg.xml
++++ b/interpreter/messages/rexxmsg.xml
 @@ -418,6 +418,69 @@
          <SymbolicName>Error_Unexpected_end_select_nolabel</SymbolicName>
          <Text>END corresponding to SELECT on line <Sub position="2" name="line_number"/> must not have a symbol following it because there is no LABEL; found <q><Sub position="1" name="symbol"/></q>.</Text>
@@ -3174,10 +3367,9 @@ Index: interpreter/messages/rexxmsg.xml
      </Subcodes>
    </Message>
    <Message>
-Index: interpreter/parser/InstructionParser.cpp
-===================================================================
---- a/interpreter/parser/InstructionParser.cpp	(revision 13491)
-+++ b/interpreter/parser/InstructionParser.cpp	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/parser/InstructionParser.cpp main-f/interpreter/parser/InstructionParser.cpp
+--- a/interpreter/parser/InstructionParser.cpp
++++ b/interpreter/parser/InstructionParser.cpp
 @@ -107,6 +107,8 @@
  #include "DoInstruction.hpp"
  #include "EndInstruction.hpp"
@@ -3236,7 +3428,7 @@ Index: interpreter/parser/InstructionParser.cpp
      // allocate the object and return
      RexxInstruction *newObject = type == KEYWORD_LEAVE ? new_instruction(LEAVE, Leave) : new_instruction(ITERATE, Leave);
      ::new ((void *)newObject) RexxInstructionLeave(name);
-@@ -3083,6 +3106,219 @@
+@@ -3083,6 +3106,227 @@
  
  
  /**
@@ -3321,53 +3513,61 @@ Index: interpreter/parser/InstructionParser.cpp
 +        if ((condType == CONDITION_SYNTAX || condType == CONDITION_ERROR || condType == CONDITION_FAILURE) &&
 +            !token->isEndOfClause() && !token->isComma())
 +        {
-+            // a sign is part of the constant
-+            bool negative = false;
-+            if (condType != CONDITION_SYNTAX && (token->isOperator(OPERATOR_SUBTRACT) || token->isOperator(OPERATOR_PLUS)))
-+            {
-+                negative = token->isOperator(OPERATOR_SUBTRACT);
-+                token = nextToken();
-+            }
-+            if (!token->isLiteral() && !token->isConstant())
-+            {
-+                // a variable is not a code (and a missing comma is the
-+                // likeliest reason for a condition name here)
-+                syntaxError(token->isSymbol() ? Error_Invalid_data_condition : Error_Invalid_expression_general, token);
-+            }
-+            RexxString *text = token->value();
 +            if (condType == CONDITION_SYNTAX)
 +            {
-+                // major, or major.minor: kept as major * 1000 + minor
-+                const char *data = text->getStringData();
-+                size_t length = text->getLength();
-+                wholenumber_t major = 0;
-+                wholenumber_t minor = 0;
-+                size_t i = 0;
-+                size_t digits = 0;
-+                for (; i < length && data[i] >= '0' && data[i] <= '9' && digits < 3; i++, digits++)
++                // a simple variable is read when the clause is tested
++                if (token->isSymbol() && token->isSubtype(SYMBOL_VARIABLE))
 +                {
-+                    major = major * 10 + (data[i] - '0');
++                    code = (RexxObject *)addVariable(token);
 +                }
-+                bool valid = digits > 0 && major >= 1 && major <= 99;
-+                if (valid && i < length)
++                else
 +                {
-+                    valid = data[i++] == '.';
-+                    digits = 0;
-+                    for (; i < length && data[i] >= '0' && data[i] <= '9' && digits < 4; i++, digits++)
++                    // a number or a literal string: checked now, and kept as
++                    // major * 1000 + minor
++                    if (!token->isLiteral() && !(token->isSymbol() && token->isSubtype(SYMBOL_CONSTANT)))
 +                    {
-+                        minor = minor * 10 + (data[i] - '0');
++                        // a stem, a compound variable, an environment symbol,
++                        // or not a symbol
++                        syntaxError(Error_Invalid_expression_general, token);
 +                    }
-+                    valid = valid && digits > 0 && i == length && minor >= 1 && minor <= 999;
++                    wholenumber_t number = RexxInstructionCatch::errorNumber(token->value());
++                    if (number < 0)
++                    {
++                        syntaxError(Error_Invalid_expression_catch_syntax, token);
++                    }
++                    code = new_integer(number);
 +                }
-+                if (!valid)
++            }
++            // ERROR and FAILURE: a number, optionally signed (as on
++            // ::CONSTANT), a literal string, or a simple variable, which is
++            // read when the clause is tested.  Nothing is evaluated.
++            else if (token->isOperator(OPERATOR_SUBTRACT) || token->isOperator(OPERATOR_PLUS))
++            {
++                bool negative = token->isOperator(OPERATOR_SUBTRACT);
++                token = nextToken();
++                if (!token->isSymbol() || !token->isSubtype(SYMBOL_CONSTANT) || token->value()->numberString() == OREF_NULL)
 +                {
-+                    syntaxError(Error_Invalid_expression_catch_syntax, token);
++                    syntaxError(Error_Invalid_expression_general, token);
 +                }
-+                code = new_integer(major * 1000 + minor);
++                code = negative ? token->value()->concatToCstring("-") : token->value();
++            }
++            else if (token->isLiteral())
++            {
++                code = token->value();
++            }
++            else if (token->isSymbol() && token->isSubtype(SYMBOL_CONSTANT) && token->value()->numberString() != OREF_NULL)
++            {
++                code = token->value();
++            }
++            else if (token->isSymbol() && token->isSubtype(SYMBOL_VARIABLE))
++            {
++                code = (RexxObject *)addVariable(token);
 +            }
 +            else
 +            {
-+                code = negative ? text->concatToCstring("-") : text;
++                // a stem, a compound variable, an environment symbol, a
++                // constant symbol that is not a number, or not a symbol
++                syntaxError(Error_Invalid_expression_general, token);
 +            }
 +            hasCodes = true;
 +            token = nextReal();
@@ -3456,7 +3656,7 @@ Index: interpreter/parser/InstructionParser.cpp
   * Create a new Otherwise instruction object.
   *
   * @param token  The token for the OTHERWISE keyword.
-@@ -3782,6 +4018,8 @@
+@@ -3782,6 +4026,8 @@
      // this is pretty simple...parse the optional expression and create the
      // instruction instance.
      RexxInternalObject *expression = parseExpression(TERM_EOC);
@@ -3465,7 +3665,7 @@ Index: interpreter/parser/InstructionParser.cpp
  
      RexxInstruction *newObject = new_instruction(RETURN, Return);
      ::new ((void *)newObject) RexxInstructionReturn(expression);
-@@ -3907,6 +4145,9 @@
+@@ -3907,6 +4153,9 @@
      // parse it off now.
      RexxInternalObject *labelExpression = requiredExpression(TERM_EOC, Error_Invalid_expression_signal);
  
@@ -3475,7 +3675,7 @@ Index: interpreter/parser/InstructionParser.cpp
      // create a new instruction object
      RexxInstruction *newObject = new_instruction(SIGNAL_VALUE, DynamicSignal);
      ::new ((void *)newObject) RexxInstructionDynamicSignal(labelExpression);
-@@ -4094,6 +4335,9 @@
+@@ -4094,6 +4343,9 @@
          }
      }
  
@@ -3485,11 +3685,10 @@ Index: interpreter/parser/InstructionParser.cpp
      // create a new instruction object
      RexxInstruction *newObject = new_instruction(SIGNAL, Signal);
      ::new ((void *)newObject) RexxInstructionSignal(labelName);
-Index: interpreter/parser/KeywordConstants.cpp
-===================================================================
---- a/interpreter/parser/KeywordConstants.cpp	(revision 13491)
-+++ b/interpreter/parser/KeywordConstants.cpp	(working copy)
-@@ -68,6 +68,7 @@
+diff -ruN '--exclude=.svn' main/interpreter/parser/KeywordConstants.cpp main-f/interpreter/parser/KeywordConstants.cpp
+--- a/interpreter/parser/KeywordConstants.cpp
++++ b/interpreter/parser/KeywordConstants.cpp
+@@ -68,12 +68,14 @@
      KeywordEntry("ADDRESS",    KEYWORD_ADDRESS),
      KeywordEntry("ARG",        KEYWORD_ARG),
      KeywordEntry("CALL",       KEYWORD_CALL),
@@ -3497,7 +3696,6 @@ Index: interpreter/parser/KeywordConstants.cpp
      KeywordEntry("DO",         KEYWORD_DO),
      KeywordEntry("DROP",       KEYWORD_DROP),
      KeywordEntry("ELSE",       KEYWORD_ELSE),
-@@ -74,6 +75,7 @@
      KeywordEntry("END",        KEYWORD_END),
      KeywordEntry("EXIT",       KEYWORD_EXIT),
      KeywordEntry("EXPOSE",     KEYWORD_EXPOSE),
@@ -3505,10 +3703,9 @@ Index: interpreter/parser/KeywordConstants.cpp
      KeywordEntry("FORWARD",    KEYWORD_FORWARD),
      KeywordEntry("GUARD",      KEYWORD_GUARD),
      KeywordEntry("IF",         KEYWORD_IF),
-Index: interpreter/parser/LanguageParser.cpp
-===================================================================
---- a/interpreter/parser/LanguageParser.cpp	(revision 13491)
-+++ b/interpreter/parser/LanguageParser.cpp	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/parser/LanguageParser.cpp main-f/interpreter/parser/LanguageParser.cpp
+--- a/interpreter/parser/LanguageParser.cpp
++++ b/interpreter/parser/LanguageParser.cpp
 @@ -62,6 +62,8 @@
  #include "EndInstruction.hpp"
  #include "DoInstruction.hpp"
@@ -3689,10 +3886,9 @@ Index: interpreter/parser/LanguageParser.cpp
          // different variants of an IF
          case KEYWORD_IF:
          case KEYWORD_WHEN:
-Index: interpreter/parser/LanguageParser.hpp
-===================================================================
---- a/interpreter/parser/LanguageParser.hpp	(revision 13491)
-+++ b/interpreter/parser/LanguageParser.hpp	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/parser/LanguageParser.hpp main-f/interpreter/parser/LanguageParser.hpp
+--- a/interpreter/parser/LanguageParser.hpp
++++ b/interpreter/parser/LanguageParser.hpp
 @@ -286,6 +286,9 @@
      RexxInstruction *numericNew();
      RexxInstruction *optionsNew();
@@ -3703,10 +3899,9 @@ Index: interpreter/parser/LanguageParser.hpp
      RexxInstruction *parseNew(InstructionSubKeyword);
      RexxInstruction *procedureNew();
      RexxInstruction *pushNew();
-Index: interpreter/parser/Token.hpp
-===================================================================
---- a/interpreter/parser/Token.hpp	(revision 13491)
-+++ b/interpreter/parser/Token.hpp	(working copy)
+diff -ruN '--exclude=.svn' main/interpreter/parser/Token.hpp main-f/interpreter/parser/Token.hpp
+--- a/interpreter/parser/Token.hpp
++++ b/interpreter/parser/Token.hpp
 @@ -255,6 +255,8 @@
      KEYWORD_REQUIRES,
      KEYWORD_USE_LOCAL,
