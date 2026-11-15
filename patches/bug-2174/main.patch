@@ -1,0 +1,11 @@
+--- a/interpreter/execution/RexxActivation.cpp	2026-11-15 16:50:38.883522000 +0100
++++ b/interpreter/execution/RexxActivation.cpp	2026-11-15 17:44:17.215274348 +0100
+@@ -1911,7 +1911,7 @@
+     else
+     {
+         // build a condition object for the condition
+-        p = activity->createConditionObject(condition, rc, description, additional, result);
++        p = activity->createConditionObject(condition, rc, description, additional, resultObj);
+ 
+         conditionobj = p;
+         conditionobj->put(TheFalseObject, GlobalNames::PROPAGATED);

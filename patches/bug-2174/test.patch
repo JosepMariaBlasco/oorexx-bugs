@@ -1,0 +1,146 @@
+--- a/ooRexx/base/keyword/RAISE.testGroup	2026-11-15 17:46:32.519119250 +0100
++++ b/ooRexx/base/keyword/RAISE.testGroup	2026-11-15 17:46:49.766374383 +0100
+@@ -466,6 +466,37 @@
+   self~expectCondition("USER RGF")
+   raise UseR rGf
+ 
++-- RAISE ... RETURN (value) and EXIT (value) put the value in the RESULT
++-- entry of the condition object, for every condition, not only SYNTAX
++::method test_RAISE_RETURN_result_signal_on
++  do cond over raisableConditions()
++    self~assertSame(cond "RETURN", signalOnResult(cond, "RETURN"), cond)
++  end
++
++::method test_RAISE_EXIT_result_signal_on
++  do cond over raisableConditions()
++    self~assertSame(cond "EXIT", signalOnResult(cond, "EXIT"), cond)
++  end
++
++-- under CALL ON, the value is also the result of the call, as before
++::method test_RAISE_RETURN_result_call_on
++  do cond over .array~of("ERROR", "FAILURE", "HALT", "NOTREADY", "USER")
++    self~assertSame(cond "RETURN" "/" cond "RETURN", callOnResult(cond, "RETURN"), cond)
++  end
++
++::method test_RAISE_EXIT_result_call_on
++  do cond over .array~of("ERROR", "FAILURE", "HALT", "NOTREADY", "USER")
++    self~assertSame(cond "EXIT" "/" cond "EXIT", callOnResult(cond, "EXIT"), cond)
++  end
++
++-- without RETURN or EXIT there is still no RESULT entry
++::method test_RAISE_no_value_no_result_entry
++  signal on user nothing name trapped
++  call raiseNoValue
++  self~fail("USER NOTHING not trapped")
++trapped:
++  self~assertFalse(condition("O")~hasIndex("RESULT"))
++
+ 
+ -- test whether message inserts keep CR/LF unmasked, not masking as "?"
+ -- as the reply thread runs without caller, we can raise SYNTAX
+@@ -546,4 +577,65 @@
+   return
+ 
+ 
++::routine raisableConditions
++  return .array~of("ERROR", "FAILURE", "HALT", "LOSTDIGITS", "NOMETHOD", -
++    "NOSTRING", "NOTREADY", "NOVALUE", "USER")
++
++-- the RESULT entry of the condition object, trapped with SIGNAL ON
++::routine signalOnResult
++  use arg cond, how
++  signal on any name trapped
++  call raiseWithValue cond, how, cond how
++  return "not trapped"
++trapped:
++  co = condition("O")
++  if \co~hasIndex("RESULT") then
++    return "no RESULT entry"
++  return co~result
++
++-- the RESULT entry of the condition object, trapped with CALL ON, and the
++-- result of the call
++::routine callOnResult
++  use arg cond, how
++  entry = "not trapped"
++  call on any name handler
++  value = raiseWithValue(cond, how, cond how)
++  return entry "/" value
++handler:
++  co = condition("O")
++  if \co~hasIndex("RESULT") then
++    entry = "no RESULT entry"
++  else
++    entry = co~result
++  return
++
++::routine raiseWithValue
++  use arg cond, how, value
++  if how = "RETURN" then select case cond
++    when "ERROR"      then raise error 1 return (value)
++    when "FAILURE"    then raise failure 1 return (value)
++    when "HALT"       then raise halt return (value)
++    when "LOSTDIGITS" then raise lostdigits return (value)
++    when "NOMETHOD"   then raise nomethod return (value)
++    when "NOSTRING"   then raise nostring return (value)
++    when "NOTREADY"   then raise notready return (value)
++    when "NOVALUE"    then raise novalue return (value)
++    when "USER"       then raise user u return (value)
++  end
++  else select case cond
++    when "ERROR"      then raise error 1 exit (value)
++    when "FAILURE"    then raise failure 1 exit (value)
++    when "HALT"       then raise halt exit (value)
++    when "LOSTDIGITS" then raise lostdigits exit (value)
++    when "NOMETHOD"   then raise nomethod exit (value)
++    when "NOSTRING"   then raise nostring exit (value)
++    when "NOTREADY"   then raise notready exit (value)
++    when "NOVALUE"    then raise novalue exit (value)
++    when "USER"       then raise user u exit (value)
++  end
++
++::routine raiseNoValue
++  raise user nothing
++
++
+ ::options all syntax error condition failure condition
+--- a/ooRexx/base/keyword/CATCH.testGroup	2026-11-15 17:46:32.521076933 +0100
++++ b/ooRexx/base/keyword/CATCH.testGroup	2026-11-15 17:46:49.768280228 +0100
+@@ -1556,6 +1556,24 @@
+   self~assertSame(0, theRC, "rexx ended with rc" theRC":" output~makeString)
+   self~assertSame("ok", output~makeString~strip, output~makeString)
+ 
++-- RAISE ... RETURN (value) and EXIT (value): the value is in the RESULT entry
++-- of the condition object, for any condition
++::method test_raise_return_result_entry
++  do
++    call raiseUserResult "RETURN"
++  catch c = user r
++    out = c~result
++  end
++  self~assertSame("value RETURN", out)
++
++::method test_raise_exit_result_entry
++  do
++    call raiseUserResult "EXIT"
++  catch user r
++    out = condition("O")~result
++  end
++  self~assertSame("value EXIT", out)
++
+ ::routine raiseErrorRc
+   use arg rc
+   raise error (rc)
+@@ -1567,6 +1585,12 @@
+ ::routine raiseUserTwo
+   raise user two
+ 
++::routine raiseUserResult
++  use arg how
++  if how = "RETURN" then
++    raise user r return ("value RETURN")
++  raise user r exit ("value EXIT")
++
+ ::routine raiseUserU5
+   raise user u5
+ 
