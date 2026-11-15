@@ -1,0 +1,47 @@
+--- a/ooRexx/base/keyword/CATCH.testGroup
++++ b/ooRexx/base/keyword/CATCH.testGroup
+@@ -1518,6 +1518,44 @@
+   self~assertSame(shown, output~makeString~pos("Error 42.3") > 0, output~makeString)
+ 
+ 
++-- the condition object must survive the garbage collections that can
++-- happen while the clause is being entered (SIGL, RC and, for a routine,
++-- a fresh activation's variables allocate): before the fix it was held
++-- only by a C++ local and the program crashed.  Whether a collection
++-- falls there depends on the allocation pattern, so the calls allocate a
++-- string of varying size; each run is a program of its own, so that a
++-- crash fails the test and not the suite
++::method test_condition_object_survives_gc_variable
++  self~runManyCatches("catch c = syntax", "return c~code == 42.3")
++
++::method test_condition_object_survives_gc_condition
++  self~runManyCatches("catch syntax", "return condition('O')~code == 42.3")
++
++::method runManyCatches
++  use arg clause, check
++  source = .array~of( -
++    "do m over 7, 61, 251, 997", -
++    "  do i = 1 to 50000", -
++    "    if \ok(i // m) then do; say 'wrong condition object at call' i; exit 1; end", -
++    "  end", -
++    "end", -
++    "say 'ok'", -
++    "exit", -
++    "::routine ok", -
++    "  use arg n", -
++    "  s = copies('x', n)", -
++    "  do", -
++    "    x = 1 / 0", -
++    "  " clause, -
++    "    " check, -
++    "  end")
++  name = "catch_" || self~getName~lower
++  program = .TemporaryTestFile~new(self, name".tmp.rex")~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName "2>&1", output)
++  self~assertSame(0, theRC, "rexx ended with rc" theRC":" output~makeString)
++  self~assertSame("ok", output~makeString~strip, output~makeString)
++
+ ::routine raiseErrorRc
+   use arg rc
+   raise error (rc)
