@@ -1,8 +1,8 @@
 Index: api/oorexxerrors.h
 ===================================================================
---- a/api/oorexxerrors.h	(revision 13513)
+--- a/api/oorexxerrors.h	(revision 13526)
 +++ b/api/oorexxerrors.h	(working copy)
-@@ -415,6 +415,7 @@
+@@ -427,6 +427,7 @@
  #define Rexx_Error_Incorrect_call_stem_sparse_array                       40924
  #define Rexx_Error_Incorrect_call_noarray_nostem                          40925
  #define Rexx_Error_Incorrect_call_error_code                              40926
@@ -107,7 +107,7 @@ Added: svn:eol-style
 \ No newline at end of property
 Index: interpreter/expression/BuiltinFunctions.cpp
 ===================================================================
---- a/interpreter/expression/BuiltinFunctions.cpp	(revision 13513)
+--- a/interpreter/expression/BuiltinFunctions.cpp	(revision 13526)
 +++ b/interpreter/expression/BuiltinFunctions.cpp	(working copy)
 @@ -57,6 +57,8 @@
  #include "PackageManager.hpp"
@@ -354,9 +354,9 @@ Index: interpreter/expression/BuiltinFunctions.cpp
  
 Index: interpreter/messages/RexxErrorCodes.h
 ===================================================================
---- a/interpreter/messages/RexxErrorCodes.h	(revision 13513)
+--- a/interpreter/messages/RexxErrorCodes.h	(revision 13526)
 +++ b/interpreter/messages/RexxErrorCodes.h	(working copy)
-@@ -417,6 +417,7 @@
+@@ -429,6 +429,7 @@
  Error_Incorrect_call_stem_sparse_array                       = 40924,
  Error_Incorrect_call_noarray_nostem                          = 40925,
  Error_Incorrect_call_error_code                              = 40926,
@@ -366,9 +366,9 @@ Index: interpreter/messages/RexxErrorCodes.h
  Error_Conversion_prefix                                      = 41003,
 Index: interpreter/messages/RexxErrorMessages.h
 ===================================================================
---- a/interpreter/messages/RexxErrorMessages.h	(revision 13513)
+--- a/interpreter/messages/RexxErrorMessages.h	(revision 13526)
 +++ b/interpreter/messages/RexxErrorMessages.h	(working copy)
-@@ -419,6 +419,7 @@
+@@ -431,6 +431,7 @@
      MESSAGE(Error_Incorrect_call_stem_sparse_array, "Stem element at position \"&1\" is not set.")
      MESSAGE(Error_Incorrect_call_noarray_nostem, "Argument &1 must be an array object, a stem object, or a stem name value; found \"&2\".")
      MESSAGE(Error_Incorrect_call_error_code, "&1 argument &2 must be an error code nn.nnn, with nn in the range 0-99 and nnn in the range 0-999; found \"&3\".")
@@ -378,21 +378,21 @@ Index: interpreter/messages/RexxErrorMessages.h
      MESSAGE(Error_Conversion_prefix, "Nonnumeric value (\"&1\") used with prefix operator.")
 Index: interpreter/messages/RexxMessageNumbers.h
 ===================================================================
---- a/interpreter/messages/RexxMessageNumbers.h	(revision 13513)
+--- a/interpreter/messages/RexxMessageNumbers.h	(revision 13526)
 +++ b/interpreter/messages/RexxMessageNumbers.h	(working copy)
-@@ -763,6 +763,7 @@
- #define Error_Invalid_subkeyword_options_form_msg                    843
- #define Error_Variable_reference_use_default_msg                     844
- #define Error_Incorrect_call_error_code_msg                          845
+@@ -777,6 +777,7 @@
+ #define Error_Unexpected_end_after_finally_msg                       857
+ #define Error_Execution_finally_exit_msg                             858
+ #define Error_Translation_finally_exit_msg                           859
 +#define Error_Incorrect_call_range_limits_msg                        860
  
  
  #endif
 Index: interpreter/messages/RexxMessageTable.h
 ===================================================================
---- a/interpreter/messages/RexxMessageTable.h	(revision 13513)
+--- a/interpreter/messages/RexxMessageTable.h	(revision 13526)
 +++ b/interpreter/messages/RexxMessageTable.h	(working copy)
-@@ -418,6 +418,7 @@
+@@ -430,6 +430,7 @@
        MINOR(Error_Incorrect_call_stem_sparse_array)
        MINOR(Error_Incorrect_call_noarray_nostem)
        MINOR(Error_Incorrect_call_error_code)
@@ -402,9 +402,9 @@ Index: interpreter/messages/RexxMessageTable.h
        MINOR(Error_Conversion_prefix)
 Index: interpreter/messages/errnums.xml
 ===================================================================
---- a/interpreter/messages/errnums.xml	(revision 13513)
+--- a/interpreter/messages/errnums.xml	(revision 13526)
 +++ b/interpreter/messages/errnums.xml	(working copy)
-@@ -2511,6 +2511,13 @@
+@@ -2583,6 +2583,13 @@
  <emphasis role="italic">function_name</emphasis> argument <emphasis role="italic">argument_number</emphasis> must be an error code nn.nnn, with nn in the range 0-99 and nnn in the range 0-999; found "<emphasis role="italic">value</emphasis>".</para>
  </listitem>
  </varlistentry>
@@ -420,9 +420,9 @@ Index: interpreter/messages/errnums.xml
  <section id="ERR41">
 Index: interpreter/messages/rexxmsg.xml
 ===================================================================
---- a/interpreter/messages/rexxmsg.xml	(revision 13513)
+--- a/interpreter/messages/rexxmsg.xml	(revision 13526)
 +++ b/interpreter/messages/rexxmsg.xml	(working copy)
-@@ -3527,6 +3527,15 @@
+@@ -3635,6 +3635,15 @@
          <SymbolicName>Error_Incorrect_call_error_code</SymbolicName>
          <Text><Sub position="1" name="function_name"/> argument <Sub position="2" name="argument_number"/> must be an error code nn.nnn, with nn in the range 0-99 and nnn in the range 0-999; found <q><Sub position="3" name="value"/></q>.</Text>
        </SubMessage>
@@ -440,7 +440,7 @@ Index: interpreter/messages/rexxmsg.xml
    <Message>
 Index: interpreter/package/PackageManager.cpp
 ===================================================================
---- a/interpreter/package/PackageManager.cpp	(revision 13513)
+--- a/interpreter/package/PackageManager.cpp	(revision 13526)
 +++ b/interpreter/package/PackageManager.cpp	(working copy)
 @@ -423,6 +423,26 @@
  
@@ -496,7 +496,7 @@ Index: interpreter/package/PackageManager.cpp
      {
 Index: interpreter/package/PackageManager.hpp
 ===================================================================
---- a/interpreter/package/PackageManager.hpp	(revision 13513)
+--- a/interpreter/package/PackageManager.hpp	(revision 13526)
 +++ b/interpreter/package/PackageManager.hpp	(working copy)
 @@ -78,6 +78,7 @@
      static RoutineClass *resolveRoutine(RexxString *function);
@@ -508,9 +508,9 @@ Index: interpreter/package/PackageManager.hpp
      static PREGISTEREDROUTINE resolveRegisteredRoutineEntry(RexxString *package, RexxString *name);
 Index: interpreter/parser/KeywordConstants.cpp
 ===================================================================
---- a/interpreter/parser/KeywordConstants.cpp	(revision 13513)
+--- a/interpreter/parser/KeywordConstants.cpp	(revision 13526)
 +++ b/interpreter/parser/KeywordConstants.cpp	(working copy)
-@@ -165,6 +165,7 @@
+@@ -167,6 +167,7 @@
      KeywordEntry("ABS",            BUILTIN_ABS),
      KeywordEntry("ADDRESS",        BUILTIN_ADDRESS),
      KeywordEntry("ARG",            BUILTIN_ARG),
@@ -518,7 +518,7 @@ Index: interpreter/parser/KeywordConstants.cpp
      KeywordEntry("BITAND",         BUILTIN_BITAND),
      KeywordEntry("BITOR",          BUILTIN_BITOR),
      KeywordEntry("BITXOR",         BUILTIN_BITXOR),
-@@ -186,10 +187,12 @@
+@@ -188,10 +189,12 @@
      KeywordEntry("DELSTR",         BUILTIN_DELSTR),
      KeywordEntry("DELWORD",        BUILTIN_DELWORD),
      KeywordEntry("DIGITS",         BUILTIN_DIGITS),
@@ -531,7 +531,7 @@ Index: interpreter/parser/KeywordConstants.cpp
      KeywordEntry("FORM",           BUILTIN_FORM),
      KeywordEntry("FORMAT",         BUILTIN_FORMAT),
      KeywordEntry("FUZZ",           BUILTIN_FUZZ),
-@@ -248,6 +251,7 @@
+@@ -250,6 +253,7 @@
      KeywordEntry("ADDRESS",        BUILTIN_ADDRESS),
      KeywordEntry("ARG",            BUILTIN_ARG),
      KeywordEntry("B2X",            BUILTIN_B2X),
@@ -539,7 +539,7 @@ Index: interpreter/parser/KeywordConstants.cpp
      KeywordEntry("BITAND",         BUILTIN_BITAND),
      KeywordEntry("BITOR",          BUILTIN_BITOR),
      KeywordEntry("BITXOR",         BUILTIN_BITXOR),
-@@ -270,8 +274,10 @@
+@@ -272,8 +276,10 @@
      KeywordEntry("DELSTR",         BUILTIN_DELSTR),
      KeywordEntry("DELWORD",        BUILTIN_DELWORD),
      KeywordEntry("DIGITS",         BUILTIN_DIGITS),
@@ -552,9 +552,9 @@ Index: interpreter/parser/KeywordConstants.cpp
      KeywordEntry("FUZZ",           BUILTIN_FUZZ),
 Index: interpreter/parser/LanguageParser.cpp
 ===================================================================
---- a/interpreter/parser/LanguageParser.cpp	(revision 13513)
+--- a/interpreter/parser/LanguageParser.cpp	(revision 13526)
 +++ b/interpreter/parser/LanguageParser.cpp	(working copy)
-@@ -831,6 +831,14 @@
+@@ -833,6 +833,14 @@
              requireLanguageLevel(LanguageLevel0606);
              break;
  
@@ -571,9 +571,9 @@ Index: interpreter/parser/LanguageParser.cpp
              if (argCount > 1)
 Index: interpreter/parser/Token.hpp
 ===================================================================
---- a/interpreter/parser/Token.hpp	(revision 13513)
+--- a/interpreter/parser/Token.hpp	(revision 13526)
 +++ b/interpreter/parser/Token.hpp	(working copy)
-@@ -512,6 +512,11 @@
+@@ -514,6 +514,11 @@
      BUILTIN_SETLOCAL,
      BUILTIN_QUALIFY,
      BUILTIN_GC,
@@ -587,7 +587,7 @@ Index: interpreter/parser/Token.hpp
  
 Index: interpreter/runtime/InternalPackage.cpp
 ===================================================================
---- a/interpreter/runtime/InternalPackage.cpp	(revision 13513)
+--- a/interpreter/runtime/InternalPackage.cpp	(revision 13526)
 +++ b/interpreter/runtime/InternalPackage.cpp	(working copy)
 @@ -46,41 +46,34 @@
  #include "PackageManager.hpp"
@@ -767,7 +767,7 @@ Index: interpreter/runtime/InternalPackage.cpp
  
 Index: interpreter/runtime/NativeFunctions.h
 ===================================================================
---- a/interpreter/runtime/NativeFunctions.h	(revision 13513)
+--- a/interpreter/runtime/NativeFunctions.h	(revision 13526)
 +++ b/interpreter/runtime/NativeFunctions.h	(working copy)
 @@ -45,6 +45,10 @@
  //NOTE:  This file gets included multiple times to define different tables, so
