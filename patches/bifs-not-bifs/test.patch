@@ -1,6 +1,6 @@
 Index: ooRexx/base/bif/BEEP.testGroup
 ===================================================================
---- a/ooRexx/base/bif/BEEP.testGroup	(revision 13526)
+--- a/ooRexx/base/bif/BEEP.testGroup	(revision 13530)
 +++ b/ooRexx/base/bif/BEEP.testGroup	(working copy)
 @@ -52,15 +52,15 @@
     self~assertSame('', retc)
@@ -307,7 +307,7 @@ Added: svn:executable
 \ No newline at end of property
 Index: ooRexx/base/bif/FILESPEC.testGroup
 ===================================================================
---- a/ooRexx/base/bif/FILESPEC.testGroup	(revision 13526)
+--- a/ooRexx/base/bif/FILESPEC.testGroup	(revision 13530)
 +++ b/ooRexx/base/bif/FILESPEC.testGroup	(working copy)
 @@ -154,19 +154,19 @@
    end
@@ -335,7 +335,7 @@ Index: ooRexx/base/bif/FILESPEC.testGroup
  ::method testSyntax05
 Index: ooRexx/utilities/rexxc/rexxc.testGroup
 ===================================================================
---- a/ooRexx/utilities/rexxc/rexxc.testGroup	(revision 13526)
+--- a/ooRexx/utilities/rexxc/rexxc.testGroup	(revision 13530)
 +++ b/ooRexx/utilities/rexxc/rexxc.testGroup	(working copy)
 @@ -319,6 +319,35 @@
    compiled~delete
