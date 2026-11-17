@@ -1,0 +1,933 @@
+Index: api/oorexxerrors.h
+===================================================================
+--- a/api/oorexxerrors.h	(revision 13540)
++++ b/api/oorexxerrors.h	(working copy)
+@@ -193,6 +193,7 @@
+ #define Rexx_Error_Symbol_expected_counter                                20934
+ #define Rexx_Error_Symbol_expected_numeric_subdirective                   20935
+ #define Rexx_Error_Symbol_expected_catch                                  20936
++#define Rexx_Error_Symbol_expected_throw                                  20937
+ #define Rexx_Error_Invalid_data                                           21000
+ #define Rexx_Error_Invalid_data_user_defined                              21900
+ #define Rexx_Error_Invalid_data_nop                                       21901
+@@ -265,6 +266,8 @@
+ #define Rexx_Error_Invalid_subkeyword_conflict                            25937
+ #define Rexx_Error_Invalid_subkeyword_options_form                        25938
+ #define Rexx_Error_Invalid_subkeyword_catch                               25939
++#define Rexx_Error_Invalid_subkeyword_throw                               25940
++#define Rexx_Error_Invalid_subkeyword_throwoption                         25941
+ #define Rexx_Error_Invalid_whole_number                                   26000
+ #define Rexx_Error_Invalid_whole_number_repeat                            26002
+ #define Rexx_Error_Invalid_whole_number_for                               26003
+@@ -365,6 +368,8 @@
+ #define Rexx_Error_Invalid_expression_missing_general                     35935
+ #define Rexx_Error_Invalid_expression_missing_constant                    35936
+ #define Rexx_Error_Invalid_expression_catch_syntax                        35937
++#define Rexx_Error_Invalid_expression_throw_description                   35938
++#define Rexx_Error_Invalid_expression_throw_additional                    35939
+ #define Rexx_Error_Unmatched_parenthesis                                  36000
+ #define Rexx_Error_Unmatched_parenthesis_user_defined                     36900
+ #define Rexx_Error_Unmatched_parenthesis_paren                            36901
+Index: interpreter/concurrency/Activity.cpp
+===================================================================
+--- a/interpreter/concurrency/Activity.cpp	(revision 13540)
++++ b/interpreter/concurrency/Activity.cpp	(working copy)
+@@ -544,6 +544,10 @@
+         return 0;   // no error condition to return
+     }
+ 
++    // a thrown condition that nothing has caught is error 4.1 (RFE #31)
++    Protected<DirectoryClass> uncaught = uncaughtThrown(errorInfo);
++    errorInfo = uncaught;
++
+     RexxString *condition = (RexxString *)errorInfo->get(GlobalNames::CONDITION);
+     // we only display syntax conditions
+     if (condition == OREF_NULL || !condition->isEqual(GlobalNames::SYNTAX))
+@@ -575,8 +579,18 @@
+     wholenumber_t rc = Error_Interpretation / 1000;
+     if (conditionObject != OREF_NULL)
+     {
++        RexxString *condition = (RexxString *)conditionObject->get(GlobalNames::CONDITION);
++        // a thrown condition that nothing has caught is error 4.1 (RFE #31)
++        if (condition != OREF_NULL && !condition->strCompare(GlobalNames::SYNTAX) && isThrown(condition, conditionObject))
++        {
++            return Error_Program_interrupted / 1000;
++        }
+         // try to convert.  Leaves unchanged if not value
+-        conditionObject->get(GlobalNames::RC)->numberValue(rc);
++        RexxObject *rcValue = (RexxObject *)conditionObject->get(GlobalNames::RC);
++        if (rcValue != OREF_NULL)
++        {
++            rcValue->numberValue(rc);
++        }
+     }
+     return rc;
+ }
+@@ -583,6 +597,67 @@
+ 
+ 
+ /**
++ * Test if a condition propagates as an error does: a SYNTAX error,
++ * or a condition thrown by THROW (RFE #31).  Such a condition goes
++ * from caller to caller until it is caught, CALL ON does not trap
++ * it, and a message object or native code that receives it keeps it.
++ *
++ * @param condition The condition name.
++ * @param conditionObj
++ *                  The condition object (can be null).
++ *
++ * @return true if it propagates as an error.
++ */
++bool Activity::isThrown(RexxString *condition, DirectoryClass *conditionObj)
++{
++    if (condition->strCompare(GlobalNames::SYNTAX))
++    {
++        return true;
++    }
++    return conditionObj != OREF_NULL && conditionObj->get(GlobalNames::THROWN) == TheTrueObject;
++}
++
++
++/**
++ * The error a thrown condition that nothing has caught becomes at
++ * the base of a program or a thread: 4.1, "Program interrupted with
++ * condition condition.", with the location and traceback of the
++ * thrown condition (RFE #31).
++ *
++ * @param conditionObj
++ *               The condition object.
++ *
++ * @return The condition object to display: the same one for anything
++ *         that is not a thrown condition other than SYNTAX.
++ */
++DirectoryClass *Activity::uncaughtThrown(DirectoryClass *conditionObj)
++{
++    RexxString *condition = (RexxString *)conditionObj->get(GlobalNames::CONDITION);
++    if (condition == OREF_NULL || !isString(condition) || condition->strCompare(GlobalNames::SYNTAX) || !isThrown(condition, conditionObj))
++    {
++        return conditionObj;
++    }
++    Protected<DirectoryClass> error = createExceptionObject(Error_Program_interrupted_condition, OREF_NULL, new_array(condition), OREF_NULL);
++    // where it was thrown, not where it is displayed
++    RexxInternalObject *items[] = { GlobalNames::TRACEBACK, GlobalNames::STACKFRAMES, GlobalNames::POSITION, GlobalNames::PROGRAM, GlobalNames::PACKAGE_REF };
++    for (size_t i = 0; i < sizeof(items) / sizeof(items[0]); i++)
++    {
++        RexxInternalObject *value = conditionObj->get((RexxString *)items[i]);
++        if (value != OREF_NULL)
++        {
++            error->put(value, (RexxString *)items[i]);
++        }
++        else
++        {
++            error->remove((RexxString *)items[i]);
++        }
++    }
++    error->put(TheTrueObject, GlobalNames::PROPAGATED);
++    return error;
++}
++
++
++/**
+  * Check for ::OPTIONS condition SYNTAX overrides for a condition
+  * about to be raised.  If the current Rexx frame's package has
+  * the option for this condition, a SYNTAX error is raised instead
+@@ -894,6 +969,8 @@
+     conditionObj->put(condition, GlobalNames::CONDITION);
+     conditionObj->put(description == OREF_NULL ? GlobalNames::NULLSTRING : description, GlobalNames::DESCRIPTION);
+     conditionObj->put(TheFalseObject, GlobalNames::PROPAGATED);
++    // raised, not thrown (RFE #31)
++    conditionObj->put(TheFalseObject, GlobalNames::THROWN);
+ 
+     // the remainders don't have defaults, so only add the items if provided.
+     if (rc != OREF_NULL)
+@@ -1238,6 +1315,8 @@
+     // fill in the propagation status.  This is always false for the first
+     // potential trap level, gets turned to true if this goes down levels.
+     exobj->put(TheFalseObject, GlobalNames::PROPAGATED);
++    // raised by the interpreter or RAISE, not thrown (RFE #31)
++    exobj->put(TheFalseObject, GlobalNames::THROWN);
+ 
+     return exobj;
+ }
+@@ -1524,8 +1603,13 @@
+     }
+ 
+     // redo the message information from the error code (the object
+-    // ~result raises again can have been changed by Rexx code)
+-    completeSyntaxCondition(exobj);
++    // ~result raises again can have been changed by Rexx code).  A thrown
++    // condition other than SYNTAX has none (RFE #31)
++    RexxString *condition = (RexxString *)exobj->get(GlobalNames::CONDITION);
++    if (condition != OREF_NULL && isString(condition) && condition->strCompare(GlobalNames::SYNTAX))
++    {
++        completeSyntaxCondition(exobj);
++    }
+ 
+     raisePropagate(exobj);
+ }
+@@ -1567,7 +1651,54 @@
+     kill(conditionObj);
+ }
+ 
++
+ /**
++ * Throw a condition with THROW (RFE #31): it is raised where THROW
++ * runs, and if that level does not catch it, it goes from caller to
++ * caller until something catches it, as a SYNTAX error does.  This
++ * does not return.
++ *
++ * @param conditionObj
++ *               The condition object.
++ */
++void Activity::throwCondition(DirectoryClass *conditionObj)
++{
++    // anchored while it propagates (see reraiseException())
++    conditionobj = conditionObj;
++    conditionObj->put(TheTrueObject, GlobalNames::THROWN);
++    conditionObj->put(TheFalseObject, GlobalNames::PROPAGATED);
++
++    // as for an error (see raiseException())
++    ActivationBase *topFrame = getTopStackFrame();
++    RexxActivation *activation = getCurrentRexxFrame();
++    if (topFrame == activation)
++    {
++        while (activation != OREF_NULL && activation->isForwarded())
++        {
++            popStackFrame(activation);
++            activation = getCurrentRexxFrame();
++        }
++    }
++    else
++    {
++        activation = NULL;
++    }
++
++    if (!raiseCondition(conditionObj))
++    {
++        conditionObj->put(TheTrueObject, GlobalNames::PROPAGATED);
++        if (activation != OREF_NULL)
++        {
++            unwindToFrame(activation);
++            popStackFrame(activation);
++        }
++        raisePropagate(conditionObj);
++    }
++    // (a CALL ON trap does not catch a thrown condition, see trap(): a
++    // Rexx activation that catches it does not return here)
++}
++
++/**
+  * Sets a flag for as long as it exists, and gives it back the
+  * value it had, however the block is left.
+  */
+Index: interpreter/concurrency/Activity.hpp
+===================================================================
+--- a/interpreter/concurrency/Activity.hpp	(revision 13540)
++++ b/interpreter/concurrency/Activity.hpp	(working copy)
+@@ -148,6 +148,9 @@
+     void        reportAnException(RexxErrorCodes, const char *, RexxObject *, const char *, RexxObject *);
+     void        reraiseException(DirectoryClass *);
+     void        raisePropagate(DirectoryClass *);
++    void        throwCondition(DirectoryClass *);
++    static bool isThrown(RexxString *, DirectoryClass *);
++    DirectoryClass *uncaughtThrown(DirectoryClass *);
+     void        display(DirectoryClass *);
+     void        displayDebug(DirectoryClass *);
+     RexxString *buildMessage(wholenumber_t, ArrayClass *);
+Index: interpreter/execution/NativeActivation.cpp
+===================================================================
+--- a/interpreter/execution/NativeActivation.cpp	(revision 13540)
++++ b/interpreter/execution/NativeActivation.cpp	(working copy)
+@@ -1819,8 +1819,9 @@
+         // base of the stack, there's nothing left to handle this.
+         if (!isStackBase())
+         {
+-            // syntax errors are fatal...we need to reraise this
+-            if (conditionName->strCompare(GlobalNames::SYNTAX))
++            // syntax errors are fatal...we need to reraise this, and a
++            // thrown condition goes on in the same way (RFE #31)
++            if (Activity::isThrown(conditionName, conditionObj))
+             {
+                 // this prevents us from trying to trap this again
+                 trapErrors = false;
+@@ -1882,7 +1883,7 @@
+     if (conditionObj != OREF_NULL)
+     {
+         // syntax errors need to be propagated, only clear other types
+-        if (!conditionName->strCompare(GlobalNames::SYNTAX))
++        if (!Activity::isThrown(conditionName, conditionObj))
+         {
+             clearException();
+         }
+@@ -2681,8 +2682,9 @@
+     // one so it can be raised in the caller's context.
+ 
+     // we end up seeing this a second time if we're raising the exception on
+-    // return from an external call or method.
+-    if (condition->isEqual(GlobalNames::SYNTAX))
++    // return from an external call or method.  A thrown condition is held
++    // as an error is (RFE #31)
++    if (Activity::isThrown(condition, exception_object))
+     {
+         if (trapErrors)
+         {
+@@ -2745,7 +2747,7 @@
+ void NativeActivation::setCalleeConditionInfo(DirectoryClass *c)
+ {
+     setConditionInfo(c);
+-    calleeCondition = !conditionName->strCompare(GlobalNames::SYNTAX);
++    calleeCondition = !Activity::isThrown(conditionName, conditionObj);
+ }
+ 
+ 
+Index: interpreter/execution/RexxActivation.cpp
+===================================================================
+--- a/interpreter/execution/RexxActivation.cpp	(revision 13540)
++++ b/interpreter/execution/RexxActivation.cpp	(working copy)
+@@ -1986,6 +1986,9 @@
+         propagated = true;
+         // fill in the propagation status
+         conditionobj->put(TheTrueObject, GlobalNames::PROPAGATED);
++        // RAISE PROPAGATE raises it one level, whether it was raised or
++        // thrown (RFE #31)
++        conditionobj->put(TheFalseObject, GlobalNames::THROWN);
+         // if no result was specified, use the one from the condition object
+         if (resultObj == OREF_NULL)
+         {
+@@ -2724,9 +2727,12 @@
+     // the last one reaches its END (this does not return then)
+     finallyBeforeTrap(condition, exceptionObject);
+ 
++    // a SYNTAX error, or a condition thrown by THROW (RFE #31)
++    bool thrown = Activity::isThrown(condition, exceptionObject);
++
+     // do we need to notify a message object of a syntax error?
+     // send it the notification message.
+-    if (notifyObject != OREF_NULL && condition->strCompare(GlobalNames::SYNTAX))
++    if (notifyObject != OREF_NULL && thrown)
+     {
+         notifyObject->error(exceptionObject);
+     }
+@@ -2735,7 +2741,7 @@
+     // unless a CATCH clause of a block typed at the pause catches it
+     if (debugPause && !catches(condition, exceptionObject))
+     {
+-        if (!condition->strCompare(GlobalNames::SYNTAX))
++        if (!thrown)
+         {
+             return false;
+         }
+@@ -2747,7 +2753,7 @@
+     }
+     // see if we have a handler for this condition (the traps of the
+     // program are ignored at a debug pause)
+-    TrapHandler *trapHandler = debugPause ? OREF_NULL : findTrapHandler(condition);
++    TrapHandler *trapHandler = debugPause ? OREF_NULL : findTrapHandler(condition, exceptionObject);
+ 
+     // a CATCH clause of an active block (here, or in the code that runs
+     // this internal routine or INTERPRET) wins over a trap, wherever the
+@@ -2841,6 +2847,28 @@
+ 
+ 
+ /**
++ * Find the trap for a condition that has a condition object: a CALL
++ * ON trap does not trap a condition thrown by THROW, as it does not
++ * trap a SYNTAX error (RFE #31).
++ *
++ * @param condition The condition name.
++ * @param exceptionObject
++ *                  The condition object.
++ *
++ * @return The trap handler, or OREF_NULL if the condition is not trapped.
++ */
++TrapHandler *RexxActivation::findTrapHandler(RexxString *condition, DirectoryClass *exceptionObject)
++{
++    TrapHandler *trapHandler = findTrapHandler(condition);
++    if (trapHandler != OREF_NULL && !trapHandler->isSignal() && Activity::isThrown(condition, exceptionObject))
++    {
++        return OREF_NULL;
++    }
++    return trapHandler;
++}
++
++
++/**
+  * Find the SIGNAL ON or CALL ON trap for a condition.
+  *
+  * @param condition The condition name.
+@@ -3049,7 +3077,7 @@
+         {
+             DirectoryClass *conditionObj = (DirectoryClass *)pending;
+             RexxString *condition = (RexxString *)conditionObj->get(GlobalNames::CONDITION);
+-            if (condition->strCompare(GlobalNames::SYNTAX))
++            if (Activity::isThrown(condition, conditionObj))
+             {
+                 // this does not return
+                 activity->raisePropagate(conditionObj);
+@@ -3157,7 +3185,7 @@
+ 
+     // the traps of the program are ignored at a debug pause, but the
+     // clauses of a block typed there work
+-    TrapHandler *trapHandler = debugPause ? OREF_NULL : findTrapHandler(condition);
++    TrapHandler *trapHandler = debugPause ? OREF_NULL : findTrapHandler(condition, exceptionObject);
+     RexxActivation *catchOwner;
+     DoBlock *catchingBlock;
+     RexxInstructionCatch *clause;
+@@ -3182,12 +3210,12 @@
+             handler = handler->parent;
+         }
+     }
+-    // not handled here.  Only a SYNTAX condition goes on to the caller (the
+-    // others are ignored), and it is raised there after this activation
+-    // has ended.
++    // not handled here.  Only a SYNTAX condition, or a thrown one, goes on
++    // to the caller (the others are ignored), and it is raised there after
++    // this activation has ended.
+     else
+     {
+-        if (!condition->strCompare(GlobalNames::SYNTAX))
++        if (!Activity::isThrown(condition, exceptionObject))
+         {
+             return;
+         }
+Index: interpreter/execution/RexxActivation.hpp
+===================================================================
+--- a/interpreter/execution/RexxActivation.hpp	(revision 13540)
++++ b/interpreter/execution/RexxActivation.hpp	(working copy)
+@@ -247,6 +247,7 @@
+    void              findFinallyExit(const char *keyword, FinallyScope scope, DoBlock *last);
+    void              finallyBeforeTrap(RexxString *condition, DirectoryClass *exceptionObject);
+    TrapHandler     * findTrapHandler(RexxString *condition);
++   TrapHandler     * findTrapHandler(RexxString *condition, DirectoryClass *exceptionObject);
+    void              trapOn(RexxString *, RexxInstructionTrapBase *, bool);
+    void              trapOff(RexxString *, bool);
+    void              setAddress(RexxString *, CommandIOConfiguration *config);
+Index: interpreter/instructions/InputRedirector.cpp
+===================================================================
+--- a/interpreter/instructions/InputRedirector.cpp	(revision 13540)
++++ b/interpreter/instructions/InputRedirector.cpp	(working copy)
+@@ -73,7 +73,7 @@
+         // we're only interested in NOTREADY or SYNTAX conditions. We swallow the
+         // NOTREADY's, and propagate the SYNTAX conditions
+         RexxString *conditionName = (RexxString *)conditionObj->get(GlobalNames::CONDITION);
+-        if (conditionName->strCompare(GlobalNames::SYNTAX))
++        if (Activity::isThrown(conditionName, conditionObj))
+         {
+             // set this in the base command callout activation so the error will get raised
+             // when the command completes.
+Index: interpreter/instructions/RaiseInstruction.cpp
+===================================================================
+--- a/interpreter/instructions/RaiseInstruction.cpp	(revision 13540)
++++ b/interpreter/instructions/RaiseInstruction.cpp	(working copy)
+@@ -50,6 +50,8 @@
+ #include "RaiseInstruction.hpp"
+ #include "Interpreter.hpp"
+ #include "MethodArguments.hpp"
++#include "Activity.hpp"
++#include "ActivityManager.hpp"
+ 
+ 
+ /**
+@@ -291,6 +293,14 @@
+         }
+     }
+ 
++    // THROW (RFE #31): raised here, and it goes on until something
++    // catches it
++    if (instructionFlags[raise_throw])
++    {
++        throwCondition(context, rc, _description, _additional, conditionobj);
++        return;
++    }
++
+     // RAISE with RETURN or EXIT must not leave a FINALLY clause: it would
+     // replace what is pending with a result of its own.  Translation
+     // rejects it in the clause; this is for interpreted code, and for an
+@@ -317,3 +327,54 @@
+     }
+ }
+ 
++
++/**
++ * Throw the condition of a THROW instruction (RFE #31).  This does not
++ * return.
++ *
++ * @param context The current execution context.
++ * @param rc      The RC value (ERROR, FAILURE and SYNTAX).
++ * @param _description
++ *                The DESCRIPTION, if given.
++ * @param _additional
++ *                The ADDITIONAL information, if given.
++ * @param conditionobj
++ *                For THROW PROPAGATE, the condition being handled.
++ */
++void RexxInstructionRaise::throwCondition(RexxActivation *context, RexxObject *rc, RexxString *_description,
++    RexxObject *_additional, DirectoryClass *conditionobj)
++{
++    Activity *activity = ActivityManager::currentActivity;
++    Protected<DirectoryClass> condition = conditionobj;
++
++    // THROW PROPAGATE: the condition being handled, raised or thrown, with
++    // DESCRIPTION and ADDITIONAL replaced if they are given, as in RAISE
++    // PROPAGATE
++    if (instructionFlags[raise_propagate])
++    {
++        if (description != OREF_NULL)
++        {
++            condition->put(_description, GlobalNames::DESCRIPTION);
++        }
++        if (_additional != OREF_NULL)
++        {
++            condition->put(_additional, GlobalNames::ADDITIONAL);
++        }
++        RexxString *name = (RexxString *)condition->get(GlobalNames::CONDITION);
++        // the message of an error is built from its ADDITIONAL
++        if (name->strCompare(GlobalNames::SYNTAX) && _additional != OREF_NULL)
++        {
++            activity->completeSyntaxCondition(condition);
++        }
++    }
++    // THROW SYNTAX: an error, as RAISE SYNTAX raises it
++    else if (instructionFlags[raise_syntax])
++    {
++        condition = activity->createExceptionObject((RexxErrorCodes)((RexxInteger *)rc)->getValue(), _description, (ArrayClass *)_additional, OREF_NULL);
++    }
++    else
++    {
++        condition = activity->createConditionObject(conditionName, rc, _description, _additional, OREF_NULL);
++    }
++    activity->throwCondition(condition);
++}
+Index: interpreter/instructions/RaiseInstruction.hpp
+===================================================================
+--- a/interpreter/instructions/RaiseInstruction.hpp	(revision 13540)
++++ b/interpreter/instructions/RaiseInstruction.hpp	(working copy)
+@@ -54,7 +54,8 @@
+     raise_exit,
+     raise_array,
+     raise_syntax,
+-    raise_propagate
++    raise_propagate,
++    raise_throw                     // THROW: propagates until caught (RFE #31)
+ } RaiseInstructionFlags;
+ 
+ class RexxInstructionRaise : public RexxInstruction
+@@ -69,6 +70,7 @@
+     void flatten(Envelope*) override;
+ 
+     void execute(RexxActivation *, ExpressionStack *) override;
++    void throwCondition(RexxActivation *, RexxObject *, RexxString *, RexxObject *, DirectoryClass *);
+ 
+  protected:
+ 
+Index: interpreter/memory/GlobalNames.h
+===================================================================
+--- a/interpreter/memory/GlobalNames.h	(revision 13540)
++++ b/interpreter/memory/GlobalNames.h	(working copy)
+@@ -232,6 +232,7 @@
+ GLOBAL_NAME(SUPER, "SUPER")
+ GLOBAL_NAME(SUPPLIER, "SUPPLIER")
+ GLOBAL_NAME(SYNTAX, "SYNTAX")
++GLOBAL_NAME(THROWN, "THROWN")
+ GLOBAL_NAME(TO, "TO")
+ GLOBAL_NAME(TRACEBACK, "TRACEBACK")
+ GLOBAL_NAME(TRACEOUTPUT, "TRACEOUTPUT")
+Index: interpreter/messages/RexxErrorCodes.h
+===================================================================
+--- a/interpreter/messages/RexxErrorCodes.h	(revision 13540)
++++ b/interpreter/messages/RexxErrorCodes.h	(working copy)
+@@ -195,6 +195,7 @@
+ Error_Symbol_expected_counter                                = 20934,
+ Error_Symbol_expected_numeric_subdirective                   = 20935,
+ Error_Symbol_expected_catch                                  = 20936,
++Error_Symbol_expected_throw                                  = 20937,
+ Error_Invalid_data                                           = 21000,
+ Error_Invalid_data_user_defined                              = 21900,
+ Error_Invalid_data_nop                                       = 21901,
+@@ -267,6 +268,8 @@
+ Error_Invalid_subkeyword_conflict                            = 25937,
+ Error_Invalid_subkeyword_options_form                        = 25938,
+ Error_Invalid_subkeyword_catch                               = 25939,
++Error_Invalid_subkeyword_throw                               = 25940,
++Error_Invalid_subkeyword_throwoption                         = 25941,
+ Error_Invalid_whole_number                                   = 26000,
+ Error_Invalid_whole_number_repeat                            = 26002,
+ Error_Invalid_whole_number_for                               = 26003,
+@@ -367,6 +370,8 @@
+ Error_Invalid_expression_missing_general                     = 35935,
+ Error_Invalid_expression_missing_constant                    = 35936,
+ Error_Invalid_expression_catch_syntax                        = 35937,
++Error_Invalid_expression_throw_description                   = 35938,
++Error_Invalid_expression_throw_additional                    = 35939,
+ Error_Unmatched_parenthesis                                  = 36000,
+ Error_Unmatched_parenthesis_user_defined                     = 36900,
+ Error_Unmatched_parenthesis_paren                            = 36901,
+Index: interpreter/messages/RexxErrorMessages.h
+===================================================================
+--- a/interpreter/messages/RexxErrorMessages.h	(revision 13540)
++++ b/interpreter/messages/RexxErrorMessages.h	(working copy)
+@@ -197,6 +197,7 @@
+     MESSAGE(Error_Symbol_expected_counter, "Symbol expected after COUNTER keyword.")
+     MESSAGE(Error_Symbol_expected_numeric_subdirective, "Symbol expected after the NUMERIC subdirective keyword.")
+     MESSAGE(Error_Symbol_expected_catch, "Symbol expected after CATCH keyword or after a comma in a CATCH clause.")
++    MESSAGE(Error_Symbol_expected_throw, "Symbol expected after THROW keyword.")
+     MESSAGE(Error_Invalid_data, "Invalid data on end of clause.")
+     MESSAGE(Error_Invalid_data_user_defined, "&1.")
+     MESSAGE(Error_Invalid_data_nop, "Data must not follow the NOP keyword; found \"&1\".")
+@@ -269,6 +270,8 @@
+     MESSAGE(Error_Invalid_subkeyword_conflict, "Keyword \"&1\" on ::&2 directive conflicts with \"&3\".")
+     MESSAGE(Error_Invalid_subkeyword_options_form, "FORM must be followed by one of the keywords SCIENTIFIC or ENGINEERING; found \"&1\".")
+     MESSAGE(Error_Invalid_subkeyword_catch, "CATCH must be followed by one or more of the keywords ERROR, FAILURE, HALT, LOSTDIGITS, NOTREADY, NOMETHOD, NOSTRING, NOVALUE, SYNTAX, USER, or ANY, separated by commas; found \"&1\".")
++    MESSAGE(Error_Invalid_subkeyword_throw, "THROW must be followed by one of the keywords ERROR, FAILURE, HALT, LOSTDIGITS, NOMETHOD, NOSTRING, NOTREADY, NOVALUE, PROPAGATE, SYNTAX, or USER; found \"&1\".")
++    MESSAGE(Error_Invalid_subkeyword_throwoption, "Unknown keyword on THROW instruction; found \"&1\".")
+     MESSAGE(Error_Invalid_whole_number, "Invalid whole number.")
+     MESSAGE(Error_Invalid_whole_number_repeat, "Value of repetition count expression in DO or LOOP instruction must be zero or a positive whole number; found \"&1\".")
+     MESSAGE(Error_Invalid_whole_number_for, "Value of FOR expression in DO or LOOP instruction must be zero or a positive whole number; found \"&1\".")
+@@ -369,6 +372,8 @@
+     MESSAGE(Error_Invalid_expression_missing_general, "Missing expression following &1 keyword of a &2 instruction.")
+     MESSAGE(Error_Invalid_expression_missing_constant, "Missing expression on ::CONSTANT directive.")
+     MESSAGE(Error_Invalid_expression_catch_syntax, "Incorrect error number following SYNTAX keyword of CATCH clause; found \"&1\".")
++    MESSAGE(Error_Invalid_expression_throw_description, "Missing expression following DESCRIPTION keyword of a THROW instruction.")
++    MESSAGE(Error_Invalid_expression_throw_additional, "Missing expression following ADDITIONAL keyword of a THROW instruction.")
+     MESSAGE(Error_Unmatched_parenthesis, "Unmatched \"(\" or \"[\" in expression.")
+     MESSAGE(Error_Unmatched_parenthesis_user_defined, "&1.")
+     MESSAGE(Error_Unmatched_parenthesis_paren, "Left parenthesis \"(\" in position &1 on line &2 requires a corresponding right parenthesis \")\".")
+Index: interpreter/messages/RexxMessageNumbers.h
+===================================================================
+--- a/interpreter/messages/RexxMessageNumbers.h	(revision 13540)
++++ b/interpreter/messages/RexxMessageNumbers.h	(working copy)
+@@ -779,6 +779,11 @@
+ #define Error_Translation_finally_exit_msg                           859
+ #define Error_Incorrect_call_range_limits_msg                        860
+ #define Error_Translation_forward_finally_msg                        861
++#define Error_Symbol_expected_throw_msg                              862
++#define Error_Invalid_subkeyword_throw_msg                           863
++#define Error_Invalid_subkeyword_throwoption_msg                     864
++#define Error_Invalid_expression_throw_description_msg               865
++#define Error_Invalid_expression_throw_additional_msg                866
+ 
+ 
+ #endif
+Index: interpreter/messages/RexxMessageTable.h
+===================================================================
+--- a/interpreter/messages/RexxMessageTable.h	(revision 13540)
++++ b/interpreter/messages/RexxMessageTable.h	(working copy)
+@@ -196,6 +196,7 @@
+       MINOR(Error_Symbol_expected_counter)
+       MINOR(Error_Symbol_expected_numeric_subdirective)
+       MINOR(Error_Symbol_expected_catch)
++      MINOR(Error_Symbol_expected_throw)
+   MAJOR(Error_Invalid_data)
+       MINOR(Error_Invalid_data_user_defined)
+       MINOR(Error_Invalid_data_nop)
+@@ -268,6 +269,8 @@
+       MINOR(Error_Invalid_subkeyword_conflict)
+       MINOR(Error_Invalid_subkeyword_options_form)
+       MINOR(Error_Invalid_subkeyword_catch)
++      MINOR(Error_Invalid_subkeyword_throw)
++      MINOR(Error_Invalid_subkeyword_throwoption)
+   MAJOR(Error_Invalid_whole_number)
+       MINOR(Error_Invalid_whole_number_repeat)
+       MINOR(Error_Invalid_whole_number_for)
+@@ -368,6 +371,8 @@
+       MINOR(Error_Invalid_expression_missing_general)
+       MINOR(Error_Invalid_expression_missing_constant)
+       MINOR(Error_Invalid_expression_catch_syntax)
++      MINOR(Error_Invalid_expression_throw_description)
++      MINOR(Error_Invalid_expression_throw_additional)
+   MAJOR(Error_Unmatched_parenthesis)
+       MINOR(Error_Unmatched_parenthesis_user_defined)
+       MINOR(Error_Unmatched_parenthesis_paren)
+Index: interpreter/messages/errnums.xml
+===================================================================
+--- a/interpreter/messages/errnums.xml	(revision 13540)
++++ b/interpreter/messages/errnums.xml	(working copy)
+@@ -996,6 +996,12 @@
+ <para>Symbol expected after CATCH keyword or after a comma in a CATCH clause.</para>
+ </listitem>
+ </varlistentry>
++<varlistentry>
++<term>937</term>
++<listitem>
++<para>Symbol expected after THROW keyword.</para>
++</listitem>
++</varlistentry>
+ </variablelist>
+ </section>
+ <section id="ERR21">
+@@ -1463,6 +1469,18 @@
+ <para>CATCH must be followed by one or more of the keywords ERROR, FAILURE, HALT, LOSTDIGITS, NOTREADY, NOMETHOD, NOSTRING, NOVALUE, SYNTAX, USER, or ANY, separated by commas; found "<emphasis role="italic">word</emphasis>".</para>
+ </listitem>
+ </varlistentry>
++<varlistentry>
++<term>940</term>
++<listitem>
++<para>THROW must be followed by one of the keywords ERROR, FAILURE, HALT, LOSTDIGITS, NOMETHOD, NOSTRING, NOTREADY, NOVALUE, PROPAGATE, SYNTAX, or USER; found "<emphasis role="italic">word</emphasis>".</para>
++</listitem>
++</varlistentry>
++<varlistentry>
++<term>941</term>
++<listitem>
++<para>Unknown keyword on THROW instruction; found "<emphasis role="italic">word</emphasis>".</para>
++</listitem>
++</varlistentry>
+ </variablelist>
+ </section>
+ <section id="ERR26">
+@@ -2148,6 +2166,18 @@
+ <para>Incorrect error number following SYNTAX keyword of CATCH clause; found "<emphasis role="italic">value</emphasis>".</para>
+ </listitem>
+ </varlistentry>
++<varlistentry>
++<term>938</term>
++<listitem>
++<para>Missing expression following DESCRIPTION keyword of a THROW instruction.</para>
++</listitem>
++</varlistentry>
++<varlistentry>
++<term>939</term>
++<listitem>
++<para>Missing expression following ADDITIONAL keyword of a THROW instruction.</para>
++</listitem>
++</varlistentry>
+ </variablelist>
+ </section>
+ <section id="ERR36">
+Index: interpreter/messages/rexxmsg.xml
+===================================================================
+--- a/interpreter/messages/rexxmsg.xml	(revision 13540)
++++ b/interpreter/messages/rexxmsg.xml	(working copy)
+@@ -1432,6 +1432,15 @@
+         <SymbolicName>Error_Symbol_expected_catch</SymbolicName>
+         <Text>Symbol expected after CATCH keyword or after a comma in a CATCH clause.</Text>
+       </SubMessage>
++      <SubMessage>
++        <Code>20</Code>
++        <Subcode>937</Subcode>
++        <MessageNumber>862</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Symbol_expected_throw</SymbolicName>
++        <Text>Symbol expected after THROW keyword.</Text>
++      </SubMessage>
+     </Subcodes>
+   </Message>
+   <Message>
+@@ -2102,6 +2111,24 @@
+         <SymbolicName>Error_Invalid_subkeyword_catch</SymbolicName>
+         <Text>CATCH must be followed by one or more of the keywords ERROR, FAILURE, HALT, LOSTDIGITS, NOTREADY, NOMETHOD, NOSTRING, NOVALUE, SYNTAX, USER, or ANY, separated by commas; found <q><Sub position="1" name="word"/></q>.</Text>
+       </SubMessage>
++      <SubMessage>
++        <Code>25</Code>
++        <Subcode>940</Subcode>
++        <MessageNumber>863</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Invalid_subkeyword_throw</SymbolicName>
++        <Text>THROW must be followed by one of the keywords ERROR, FAILURE, HALT, LOSTDIGITS, NOMETHOD, NOSTRING, NOTREADY, NOVALUE, PROPAGATE, SYNTAX, or USER; found <q><Sub position="1" name="word"/></q>.</Text>
++      </SubMessage>
++      <SubMessage>
++        <Code>25</Code>
++        <Subcode>941</Subcode>
++        <MessageNumber>864</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Invalid_subkeyword_throwoption</SymbolicName>
++        <Text>Unknown keyword on THROW instruction; found <q><Sub position="1" name="word"/></q>.</Text>
++      </SubMessage>
+     </Subcodes>
+   </Message>
+   <Message>
+@@ -3051,6 +3078,24 @@
+         <SymbolicName>Error_Invalid_expression_catch_syntax</SymbolicName>
+         <Text>Incorrect error number following SYNTAX keyword of CATCH clause; found <q><Sub position="1" name="value"/></q>.</Text>
+       </SubMessage>
++      <SubMessage>
++        <Code>35</Code>
++        <Subcode>938</Subcode>
++        <MessageNumber>865</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Invalid_expression_throw_description</SymbolicName>
++        <Text>Missing expression following DESCRIPTION keyword of a THROW instruction.</Text>
++      </SubMessage>
++      <SubMessage>
++        <Code>35</Code>
++        <Subcode>939</Subcode>
++        <MessageNumber>866</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Invalid_expression_throw_additional</SymbolicName>
++        <Text>Missing expression following ADDITIONAL keyword of a THROW instruction.</Text>
++      </SubMessage>
+     </Subcodes>
+   </Message>
+   <Message>
+Index: interpreter/parser/InstructionParser.cpp
+===================================================================
+--- a/interpreter/parser/InstructionParser.cpp	(revision 13540)
++++ b/interpreter/parser/InstructionParser.cpp	(working copy)
+@@ -292,9 +292,14 @@
+ 
+                 // RAISE instruction
+             case KEYWORD_RAISE:
+-                return raiseNew();
++                return raiseNew(false);
+                 break;
+ 
++                // THROW instruction (RFE #31)
++            case KEYWORD_THROW:
++                return raiseNew(true);
++                break;
++
+                 // ADDRESS instruction
+             case KEYWORD_ADDRESS:
+                 return addressNew();
+@@ -3759,11 +3764,15 @@
+ 
+ 
+ /**
+- * Parse a RAISE instruction and return a new executable object.
++ * Parse a RAISE or THROW instruction and return a new executable
++ * object.  THROW (RFE #31) has the form of RAISE without the RETURN
++ * and EXIT options.
+  *
+- * @return An instructon object that can execute this RAISE instruction.
++ * @param isThrow true for THROW, false for RAISE.
++ *
++ * @return An instructon object that can execute this instruction.
+  */
+-RexxInstruction *LanguageParser::raiseNew()
++RexxInstruction *LanguageParser::raiseNew(bool isThrow)
+ {
+     ArrayClass *arrayItems = OREF_NULL;
+     RexxInternalObject *rcValue = OREF_NULL;
+@@ -3772,12 +3781,19 @@
+     RexxInternalObject *result = OREF_NULL;
+     FlagSet<RaiseInstructionFlags, 32> flags;
+ 
++    // THROW is new in 5.3.0
++    if (isThrow)
++    {
++        requireLanguageLevel(LanguageLevel0607);
++        flags[raise_throw] = true;
++    }
++
+     // ok, get the first TOKEN
+     RexxToken *token = nextReal();
+     // the first token is the condition name, and must be a symbol
+     if (!token->isSymbol())
+     {
+-        syntaxError(Error_Symbol_expected_raise);
++        syntaxError(isThrow ? Error_Symbol_expected_throw : Error_Symbol_expected_raise);
+     }
+ 
+     RexxString *_condition = token->value();
+@@ -3846,7 +3862,7 @@
+ 
+         // could be ALL, or could be something completely unknown.
+         default:
+-            syntaxError(Error_Invalid_subkeyword_raise, token);
++            syntaxError(isThrow ? Error_Invalid_subkeyword_throw : Error_Invalid_subkeyword_raise, token);
+             break;
+     }
+ 
+@@ -3859,11 +3875,17 @@
+         // all options are symbol names,
+         if (!token->isSymbol())
+         {
+-            syntaxError(Error_Invalid_subkeyword_raiseoption, token);
++            syntaxError(isThrow ? Error_Invalid_subkeyword_throwoption : Error_Invalid_subkeyword_raiseoption, token);
+         }
+ 
+         // map the keyword name to a symbolic identifier.
+         InstructionSubKeyword option = token->subKeyword();
++        // a thrown condition ends every level it leaves, and none of them
++        // returns anything: THROW has no RETURN and no EXIT
++        if (isThrow && (option == SUBKEY_RETURN || option == SUBKEY_EXIT))
++        {
++            syntaxError(Error_Invalid_subkeyword_throwoption, token);
++        }
+         switch (option)
+         {
+             // RAISE .... DESCRIPTION expr
+@@ -3878,7 +3900,7 @@
+                 description = parseConstantExpression();
+                 if (description == OREF_NULL)
+                 {
+-                    syntaxError(Error_Invalid_expression_raise_description);
++                    syntaxError(isThrow ? Error_Invalid_expression_throw_description : Error_Invalid_expression_raise_description);
+                 }
+                 // protect from GC.
+                 pushSubTerm(description);
+@@ -3897,7 +3919,7 @@
+                 additional = parseConstantExpression();
+                 if (additional == OREF_NULL)
+                 {
+-                    syntaxError(Error_Invalid_expression_raise_additional);
++                    syntaxError(isThrow ? Error_Invalid_expression_throw_additional : Error_Invalid_expression_raise_additional);
+                 }
+                 pushSubTerm(additional);
+                 break;
+@@ -3976,7 +3998,7 @@
+ 
+             // and invalid subkeyword
+             default:
+-                syntaxError(Error_Invalid_subkeyword_raiseoption, token);
++                syntaxError(isThrow ? Error_Invalid_subkeyword_throwoption : Error_Invalid_subkeyword_raiseoption, token);
+                 break;
+         }
+         token = nextReal();                /* step to the next keyword          */
+@@ -3990,12 +4012,13 @@
+         size_t arrayCount = arrayItems->size();
+         // we pass this as the additional...the flag tells us which to use
+         additional = arrayItems;
+-        newObject = new_variable_instruction(RAISE, Raise, arrayCount, RexxObject *);
++        newObject = isThrow ? new_variable_instruction(THROW, Raise, arrayCount, RexxObject *)
++                            : new_variable_instruction(RAISE, Raise, arrayCount, RexxObject *);
+     }
+     // fixed instruction size
+     else
+     {
+-        newObject = new_instruction(RAISE, Raise);
++        newObject = isThrow ? new_instruction(THROW, Raise) : new_instruction(RAISE, Raise);
+     }
+     ::new ((void *)newObject) RexxInstructionRaise(_condition, rcValue, description, additional, result, flags);
+     return newObject;
+Index: interpreter/parser/KeywordConstants.cpp
+===================================================================
+--- a/interpreter/parser/KeywordConstants.cpp	(revision 13540)
++++ b/interpreter/parser/KeywordConstants.cpp	(working copy)
+@@ -99,6 +99,7 @@
+     KeywordEntry("SELECT",     KEYWORD_SELECT),
+     KeywordEntry("SIGNAL",     KEYWORD_SIGNAL),
+     KeywordEntry("THEN",       KEYWORD_THEN),
++    KeywordEntry("THROW",      KEYWORD_THROW),
+     KeywordEntry("TRACE",      KEYWORD_TRACE),
+     KeywordEntry("USE",        KEYWORD_USE),
+     KeywordEntry("WHEN",       KEYWORD_WHEN),
+Index: interpreter/parser/LanguageParser.hpp
+===================================================================
+--- a/interpreter/parser/LanguageParser.hpp	(revision 13540)
++++ b/interpreter/parser/LanguageParser.hpp	(working copy)
+@@ -293,7 +293,7 @@
+     RexxInstruction *procedureNew();
+     RexxInstruction *pushNew();
+     RexxInstruction *queueNew();
+-    RexxInstruction *raiseNew();
++    RexxInstruction *raiseNew(bool isThrow);
+     RexxInstruction *replyNew();
+     RexxInstruction *returnNew();
+     RexxInstruction *sayNew();
+Index: interpreter/parser/Token.hpp
+===================================================================
+--- a/interpreter/parser/Token.hpp	(revision 13540)
++++ b/interpreter/parser/Token.hpp	(working copy)
+@@ -257,6 +257,7 @@
+     KEYWORD_CONSTANT,
+     KEYWORD_CATCH,
+     KEYWORD_FINALLY,
++    KEYWORD_THROW,
+ } InstructionKeyword;
+ 
+ // instruction subkeyword types

@@ -1,0 +1,729 @@
+Index: ooRexx/API/oo/METHOD.testGroup
+===================================================================
+--- a/ooRexx/API/oo/METHOD.testGroup	(revision 13540)
++++ b/ooRexx/API/oo/METHOD.testGroup	(working copy)
+@@ -3643,6 +3643,51 @@
+   self~assertSame("a SCOPED3", tester~TestSendMessageScoped(o, "STRING", .Object,  .Array~new(0)))
+ 
+ 
++-- THROW (RFE #31): a thrown condition crosses native code as a SYNTAX error
++-- does.  CallRoutine returns, and the native code sees the condition...
++::method TestCallRoutineThrown01
++  tester = .METHODTester~new
++  r = .routine~new("r", "throw user boom description 'd1' additional ('a1')")
++  c = tester~TestCallRoutineConditionObject(r, .array~new)
++  self~assertSame("USER BOOM", c~condition)
++  self~assertSame("d1", c~description)
++  self~assertSame("a1", c~additional)
++  self~assertTrue(c~thrown)
++
++-- ... and if it does not clear it, it is thrown again in its Rexx caller
++::method TestCallRoutineThrown02
++  tester = .METHODTester~new
++  r = .routine~new("r", "throw user boom description 'd2'")
++  do
++    report = tester~TestCallRoutineCondition(r, .array~new)
++    self~fail("not thrown again in the Rexx caller")
++  catch c = user boom
++    self~assertSame("d2", c~description)
++    self~assertTrue(c~thrown)
++  end
++
++-- through SendMessage: the native code sees it right after the send
++::method TestSendMessageThrown01
++  tester = .METHODTester~new
++  report = tester~TestSendMessageConditionObject(.ThrowBoom~new, "BOOM", .array~new)
++  self~assertTrue(report[1])
++  self~assertSame("USER BOOM", report[2]~condition)
++  self~assertTrue(report[2]~thrown)
++
++-- ... and a Rexx caller below the native code catches it
++::method TestSendMessageThrown02
++  tester = .METHODTester~new
++  do
++    x = tester~TestSendMessage0(.ThrowBoom~new, "boom")
++    self~fail("not thrown again in the Rexx caller")
++  catch c = user boom
++    self~assertTrue(c~thrown)
++  end
++
++::class ThrowBoom
++::method boom
++  throw user boom description 'm1'
++
+ -- test class for SendMessageScoped
+ ::class Scoped1
+ ::constant string "S1"
+Index: ooRexx/base/bif/CONDITION.testGroup
+===================================================================
+--- a/ooRexx/base/bif/CONDITION.testGroup	(revision 13540)
++++ b/ooRexx/base/bif/CONDITION.testGroup	(working copy)
+@@ -64,7 +64,7 @@
+ ::constant validObjectIndexes ( -
+   "ADDITIONAL", "DESCRIPTION", "INSTRUCTION", "CONDITION", "RESULT", -
+   "RC", "CODE", "ERRORTEXT", "MESSAGE", "PACKAGE", "POSITION", -
+-  "PROGRAM", "STACKFRAMES", "TRACEBACK", "PROPAGATED" )
++  "PROGRAM", "STACKFRAMES", "TRACEBACK", "PROPAGATED", "THROWN" )
+ 
+ ::constant mandatoryObjectIndexes ( -
+   self~validObjectIndexes~difference( -
+@@ -155,6 +155,7 @@
+       when "CODE" then self~assertTrue(object[index]~dataType("number"))
+       when "POSITION" then self~assertTrue(object[index]~dataType("whole number"))
+       when "PROPAGATED" then self~assertTrue(object[index]~dataType("binary"))
++      when "THROWN" then self~assertTrue(object[index]~dataType("binary"))
+       when "STACKFRAMES" then self~assertIsA(object[index], .List)
+       when "TRACEBACK" then self~assertIsA(object[index], .List)
+       otherwise nop
+@@ -285,6 +286,7 @@
+       when "CODE" then self~assertTrue(object[index]~dataType("number"))
+       when "POSITION" then self~assertTrue(object[index]~dataType("whole number"))
+       when "PROPAGATED" then self~assertTrue(object[index]~dataType("binary"))
++      when "THROWN" then self~assertTrue(object[index]~dataType("binary"))
+       when "STACKFRAMES" then self~assertIsA(object[index], .List)
+       when "TRACEBACK" then self~assertIsA(object[index], .List)
+       otherwise nop
+@@ -464,6 +466,7 @@
+       when "CODE" then self~assertTrue(object[index]~dataType("number"))
+       when "POSITION" then self~assertTrue(object[index]~dataType("whole number"))
+       when "PROPAGATED" then self~assertTrue(object[index]~dataType("binary"))
++      when "THROWN" then self~assertTrue(object[index]~dataType("binary"))
+       when "STACKFRAMES" then self~assertIsA(object[index], .List)
+       when "TRACEBACK" then self~assertIsA(object[index], .List)
+       otherwise nop
+Index: ooRexx/base/keyword/THROW.testGroup
+===================================================================
+--- a/ooRexx/base/keyword/THROW.testGroup	(nonexistent)
++++ b/ooRexx/base/keyword/THROW.testGroup	(working copy)
+@@ -0,0 +1,620 @@
++#!/usr/bin/env rexx
++/*----------------------------------------------------------------------------*/
++/*                                                                            */
++/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
++/*                                                                            */
++/* This program and the accompanying materials are made available under       */
++/* the terms of the Common Public License v1.0 which accompanies this         */
++/* distribution. A copy is also available at the following address:           */
++/* https://www.oorexx.org/license.html                                        */
++/*                                                                            */
++/* Redistribution and use in source and binary forms, with or                 */
++/* without modification, are permitted provided that the following            */
++/* conditions are met:                                                        */
++/*                                                                            */
++/* Redistributions of source code must retain the above copyright             */
++/* notice, this list of conditions and the following disclaimer.              */
++/* Redistributions in binary form must reproduce the above copyright          */
++/* notice, this list of conditions and the following disclaimer in            */
++/* the documentation and/or other materials provided with the distribution.   */
++/*                                                                            */
++/* Neither the name of Rexx Language Association nor the names                */
++/* of its contributors may be used to endorse or promote products             */
++/* derived from this software without specific prior written permission.      */
++/*                                                                            */
++/* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS        */
++/* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT          */
++/* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS          */
++/* FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT   */
++/* OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,      */
++/* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED   */
++/* TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,        */
++/* OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY     */
++/* OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING    */
++/* NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS         */
++/* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.               */
++/*                                                                            */
++/*----------------------------------------------------------------------------*/
++  parse source . . s
++  parse source . . s
++  group = .TestGroup~new(s)
++  group~add(.THROW.testGroup)
++
++  if group~isAutomatedTest then return group
++
++  testResult = group~suite~execute~~print
++
++return testResult
++
++
++
++::requires 'ooTest.frm' -- load the ooRexxUnit classes
++::requires 'FileUtils.cls' -- for issueCmd
++
++-- THROW (prototype for RFE #31, on top of CATCH and FINALLY).  A condition
++-- can be raised (RAISE, one level) or thrown (THROW): a thrown condition is
++-- raised where THROW runs and goes from caller to caller until something
++-- catches it, as a SYNTAX error does, whatever its name.
++::class "THROW.testGroup" subclass ooTestCase public
++
++-- ---------------------------------------------------------------------------
++-- Syntax
++-- ---------------------------------------------------------------------------
++
++::method test_parse_errors
++  self~assertSyntaxError(20.937, "throw")
++  self~assertSyntaxError(20.937, "throw 'user'")
++  self~assertSyntaxError(25.940, "throw foo")
++  self~assertSyntaxError(25.940, "throw any")
++  self~assertSyntaxError(20.904, "throw user")
++  self~assertSyntaxError(25.941, "throw user x foo")
++  self~assertSyntaxError(35.938, "throw user x description")
++  self~assertSyntaxError(35.939, "throw user x additional")
++  self~assertSyntaxError(25.928, "throw user x additional 1 array (2)")
++
++-- a thrown condition ends every level it leaves: no RETURN, no EXIT
++::method test_no_return_exit
++  self~assertSyntaxError(25.941, "throw user x return")
++  self~assertSyntaxError(25.941, "throw user x return 1")
++  self~assertSyntaxError(25.941, "throw user x exit")
++  self~assertSyntaxError(25.941, "throw propagate exit 1")
++
++-- THROW is a keyword instruction, but not a reserved word
++::method test_not_reserved
++  throw = 3
++  throw += 1
++  self~assertSame(4, throw)
++
++-- ---------------------------------------------------------------------------
++-- Where it is raised, and how far it goes
++-- ---------------------------------------------------------------------------
++
++-- on the level of the THROW: a block catches a THROW in its own body
++::method test_same_level
++  out = ''
++  do
++    out = out 'a'
++    throw user stop
++    out = out 'never'
++  catch user stop
++    out = out 'caught'
++  end
++  self~assertEquals(' a caught', out)
++
++-- the example of the specification: out of two routines
++::method test_through_routines
++  do
++    call throw_loadConfig "abc"
++    self~fail("not thrown")
++  catch c = user badConfig
++    self~assertSame("no '=' in abc", c~description)
++  end
++
++-- RAISE goes one level: the routine that does not trap it loses it
++::method test_raise_is_lost
++  do
++    call raise_loadConfig "abc"
++  catch user badConfig
++    self~fail("RAISE went further than its caller")
++  end
++
++::method test_through_methods
++  o = .ThrowTester~new
++  do
++    x = o~outer
++    self~fail("not thrown")
++  catch c = user deep
++    self~assertSame("from inner", c~description)
++  end
++
++-- the rest of the expression that the condition interrupted does not run
++::method test_expression_interrupted
++  .local~throw.count = 0
++  do
++    x = throw_count() throw_thrower() throw_count()
++    self~fail("not thrown")
++  catch user t
++    self~assertSame(1, .throw.count)
++  end
++
++-- internal routines are levels like the others
++::method test_internal_routine
++  out = ''
++  do
++    call sub
++    out = out 'never'
++  catch user sub
++    out = out 'caught'
++  end
++  self~assertEquals(' caught', out)
++  return
++sub:
++  call subsub
++  out = out 'never'
++  return
++subsub:
++  throw user sub
++
++::method test_interpret
++  do
++    interpret 'throw user interp'
++    self~fail("not thrown")
++  catch c = user interp
++    self~assertSame("USER INTERP", c~condition)
++  end
++
++-- ---------------------------------------------------------------------------
++-- Who catches it
++-- ---------------------------------------------------------------------------
++
++::method test_signal_on
++  signal on user sig name trapped
++  call throw_thrower2 "sig"
++  self~fail("not thrown")
++trapped:
++  self~assertSame("USER SIG", condition('C'))
++  self~assertSame("SIGNAL", condition('I'))
++  self~assertTrue(condition('O')~thrown)
++
++::method test_signal_on_any
++  signal on any name trapped
++  call throw_thrower2 "any"
++  self~fail("not thrown")
++trapped:
++  self~assertSame("USER ANY", condition('C'))
++
++-- CALL ON goes past a thrown condition as if it were not there
++::method test_call_on_ignored
++  .local~throw.handler = 0
++  call on user con name handler
++  do
++    call throw_thrower2 "con"
++    self~fail("CALL ON trapped it")
++  catch user con
++    nop
++  end
++  self~assertSame(0, .throw.handler)
++  -- and on the level of the THROW
++  do
++    throw user con
++    self~fail("CALL ON trapped it on its level")
++  catch user con
++    nop
++  end
++  self~assertSame(0, .throw.handler)
++  return
++handler:
++  .local~throw.handler += 1
++  return
++
++::method test_call_on_any_ignored
++  .local~throw.handler = 0
++  call on any name handler
++  do
++    call throw_thrower2 "cany"
++  catch user cany
++    nop
++  end
++  self~assertSame(0, .throw.handler)
++  return
++handler:
++  .local~throw.handler += 1
++  return
++
++-- with no CATCH in the way: on the level of the THROW, code after the THROW
++-- does not run and the handler is not called
++::method test_call_on_own_level
++  .local~throw.handler = 0
++  .local~throw.after = 0
++  do
++    call throw_callOnHere
++    self~fail("not thrown")
++  catch user here
++    nop
++  end
++  self~assertSame(0, .throw.after)
++  self~assertSame(0, .throw.handler)
++
++-- and on a level it passes through, whose FINALLY clauses still run
++::method test_call_on_finally
++  .local~throw.handler = 0
++  .local~throw.out = ''
++  do
++    call throw_callOnFinally
++  catch user con
++    .local~throw.out = .throw.out 'caught'
++  end
++  self~assertEquals(' finally caught', .throw.out)
++  self~assertSame(0, .throw.handler)
++
++-- SIGNAL ON SYNTAX does not catch a thrown USER condition: it is not an error
++::method test_signal_on_syntax_ignored
++  do
++    call throw_syntaxTrap
++    self~fail("not thrown")
++  catch c = user notsyntax
++    nop
++  end
++
++-- the CATCH wins inside its block, as for any condition
++::method test_catch_wins
++  signal on user w name trapped
++  do
++    throw user w
++  catch user w
++    nop
++  end
++  return
++trapped:
++  self~fail("SIGNAL ON won over the CATCH")
++
++-- ---------------------------------------------------------------------------
++-- FINALLY
++-- ---------------------------------------------------------------------------
++
++-- every FINALLY clause that a thrown condition leaves runs, innermost first
++::method test_finally_every_level
++  .local~throw.out = ''
++  do
++    do
++      call throw_finallyOuter
++    finally
++      .local~throw.out = .throw.out 'here'
++    end
++  catch user fin
++    .local~throw.out = .throw.out 'caught'
++  end
++  self~assertEquals(' inner outer here caught', .throw.out)
++
++-- a THROW in a FINALLY clause replaces what was pending
++::method test_finally_replaces_result
++  do
++    x = throw_finallyReturn()
++    self~fail("the result was returned")
++  catch user fin
++    nop
++  end
++
++::method test_finally_replaces_error
++  do
++    call throw_finallyError
++    self~fail("not thrown")
++  catch c = any
++    self~assertSame("USER FIN", c~condition)
++  end
++
++-- ---------------------------------------------------------------------------
++-- The condition object
++-- ---------------------------------------------------------------------------
++
++::method test_condition_object
++  do
++    call throw_thrower3
++  catch c = user info
++    self~assertTrue(c~thrown)
++    self~assertTrue(c~propagated)
++    self~assertSame("d", c~description)
++    self~assertSame("a", c~additional)
++    self~assertSame("CATCH", c~instruction)
++    self~assertSame("USER INFO", condition('C'))
++    self~assertSame("d", condition('D'))
++  end
++  -- on its own level it has not propagated
++  do
++    throw user here array (1, 2)
++  catch c = user here
++    self~assertTrue(c~thrown)
++    self~assertFalse(c~propagated)
++    self~assertSame(2, c~additional~items)
++  end
++
++-- a raised condition, and an error of the interpreter, are not thrown
++::method test_thrown_false
++  do
++    call throw_raiser
++  catch c = user r
++    nop
++  end
++  self~assertFalse(c~thrown)
++  do
++    x = 1 / 0
++  catch c = syntax
++    nop
++  end
++  self~assertFalse(c~thrown)
++
++::method test_throw_error_rc
++  do
++    call throw_error
++  catch c = error
++    self~assertSame(5, c~rc)
++    self~assertTrue(c~thrown)
++  end
++
++-- THROW SYNTAX is RAISE SYNTAX
++::method test_throw_syntax
++  do
++    call throw_syntax
++  catch c = syntax 40.1
++    self~assertSame(40.1, c~code)
++    self~assertSame('External routine "XYZ" failed.', c~message)
++    self~assertTrue(c~thrown)
++  end
++
++-- a message object that sends the message keeps the thrown condition, as it
++-- keeps a SYNTAX error
++::method test_send_has_error
++  m = .message~new(.ThrowTester~new, "inner")
++  do
++    m~send
++    self~fail("not thrown")
++  catch user deep
++    nop
++  end
++  self~assertTrue(m~hasError)
++  self~assertSame("USER DEEP", m~errorCondition~condition)
++  self~assertTrue(m~errorCondition~thrown)
++
++-- ---------------------------------------------------------------------------
++-- THROW PROPAGATE
++-- ---------------------------------------------------------------------------
++
++-- from a CATCH clause, outwards: the block has ended
++::method test_propagate_outwards
++  out = ''
++  do
++    do
++      throw user p
++    catch user p
++      out = out 'inner'
++      throw propagate
++    end
++    out = out 'never'
++  catch c = user p
++    out = out 'outer'
++  end
++  self~assertEquals(' inner outer', out)
++  self~assertTrue(c~thrown)
++
++-- to the caller, with DESCRIPTION replaced
++::method test_propagate_caller
++  do
++    call throw_rethrow
++  catch c = user p
++    self~assertSame("again", c~description)
++  end
++
++-- a raised condition can be thrown on
++::method test_propagate_raised
++  do
++    call throw_notready
++    self~fail("not thrown")
++  catch c = notready
++    self~assertTrue(c~thrown)
++  end
++
++-- from a SIGNAL ON handler
++::method test_propagate_signal
++  do
++    call throw_fromSignal
++    self~fail("not thrown")
++  catch c = user s
++    self~assertTrue(c~thrown)
++  end
++
++::method test_propagate_no_condition
++  self~expectSyntax(98.918)
++  throw propagate
++
++-- RAISE PROPAGATE of a thrown condition raises it one level, raised
++::method test_raise_propagate
++  do
++    call throw_raisePropagate
++  catch c = user rp
++    self~assertFalse(c~thrown)
++  end
++
++-- ---------------------------------------------------------------------------
++-- Threads, uncaught conditions (child programs)
++-- ---------------------------------------------------------------------------
++
++::method test_start_result
++  source = .array~of( -
++    "m = .t~new~start('boom')", -
++    "m~wait", -
++    "say 'hasError' m~hasError m~errorCondition~thrown", -
++    "do", -
++    "  x = m~result", -
++    "catch c = user boom", -
++    "  say 'caught' c~thrown", -
++    "end", -
++    "::class t", -
++    "::method boom", -
++    "  throw user boom")
++  output = self~runChild("throw_start.tmp.rex", source)
++  self~assertTrue(output~hasItem("hasError 1 1"), output~makeString)
++  self~assertSame("caught 1", output~lastItem)
++
++::method test_reply
++  source = .array~of( -
++    "say .t~new~m", -
++    "call syssleep 0.2", -
++    "::class t", -
++    "::method m", -
++    "  reply 'replied'", -
++    "  do", -
++    "    throw user late", -
++    "  catch user late", -
++    "    say 'caught after reply'", -
++    "  end", -
++    "  throw user later")
++  output = self~runChild("throw_reply.tmp.rex", source)
++  self~assertSame("replied", output[1])
++  self~assertTrue(output~hasItem("caught after reply"), output~makeString)
++  self~assertTrue(output~hasItem("Error 4.1:  Program interrupted with USER LATER condition."), output~makeString)
++
++::method test_uncaught
++  source = .array~of( -
++    "call r", -
++    "say 'never'", -
++    "::routine r", -
++    "  throw user nobody")
++  output = .array~new
++  program = .TemporaryTestFile~new(self, "throw_uncaught.tmp.rex")~create(source)
++  theRC = issueCmd("rexx" program~quotedName, output)
++  self~assertFalse(output~hasItem("never"), output~makeString)
++  self~assertSame("Error 4.1:  Program interrupted with USER NOBODY condition.", output~lastItem)
++  self~assertTrue(output~hasItem("     4 *-* throw user nobody"), output~makeString)
++  self~assertFalse(theRC = 0)
++
++::method runChild
++  use strict arg name, source
++  program = .TemporaryTestFile~new(self, name)~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName, output)
++  return output
++
++
++-- ---------------------------------------------------------------------------
++-- Helpers
++-- ---------------------------------------------------------------------------
++
++::routine throw_loadConfig
++  use arg line
++  call throw_parseLine line
++::routine throw_parseLine
++  use arg line
++  if pos("=", line) = 0 then
++    throw user badConfig description ("no '=' in" line)
++
++::routine raise_loadConfig
++  use arg line
++  call raise_parseLine line
++::routine raise_parseLine
++  use arg line
++  raise user badConfig description ("no '=' in" line)
++
++::routine throw_count
++  .local~throw.count += 1
++  return ''
++::routine throw_thrower
++  throw user t
++::routine throw_thrower2
++  use arg name
++  interpret "throw user" name
++::routine throw_thrower3
++  throw user info additional "a" description "d"
++
++::routine throw_callOnHere
++  call on user here name handler
++  throw user here
++  .local~throw.after = 1
++  return
++handler:
++  .local~throw.handler += 1
++  return
++::routine throw_callOnFinally
++  call on user con name handler
++  do
++    call throw_thrower2 "con"
++  finally
++    .local~throw.out = .throw.out 'finally'
++  end
++  return
++handler:
++  .local~throw.handler += 1
++  return
++
++::routine throw_syntaxTrap
++  signal on syntax name trapped
++  call throw_thrower2 "notsyntax"
++  return
++trapped:
++  raise user wrong return
++
++::routine throw_finallyOuter
++  do
++    call throw_finallyInner
++  finally
++    .local~throw.out = .throw.out 'outer'
++  end
++::routine throw_finallyInner
++  do
++    throw user fin
++  finally
++    .local~throw.out = .throw.out 'inner'
++  end
++::routine throw_finallyReturn
++  do
++    return 5
++  finally
++    throw user fin
++  end
++::routine throw_finallyError
++  do
++    x = 1 / 0
++  finally
++    throw user fin
++  end
++
++::routine throw_raiser
++  raise user r return
++::routine throw_error
++  throw error 5
++::routine throw_syntax
++  throw syntax 40.1 array ("XYZ")
++
++::routine throw_rethrow
++  do
++    throw user p description "first"
++  catch user p
++    throw propagate description "again"
++  end
++::routine throw_notready
++  s = .stream~new("/nonexistent/path/to/nothing.txt")
++  do
++    x = s~linein
++  catch notready
++    throw propagate
++  end
++::routine throw_fromSignal
++  signal on user s name trapped
++  throw user s
++trapped:
++  throw propagate
++::routine throw_raisePropagate
++  call throw_raisePropagate2
++::routine throw_raisePropagate2
++  do
++    call throw_thrower2 "rp"
++  catch user rp
++    raise propagate
++  end
++
++::class ThrowTester
++::method outer
++  return self~middle
++::method middle
++  return self~inner
++::method inner
++  throw user deep description "from inner"
+
+Property changes on: ooRexx/base/keyword/THROW.testGroup
+___________________________________________________________________
+Added: svn:eol-style
+## -0,0 +1 ##
++native
+\ No newline at end of property
+Added: svn:executable
+## -0,0 +1 ##
++*
+\ No newline at end of property
