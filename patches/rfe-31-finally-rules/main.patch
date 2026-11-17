@@ -1,0 +1,350 @@
+Index: api/oorexxerrors.h
+===================================================================
+--- a/api/oorexxerrors.h	(revision 13534)
++++ b/api/oorexxerrors.h	(working copy)
+@@ -734,6 +734,7 @@
+ #define Rexx_Error_Translation_bad_class                                  99949
+ #define Rexx_Error_Translation_use_arg_reference_no_default               99950
+ #define Rexx_Error_Translation_finally_exit                               99951
++#define Rexx_Error_Translation_forward_finally                            99952
+ 
+ 
+ #endif
+Index: interpreter/execution/RexxActivation.cpp
+===================================================================
+--- a/interpreter/execution/RexxActivation.cpp	(revision 13534)
++++ b/interpreter/execution/RexxActivation.cpp	(working copy)
+@@ -1467,24 +1467,8 @@
+         // a FORWARD ends this activation, as a RETURN does: it must not
+         // leave a FINALLY clause
+         checkFinallyExit("FORWARD", FINALLY_SCOPE_CODE);
+-        // FINALLY clauses have to run before this activation ends, so it
+-        // cannot disappear now: the message is sent first, and its result
+-        // is returned once the clauses have run
+-        if (hasFinallyToRun())
+-        {
+-            ProtectedObject r;
+-            if (superClass == OREF_NULL)
+-            {
+-                target->messageSend(message, arguments, argcount, r);
+-            }
+-            else
+-            {
+-                target->messageSend(message, arguments, argcount, superClass, r);
+-            }
+-            // after a REPLY there is nobody to receive the result
+-            returnFrom(settings.isReplyIssued() ? OREF_NULL : (RexxObject *)r);
+-            return OREF_NULL;
+-        }
++        // (a FORWARD in a block with a FINALLY clause to run is rejected at
++        // translation: the activation would have to go on to run the clause)
+         // poof, we just became invisible
+         settings.setForwarded(true);
+         // we terminate the execution loop for this activation
+@@ -2327,6 +2311,7 @@
+         next = target;
+         doStack = OREF_NULL;
+         blockNest = 0;
++        finallyRunning = 0;
+         settings.traceIndent = 0;
+     }
+ }
+@@ -2965,6 +2950,7 @@
+     // do not catch the conditions raised here
+     block->setInCatch(true);
+     block->setInFinally(true);
++    finallyRunning++;
+ 
+     setIndent(block->getIndent());
+     traceInstruction(clause);
+@@ -2984,12 +2970,8 @@
+  * @return true if the FINALLY code has started, false if the block
+  *         must be ended now.
+  */
+-bool RexxActivation::enterFinally(DoBlock *block)
++bool RexxActivation::startFinallyAtEnd(DoBlock *block)
+ {
+-    if (block == OREF_NULL || !block->hasFinallyToRun())
+-    {
+-        return false;
+-    }
+     block->setPending(FINALLY_END, OREF_NULL, OREF_NULL, OREF_NULL, current);
+     startFinally(block);
+     return true;
+@@ -3119,12 +3101,12 @@
+  * @param last    For LEAVE and ITERATE, the target block (the last
+  *                one to check).
+  */
+-void RexxActivation::checkFinallyExit(const char *keyword, FinallyScope scope, DoBlock *last)
++void RexxActivation::findFinallyExit(const char *keyword, FinallyScope scope, DoBlock *last)
+ {
+     RexxActivation *activation = this;
+     while (activation != OREF_NULL)
+     {
+-        for (DoBlock *doblock = activation->doStack; doblock != OREF_NULL; doblock = doblock->getPrevious())
++        for (DoBlock *doblock = activation->finallyRunning == 0 ? OREF_NULL : activation->doStack; doblock != OREF_NULL; doblock = doblock->getPrevious())
+         {
+             if (doblock->isInFinally())
+             {
+Index: interpreter/execution/RexxActivation.hpp
+===================================================================
+--- a/interpreter/execution/RexxActivation.hpp	(revision 13534)
++++ b/interpreter/execution/RexxActivation.hpp	(working copy)
+@@ -226,9 +226,25 @@
+    bool              leaveBlocks(DoBlock *until, FinallyAction action, RexxInternalObject *object = OREF_NULL,
+                                  RexxInstruction *instruction = OREF_NULL, DoBlock *block = OREF_NULL);
+    void              startFinally(DoBlock *block);
+-   bool              enterFinally(DoBlock *block);
++   // the usual case, a block with no FINALLY clause to run, costs a test
++   inline bool       enterFinally(DoBlock *block)
++   {
++       return block != OREF_NULL && block->hasFinallyToRun() && startFinallyAtEnd(block);
++   }
++   bool              startFinallyAtEnd(DoBlock *block);
+    void              endFinally(DoBlock *block, RexxInstruction *end);
+-   void              checkFinallyExit(const char *keyword, FinallyScope scope, DoBlock *last = OREF_NULL);
++   // nothing to check unless the code of a FINALLY clause is running, here
++   // or in the code that runs this INTERPRET or internal routine
++   inline void       checkFinallyExit(const char *keyword, FinallyScope scope, DoBlock *last = OREF_NULL)
++   {
++       if (finallyRunning == 0 && (scope == FINALLY_SCOPE_BLOCKS ||
++           (scope == FINALLY_SCOPE_CODE ? !isInterpret() : isTopLevelCall())))
++       {
++           return;
++       }
++       findFinallyExit(keyword, scope, last);
++   }
++   void              findFinallyExit(const char *keyword, FinallyScope scope, DoBlock *last);
+    void              finallyBeforeTrap(RexxString *condition, DirectoryClass *exceptionObject);
+    TrapHandler     * findTrapHandler(RexxString *condition);
+    void              trapOn(RexxString *, RexxInstructionTrapBase *, bool);
+@@ -329,6 +345,10 @@
+    {
+        removeBlockInstruction();
+        DoBlock *temp = doStack;
++       if (temp->isInFinally())
++       {
++           finallyRunning--;
++       }
+        doStack = temp->getPrevious();
+        settings.traceIndent = temp->getIndent();
+        temp->setHasNoReferences();
+@@ -687,6 +707,7 @@
+     uint64_t             randomSeed;    // random number seed
+     bool                 randomSet;     // random seed has been set
+     size_t               blockNest;     // block instruction nesting level
++    size_t               finallyRunning; // active blocks whose FINALLY code is running
+     size_t               instructionCount;  // The number of instructions since we last yielded control
+     uint32_t             idntfr;        // idntfr for concurrency trace
+                                         // a condition caught by a CATCH clause, waiting
+Index: interpreter/instructions/DoBlock.cpp
+===================================================================
+--- a/interpreter/instructions/DoBlock.cpp	(revision 13534)
++++ b/interpreter/instructions/DoBlock.cpp	(working copy)
+@@ -74,7 +74,7 @@
+     catches = RexxInstructionCatch::firstClause(parent);
+     inCatch = false;
+     // and its FINALLY clause, the last one
+-    finallyClause = RexxInstructionCatch::finallyClause(catches);
++    finallyClause = catches == OREF_NULL ? OREF_NULL : RexxInstructionCatch::finallyClause(catches);
+     inFinally = false;
+     pendingAction = FINALLY_NONE;
+     pendingObject = OREF_NULL;
+Index: interpreter/instructions/RaiseInstruction.cpp
+===================================================================
+--- a/interpreter/instructions/RaiseInstruction.cpp	(revision 13534)
++++ b/interpreter/instructions/RaiseInstruction.cpp	(working copy)
+@@ -291,6 +291,19 @@
+         }
+     }
+ 
++    // RAISE with RETURN or EXIT must not leave a FINALLY clause: it would
++    // replace what is pending with a result of its own.  Translation
++    // rejects it in the clause; this is for interpreted code, and for an
++    // EXIT in an internal routine called from the clause
++    if (instructionFlags[raise_return])
++    {
++        context->checkFinallyExit("RAISE", RexxActivation::FINALLY_SCOPE_CODE);
++    }
++    else if (instructionFlags[raise_exit])
++    {
++        context->checkFinallyExit("RAISE", RexxActivation::FINALLY_SCOPE_BODY);
++    }
++
+     // we have two forms, both of which are handled by context
+     // raise return is processed as a return instruction
+     if (instructionFlags[raise_return])
+Index: interpreter/messages/RexxErrorCodes.h
+===================================================================
+--- a/interpreter/messages/RexxErrorCodes.h	(revision 13534)
++++ b/interpreter/messages/RexxErrorCodes.h	(working copy)
+@@ -736,6 +736,7 @@
+ Error_Translation_bad_class                                  = 99949,
+ Error_Translation_use_arg_reference_no_default               = 99950,
+ Error_Translation_finally_exit                               = 99951,
++Error_Translation_forward_finally                            = 99952,
+ Error_at_line                                                = 101000,
+ Message_Translations_error                                   = 101001,
+ Message_Translations_running                                 = 101002,
+Index: interpreter/messages/RexxErrorMessages.h
+===================================================================
+--- a/interpreter/messages/RexxErrorMessages.h	(revision 13534)
++++ b/interpreter/messages/RexxErrorMessages.h	(working copy)
+@@ -738,6 +738,7 @@
+     MESSAGE(Error_Translation_bad_class, "\"&1\" is not a valid class.")
+     MESSAGE(Error_Translation_use_arg_reference_no_default, "A USE ARG default value is not allowed for variable references.")
+     MESSAGE(Error_Translation_finally_exit, "&1 must not leave the FINALLY clause on line &2.")
++    MESSAGE(Error_Translation_forward_finally, "FORWARD without CONTINUE on line &1 must not be in a block with a FINALLY clause.")
+     MESSAGE(Error_at_line, "Error &1 running &2, line &3:.")
+     MESSAGE(Message_Translations_error, "Error")
+     MESSAGE(Message_Translations_running, "running")
+Index: interpreter/messages/RexxMessageNumbers.h
+===================================================================
+--- a/interpreter/messages/RexxMessageNumbers.h	(revision 13534)
++++ b/interpreter/messages/RexxMessageNumbers.h	(working copy)
+@@ -778,6 +778,7 @@
+ #define Error_Execution_finally_exit_msg                             858
+ #define Error_Translation_finally_exit_msg                           859
+ #define Error_Incorrect_call_range_limits_msg                        860
++#define Error_Translation_forward_finally_msg                        861
+ 
+ 
+ #endif
+Index: interpreter/messages/RexxMessageTable.h
+===================================================================
+--- a/interpreter/messages/RexxMessageTable.h	(revision 13534)
++++ b/interpreter/messages/RexxMessageTable.h	(working copy)
+@@ -737,6 +737,7 @@
+       MINOR(Error_Translation_bad_class)
+       MINOR(Error_Translation_use_arg_reference_no_default)
+       MINOR(Error_Translation_finally_exit)
++      MINOR(Error_Translation_forward_finally)
+   MAJOR(Error_at_line)
+       MINOR(Message_Translations_error)
+       MINOR(Message_Translations_running)
+Index: interpreter/messages/errnums.xml
+===================================================================
+--- a/interpreter/messages/errnums.xml	(revision 13534)
++++ b/interpreter/messages/errnums.xml	(working copy)
+@@ -4535,6 +4535,12 @@
+ <emphasis role="italic">instruction</emphasis> must not leave the FINALLY clause on line <emphasis role="italic">line_number</emphasis>.</para>
+ </listitem>
+ </varlistentry>
++<varlistentry>
++<term>952</term>
++<listitem>
++<para>FORWARD without CONTINUE on line <emphasis role="italic">line_number</emphasis> must not be in a block with a FINALLY clause.</para>
++</listitem>
++</varlistentry>
+ </variablelist>
+ </section>
+ </section>
+Index: interpreter/messages/rexxmsg.xml
+===================================================================
+--- a/interpreter/messages/rexxmsg.xml	(revision 13534)
++++ b/interpreter/messages/rexxmsg.xml	(working copy)
+@@ -6473,6 +6473,15 @@
+         <SymbolicName>Error_Translation_finally_exit</SymbolicName>
+         <Text><Sub position="1" name="instruction"/> must not leave the FINALLY clause on line <Sub position="2" name="line_number"/>.</Text>
+       </SubMessage>
++      <SubMessage>
++        <Code>99</Code>
++        <Subcode>952</Subcode>
++        <MessageNumber>861</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Translation_forward_finally</SymbolicName>
++        <Text>FORWARD without CONTINUE on line <Sub position="1" name="line_number"/> must not be in a block with a FINALLY clause.</Text>
++      </SubMessage>
+     </Subcodes>
+   </Message>
+   <Message>
+Index: interpreter/parser/InstructionParser.cpp
+===================================================================
+--- a/interpreter/parser/InstructionParser.cpp	(revision 13534)
++++ b/interpreter/parser/InstructionParser.cpp	(working copy)
+@@ -2588,6 +2588,11 @@
+     if (!returnContinue)
+     {
+         checkFinallyExit("FORWARD");
++        // nor be in a block that has one: the method would have to go on,
++        // to run the clause, and a FORWARD ends it at once.  The FINALLY
++        // clause comes later, so it is the one that checks
++        lastForward = clauseLocation;
++        hasForward = true;
+     }
+     // and create the forward object
+     RexxInstruction *newObject = new_instruction(FORWARD, Forward);
+@@ -3935,6 +3940,9 @@
+                 {
+                     syntaxError(Error_Invalid_subkeyword_result);
+                 }
++                // RETURN and EXIT give the routine a result of their own: they
++                // would replace what is pending in a FINALLY clause
++                checkFinallyExit("RAISE");
+                 // remember which return type we need to use
+                 flags[raise_return] = true;
+                 // and get the return value
+@@ -3955,6 +3963,7 @@
+                 {
+                     syntaxError(Error_Invalid_subkeyword_result);
+                 }
++                checkFinallyExit("RAISE");
+                 flags[raise_exit] = true;
+                 // get the optional keyword value
+                 result = parseConstantExpression();
+@@ -4009,6 +4018,9 @@
+     // this is pretty simple...parse the optional expression and create the
+     // instruction instance.
+     RexxInternalObject *expression = parseExpression(TERM_EOC);
++    // a REPLY returns a result to the caller: in a FINALLY clause it would
++    // replace what is pending
++    checkFinallyExit("REPLY");
+ 
+     RexxInstruction *newObject = new_instruction(REPLY, Reply);
+     ::new ((void *)newObject) RexxInstructionReply(expression);
+Index: interpreter/parser/LanguageParser.cpp
+===================================================================
+--- a/interpreter/parser/LanguageParser.cpp	(revision 13534)
++++ b/interpreter/parser/LanguageParser.cpp	(working copy)
+@@ -482,6 +482,7 @@
+     // more objects until we start parsing.
+     name = n;
+     source = s;
++    hasForward = false;
+ }
+ 
+ 
+@@ -1640,6 +1641,19 @@
+                     clause->setFirstCatch(clause);
+                 }
+                 clause->setOwner(owner);
++                // a FORWARD without CONTINUE ends the method at once, and a
++                // FINALLY clause needs it to go on: it must not be in a block
++                // that has one, at any depth.  Blocks nest, so any FORWARD
++                // after the start of this block is inside it
++                if (type == KEYWORD_FINALLY && hasForward)
++                {
++                    SourceLocation start = owner->getLocation();
++                    if (lastForward.getLineNumber() > start.getLineNumber() ||
++                        (lastForward.getLineNumber() == start.getLineNumber() && lastForward.getOffset() > start.getOffset()))
++                    {
++                        syntaxError(Error_Translation_forward_finally, new_integer(lastForward.getLineNumber()));
++                    }
++                }
+                 // the clause stays on the control stack until the next one or the END
+                 pushDo(clause);
+ 
+Index: interpreter/parser/LanguageParser.hpp
+===================================================================
+--- a/interpreter/parser/LanguageParser.hpp	(revision 13534)
++++ b/interpreter/parser/LanguageParser.hpp	(working copy)
+@@ -476,6 +476,8 @@
+     size_t lineCount;                    // count of lines in the source
+     RexxClause *clause;                  // current clause being created
+     SourceLocation clauseLocation;       // current clause location for errors
++    SourceLocation lastForward;          // the last FORWARD without CONTINUE (RFE #31)
++    bool hasForward;                     // there has been one
+     size_t lineNumber;                   // current line position
+     size_t lineOffset;                   // current offset with in the line
+ 

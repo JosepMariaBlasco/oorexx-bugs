@@ -1,0 +1,426 @@
+Index: ooRexx/base/keyword/FINALLY.testGroup
+===================================================================
+--- a/ooRexx/base/keyword/FINALLY.testGroup	(revision 13534)
++++ b/ooRexx/base/keyword/FINALLY.testGroup	(working copy)
+@@ -501,6 +501,101 @@
+   end
+   self~assertEquals(' finally catch', out)
+ 
++-- the header of the block is inside the block: an error in it runs the
++-- clause, and a CATCH clause of the same block catches it
++::method test_header_not_a_number
++  out = ''
++  do
++    do i = 1 to 'abc'
++      out = out 'no'
++    finally
++      out = out 'finally'
++    end
++  catch syntax 41.1
++    out = out 'catch'
++  end
++  self~assertEquals(' finally catch', out)
++
++::method test_header_while
++  out = ''
++  do
++    do i = 1 to 3 while i/0
++      out = out 'no'
++    finally
++      out = out 'finally'
++    end
++  catch syntax 42.3
++    out = out 'catch'
++  end
++  self~assertEquals(' finally catch', out)
++
++::method test_header_select_case
++  out = ''
++  do
++    select case 1/0
++      when 1 then out = out 'no'
++    finally
++      out = out 'finally'
++    end
++  catch syntax 42.3
++    out = out 'catch'
++  end
++  self~assertEquals(' finally catch', out)
++
++::method test_header_own_catch
++  out = ''
++  do i = 1 to 1/0
++    out = out 'no'
++  catch syntax
++    out = out 'catch'
++  finally
++    out = out 'finally'
++  end
++  self~assertEquals(' catch finally', out)
++
++-- the header of an inner block is evaluated each time the block starts
++::method test_header_inner_block
++  out = ''
++  do
++    do i = 1 to 2
++      do j = 1 to 1 / (2 - i)
++        out = out 'body'i
++      finally
++        out = out 'inner'i
++      end
++    finally
++      out = out 'outer'
++    end
++  catch syntax
++    out = out 'catch'
++  end
++  self~assertEquals(' body1 inner1 inner2 outer catch', out)
++
++-- a SIGNAL ON trap turns itself off when it fires, so it is already off
++-- while the clauses run on the way to its label: a second condition raised
++-- there is not trapped, and replaces the first one
++::method test_signal_on_off_in_clause
++  out = ''
++  do
++    call sub
++    out = out 'no'
++  catch syntax
++    out = out 'caller' condition('O')~code
++  end
++  self~assertEquals(' finally caller 41.1', out)
++  return
++  sub:
++    signal on syntax name trapped
++    do
++      x = 1/0
++    finally
++      out = out 'finally'
++      x = 'a' + 1
++    end
++    trapped:
++    out = out 'trapped'
++    return
++
+ -- raised in internal routines, caught where they were called from
+ ::method test_internal_routines
+   out = ''
+@@ -848,31 +943,43 @@
+   end
+   self~assertEquals('catch a b 42.3', log~makeString('L', ' '))
+ 
+--- RAISE is allowed in the clause: it ends by raising a condition
++-- RAISE is allowed in the clause, without RETURN or EXIT: it ends by
++-- raising a condition
+ ::method test_raise_in_clause
+-  out = ''
++  log = .array~new
+   do
+-    call sub
+-    out = out 'no'
++    .FinallyHelper~new~raisesInClause(log)
++    log~append('no')
+   catch user oops
+-    out = out 'catch'
++    log~append('catch')
+   end
+-  self~assertEquals(' finally catch', out)
+-  return
+-  sub:
+-    do
+-      return 'value'
+-    finally
+-      out = out 'finally'
+-      raise user oops return
+-    end
++  self~assertEquals('finally catch', log~makeString('L', ' '))
+ 
+--- the message is sent, then the clause runs, then its result is returned
+-::method test_forward
++-- and so is RAISE PROPAGATE
++::method test_raise_propagate_in_clause
+   log = .array~new
++  do
++    .FinallyHelper~new~propagatesInClause(log)
++    log~append('no')
++  catch syntax
++    log~append('catch' condition('O')~code)
++  end
++  self~assertEquals('finally catch 42.3', log~makeString('L', ' '))
++
++-- a block with a FINALLY clause uses FORWARD CONTINUE, and RETURN for the
++-- result: the method goes on, and the clause runs when it returns
++::method test_forward_continue
++  log = .array~new
+   self~assertEquals('target result', .FinallyHelper~new~forwards(log))
+   self~assertEquals('target finally', log~makeString('L', ' '))
+ 
++-- the method is still there while the message is sent: its CATCH clauses
++-- catch what the target raises
++::method test_forward_continue_condition
++  log = .array~new
++  self~assertEquals('caught', .FinallyHelper~new~forwardsToFailure(log))
++  self~assertEquals('catch 42.3 finally', log~makeString('L', ' '))
++
+ -- REPLY does not leave the block: the clause runs once, when the method
+ -- leaves the block on its new thread
+ ::method test_reply
+@@ -1037,6 +1144,146 @@
+ ::method test_rule_nested_loop_leaves_outer
+   self~assertSyntaxError(99.951, .array~of("do i = 1 to 2", "nop", "finally", "do j = 1 to 2", "leave i", "end", "end"))
+ 
++-- RAISE with RETURN or EXIT would replace what is pending with a result of
++-- its own
++::method test_rule_raise_return
++  self~assertSyntaxError(99.951, .array~of("do", "nop", "finally", "raise user oops return", "end"))
++
++::method test_rule_raise_return_value
++  self~assertSyntaxError(99.951, .array~of("do", "nop", "finally", "raise user oops return 1", "end"))
++
++::method test_rule_raise_exit
++  self~assertSyntaxError(99.951, .array~of("do", "nop", "finally", "raise user oops exit", "end"))
++
++::method test_rule_raise_exit_value
++  self~assertSyntaxError(99.951, .array~of("do", "nop", "finally", "raise user oops exit 1", "end"))
++
++::method test_rule_raise_options_return
++  self~assertSyntaxError(99.951, .array~of("do", "nop", "finally", "raise user oops description 'd' return 1", "end"))
++
++::method test_rule_raise_syntax_return
++  self~assertSyntaxError(99.951, .array~of("do", "nop", "finally", "raise syntax 93.900 array ('x') return 1", "end"))
++
++::method test_rule_raise_propagate_return
++  self~assertSyntaxError(99.951, .array~of("do", "nop", "finally", "do", "nop", "catch syntax", "raise propagate return 1", "end", "end"))
++
++::method test_rule_raise_return_nested
++  self~assertSyntaxError(99.951, .array~of("do", "nop", "finally", "if 1 then raise user oops return", "end"))
++
++::method test_rule_raise_message
++  signal on syntax
++  r = .routine~new('rule', .array~of("do", "nop", "finally", "raise user oops return 1", "end"))
++  self~fail('error 99.951 expected')
++  return
++  syntax:
++  self~assertEquals(99.951, condition('O')~code)
++  self~assertEquals('RAISE must not leave the FINALLY clause on line 3.', condition('O')~message)
++
++-- RAISE without RETURN or EXIT translates
++::method test_rule_raise_allowed
++  r = .routine~new('rule', .array~of("do", "nop", "finally", "raise user oops", "end"))
++  r = .routine~new('rule', .array~of("do", "nop", "finally", "raise user oops description 'd' additional 1", "end"))
++  r = .routine~new('rule', .array~of("do", "nop", "finally", "do", "nop", "catch syntax", "raise propagate", "end", "end"))
++  -- and RAISE with RETURN or EXIT in the body or in a CATCH clause
++  r = .routine~new('rule', .array~of("do", "raise user oops return 1", "catch syntax", "raise user oops exit 1", "finally", "nop", "end"))
++
++-- REPLY returns a result to the caller: it would replace what is pending
++::method test_rule_reply
++  self~assertSyntaxError(99.951, .array~of("do", "nop", "finally", "reply", "end"))
++
++::method test_rule_reply_value
++  self~assertSyntaxError(99.951, .array~of("do", "nop", "finally", "reply 1", "end"))
++
++::method test_rule_reply_nested
++  self~assertSyntaxError(99.951, .array~of("do", "nop", "finally", "do", "reply", "end", "end"))
++
++::method test_rule_reply_message
++  signal on syntax
++  r = .routine~new('rule', .array~of("do", "nop", "finally", "reply 1", "end"))
++  self~fail('error 99.951 expected')
++  return
++  syntax:
++  self~assertEquals(99.951, condition('O')~code)
++  self~assertEquals('REPLY must not leave the FINALLY clause on line 3.', condition('O')~message)
++
++-- REPLY in the body or in a CATCH clause translates
++::method test_rule_reply_allowed
++  r = .routine~new('rule', .array~of("do", "reply", "catch syntax", "reply", "finally", "nop", "end"))
++
++-- ---------------------------------------------------------------------------
++-- FORWARD and FINALLY (error 99.952): a FORWARD without CONTINUE ends the
++-- method at once, and a FINALLY clause needs it to go on.  It must not be
++-- in a block that has a FINALLY clause
++-- ---------------------------------------------------------------------------
++
++::method test_forward_in_body
++  self~assertSyntaxError(99.952, .array~of("do", "forward", "finally", "nop", "end"))
++
++::method test_forward_in_body_options
++  self~assertSyntaxError(99.952, .array~of("do", "forward message 'm' to (x)", "finally", "nop", "end"))
++
++::method test_forward_in_loop
++  self~assertSyntaxError(99.952, .array~of("do i = 1 to 2", "forward", "finally", "nop", "end"))
++
++::method test_forward_in_select
++  self~assertSyntaxError(99.952, .array~of("select", "when 1 then forward", "finally", "nop", "end"))
++
++::method test_forward_in_otherwise
++  self~assertSyntaxError(99.952, .array~of("select", "when 0 then nop", "otherwise", "forward", "finally", "nop", "end"))
++
++::method test_forward_in_catch_clause
++  self~assertSyntaxError(99.952, .array~of("do", "nop", "catch syntax", "forward", "finally", "nop", "end"))
++
++::method test_forward_in_if
++  self~assertSyntaxError(99.952, .array~of("do", "if 1 then forward", "finally", "nop", "end"))
++
++-- at any depth: an inner block with no FINALLY clause
++::method test_forward_in_inner_block
++  self~assertSyntaxError(99.952, .array~of("do", "do i = 1 to 2", "forward", "end", "finally", "nop", "end"))
++
++::method test_forward_in_inner_catch
++  self~assertSyntaxError(99.952, .array~of("do", "do", "nop", "catch syntax", "forward", "end", "finally", "nop", "end"))
++
++-- the inner block has the clause: the outer one is fine, the error is
++-- raised at the first FINALLY
++::method test_forward_inner_finally
++  self~assertSyntaxError(99.952, .array~of("do", "do", "forward", "finally", "nop", "end", "end"))
++
++::method test_forward_same_line
++  self~assertSyntaxError(99.952, .array~of("do", "forward", "finally nop", "end"))
++
++-- FORWARD CONTINUE does not end the method
++::method test_forward_continue_translates
++  r = .routine~new('rule', .array~of("do", "forward continue", "return result", "finally", "nop", "end"))
++
++-- a FORWARD outside the block, or in a block with CATCH clauses only
++::method test_forward_outside
++  r = .routine~new('rule', .array~of("do", "nop", "finally", "nop", "end", "forward"))
++  r = .routine~new('rule', .array~of("do", "forward", "catch syntax", "nop", "end"))
++  r = .routine~new('rule', .array~of("do", "forward", "end", "do", "nop", "finally", "nop", "end"))
++
++-- what translation cannot see was an error already: FORWARD is not allowed
++-- in an INTERPRET (99.923) or in an internal routine (98.947)
++::method test_forward_interpret
++  log = .array~new
++  do
++    .FinallyHelper~new~forwardsInterpreted(log)
++    log~append('no')
++  catch syntax
++    log~append(condition('O')~code)
++  end
++  self~assertEquals('finally 99.923', log~makeString('L', ' '))
++
++::method test_forward_internal_routine
++  log = .array~new
++  do
++    .FinallyHelper~new~forwardsFromInternalRoutine(log)
++    log~append('no')
++  catch syntax
++    log~append(condition('O')~code)
++  end
++  self~assertEquals('finally 98.947', log~makeString('L', ' '))
++
+ -- what stays inside the clause, or does not leave anything, is allowed
+ ::method test_rule_allowed
+   out = ''
+@@ -1094,6 +1341,29 @@
+ ::method test_rule_interpret_nested
+   self~assertEquals('98.953 RETURN', self~ruleAtRunTime('interpret "interpret ''return''"'))
+ 
++::method test_rule_interpret_raise_return
++  self~assertEquals('98.953 RAISE', self~ruleAtRunTime('interpret "raise user oops return 1"'))
++
++::method test_rule_interpret_raise_exit
++  self~assertEquals('98.953 RAISE', self~ruleAtRunTime('interpret "raise user oops exit"'))
++
++-- a RAISE without RETURN or EXIT in an internal routine called from the
++-- clause ends the method by raising a condition; with EXIT it is an EXIT
++::method test_rule_raise_exit_in_internal_routine
++  self~assertEquals('98.953 RAISE', self~ruleAtRunTime('call raisesExit'))
++
++-- with RETURN it only returns from the internal routine
++::method test_rule_raise_return_in_internal_routine
++  self~assertEquals('went on', self~ruleAtRunTime('call raisesReturn'))
++
++-- a REPLY was not allowed in an INTERPRET (99.924) or in an internal
++-- routine (99.919) already
++::method test_rule_interpret_reply
++  self~assertEquals('99.924', self~ruleAtRunTime('interpret "reply"')~word(1))
++
++::method test_rule_reply_in_internal_routine
++  self~assertEquals('99.919', self~ruleAtRunTime('call replies')~word(1))
++
+ -- LEAVE and ITERATE never get out of an INTERPRET
+ ::method test_rule_interpret_leave
+   self~assertEquals('28.1', self~ruleAtRunTime('interpret "leave"')~word(1))
+@@ -1151,6 +1421,9 @@
+     end
+     return 'no'
+   exits: exit 4
++  raisesExit: raise user oops exit 4
++  raisesReturn: raise user oops return 4
++  replies: reply 4
+   deeper:
+     interpret 'call exits'
+     return
+@@ -1856,14 +2129,71 @@
+       log~append('level2')
+     end
+ 
++::method raisesInClause
++  use arg log
++  do
++    return 'value'
++  finally
++    log~append('finally')
++    raise user oops
++  end
++
++::method propagatesInClause
++  use arg log
++  do
++    return 'value'
++  finally
++    log~append('finally')
++    do
++      x = 1/0
++    catch syntax
++      raise propagate
++    end
++  end
++
+ ::method forwards
+   use arg log
+   do
+-    forward message 'target'
++    forward continue message 'target'
++    return result
+   finally
+     log~append('finally')
+   end
+ 
++::method forwardsToFailure
++  use arg log
++  do
++    forward continue message 'failingTarget'
++    return result
++  catch syntax
++    log~append('catch' condition('O')~code)
++    return 'caught'
++  finally
++    log~append('finally')
++  end
++
++::method failingTarget
++  return 1/0
++
++::method forwardsInterpreted
++  use arg log
++  do
++    interpret "forward message 'target'"
++  finally
++    log~append('finally')
++  end
++
++::method forwardsFromInternalRoutine
++  use arg log
++  do
++    call sub
++  finally
++    log~append('finally')
++  end
++  return
++  sub:
++    forward message 'target'
++
+ ::method target
+   use arg log
+   log~append('target')
