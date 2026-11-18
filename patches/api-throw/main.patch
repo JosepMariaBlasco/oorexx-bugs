@@ -1,0 +1,428 @@
+Index: api/oorexxapi.h
+===================================================================
+--- a/api/oorexxapi.h	(revision 13545)
++++ b/api/oorexxapi.h	(working copy)
+@@ -695,7 +695,8 @@
+ #define METHOD_INTERFACE_VERSION_4_0_0 100
+ #define METHOD_INTERFACE_VERSION_4_2_0 101
+ #define METHOD_INTERFACE_VERSION_5_0_0 102
+-#define METHOD_INTERFACE_VERSION 102
++#define METHOD_INTERFACE_VERSION_5_3_0 103
++#define METHOD_INTERFACE_VERSION 103
+ 
+ typedef struct
+ {
+@@ -727,11 +728,14 @@
+      void (RexxEntry *ThrowException2)(RexxMethodContext *, size_t, RexxObjectPtr, RexxObjectPtr);
+      void (RexxEntry *ThrowException)(RexxMethodContext *, size_t, RexxArrayObject);
+      void (RexxEntry *ThrowCondition)(RexxMethodContext *, CSTRING, RexxStringObject, RexxObjectPtr, RexxObjectPtr);
++     // added in METHOD_INTERFACE_VERSION_5_3_0
++     void (RexxEntry *Throw)(RexxMethodContext *, CSTRING, RexxObjectPtr, RexxStringObject, RexxObjectPtr);
+ } MethodContextInterface;
+ 
+ #define CALL_INTERFACE_VERSION_4_0_0 100
+ #define CALL_INTERFACE_VERSION_5_0_0 101
+-#define CALL_INTERFACE_VERSION 101
++#define CALL_INTERFACE_VERSION_5_3_0 102
++#define CALL_INTERFACE_VERSION 102
+ 
+ typedef struct
+ {
+@@ -758,11 +762,14 @@
+      void (RexxEntry *ThrowException2)(RexxCallContext *, size_t, RexxObjectPtr, RexxObjectPtr);
+      void (RexxEntry *ThrowException)(RexxCallContext *, size_t, RexxArrayObject);
+      void (RexxEntry *ThrowCondition)(RexxCallContext *, CSTRING, RexxStringObject, RexxObjectPtr, RexxObjectPtr);
++     // added in CALL_INTERFACE_VERSION_5_3_0
++     void (RexxEntry *Throw)(RexxCallContext *, CSTRING, RexxObjectPtr, RexxStringObject, RexxObjectPtr);
+ } CallContextInterface;
+ 
+ #define EXIT_INTERFACE_VERSION_4_0_0 100
+ #define EXIT_INTERFACE_VERSION_5_0_0 101
+-#define EXIT_INTERFACE_VERSION 101
++#define EXIT_INTERFACE_VERSION_5_3_0 102
++#define EXIT_INTERFACE_VERSION 102
+ 
+ typedef struct
+ {
+@@ -778,6 +785,8 @@
+      void (RexxEntry *ThrowException2)(RexxExitContext *, size_t, RexxObjectPtr, RexxObjectPtr);
+      void (RexxEntry *ThrowException)(RexxExitContext *, size_t, RexxArrayObject);
+      void (RexxEntry *ThrowCondition)(RexxExitContext *, CSTRING, RexxStringObject, RexxObjectPtr, RexxObjectPtr);
++     // added in EXIT_INTERFACE_VERSION_5_3_0
++     void (RexxEntry *Throw)(RexxExitContext *, CSTRING, RexxObjectPtr, RexxStringObject, RexxObjectPtr);
+ } ExitContextInterface;
+ 
+ 
+@@ -2447,6 +2456,10 @@
+      {
+          functions->ThrowCondition(this, s1, s2, ao, o);
+      }
++     void Throw(CSTRING n, RexxObjectPtr rc, RexxStringObject d, RexxObjectPtr a)
++     {
++         functions->Throw(this, n, rc, d, a);
++     }
+ 
+ 
+      RexxObjectPtr Nil()
+@@ -3305,6 +3318,10 @@
+      {
+          functions->ThrowCondition(this, s1, s2, ao, o);
+      }
++     void Throw(CSTRING n, RexxObjectPtr rc, RexxStringObject d, RexxObjectPtr a)
++     {
++         functions->Throw(this, n, rc, d, a);
++     }
+ 
+ 
+      RexxObjectPtr Nil()
+@@ -4143,6 +4160,10 @@
+      {
+          functions->ThrowCondition(this, s1, s2, ao, o);
+      }
++     void Throw(CSTRING n, RexxObjectPtr rc, RexxStringObject d, RexxObjectPtr a)
++     {
++         functions->Throw(this, n, rc, d, a);
++     }
+ 
+      RexxObjectPtr Nil()
+      {
+Index: interpreter/api/CallContextStubs.cpp
+===================================================================
+--- a/interpreter/api/CallContextStubs.cpp	(revision 13545)
++++ b/interpreter/api/CallContextStubs.cpp	(working copy)
+@@ -240,6 +240,14 @@
+     context.activity->raiseCondition(name, OREF_NULL, (RexxString *)desc, (RexxObject *)add, (RexxObject *)result);
+ }
+ 
++// added in CALL_INTERFACE_VERSION_5_3_0: throw a condition as the THROW
++// instruction does (RFE #31); this does not return
++void RexxEntry CallThrow(RexxCallContext *c, CSTRING n, RexxObjectPtr rc, RexxStringObject desc, RexxObjectPtr add)
++{
++    ApiContext context(c);
++    context.activity->apiThrow(n, (RexxObject *)rc, (RexxObject *)desc, (RexxObject *)add);
++}
++
+ void RexxEntry SetExitContextVariable(RexxExitContext *c, CSTRING n, RexxObjectPtr v)
+ {
+     ApiContext context(c);
+@@ -355,6 +363,14 @@
+     context.activity->raiseCondition(name, OREF_NULL, (RexxString *)desc, (RexxObject *)add, (RexxObject *)result);
+ }
+ 
++// added in EXIT_INTERFACE_VERSION_5_3_0: throw a condition as the THROW
++// instruction does (RFE #31); this does not return
++void RexxEntry ExitThrow(RexxExitContext *c, CSTRING n, RexxObjectPtr rc, RexxStringObject desc, RexxObjectPtr add)
++{
++    ApiContext context(c);
++    context.activity->apiThrow(n, (RexxObject *)rc, (RexxObject *)desc, (RexxObject *)add);
++}
++
+ stringsize_t RexxEntry GetContextDigits(RexxCallContext *c)
+ {
+     ApiContext context(c, false);   // no lock required
+@@ -700,6 +716,7 @@
+     CallThrowException2,
+     CallThrowException,
+     CallThrowCondition,
++    CallThrow,
+ };
+ 
+ 
+@@ -720,6 +737,7 @@
+     ExitThrowException2,
+     ExitThrowException,
+     ExitThrowCondition,
++    ExitThrow,
+ };
+ 
+ 
+Index: interpreter/api/MethodContextStubs.cpp
+===================================================================
+--- a/interpreter/api/MethodContextStubs.cpp	(revision 13545)
++++ b/interpreter/api/MethodContextStubs.cpp	(working copy)
+@@ -367,7 +367,15 @@
+     context.activity->raiseCondition(name, OREF_NULL, (RexxString *)desc, (RexxObject *)add, (RexxObject *)result);
+ }
+ 
++// added in METHOD_INTERFACE_VERSION_5_3_0: throw a condition as the THROW
++// instruction does (RFE #31); this does not return
++void RexxEntry Throw(RexxMethodContext *c, CSTRING n, RexxObjectPtr rc, RexxStringObject desc, RexxObjectPtr add)
++{
++    ApiContext context(c);
++    context.activity->apiThrow(n, (RexxObject *)rc, (RexxObject *)desc, (RexxObject *)add);
++}
+ 
++
+ END_EXTERN_C()
+ 
+ 
+@@ -400,6 +408,7 @@
+     ThrowException2,
+     ThrowException,
+     ThrowCondition,
++    Throw,
+ };
+ 
+ 
+Index: interpreter/concurrency/Activity.cpp
+===================================================================
+--- a/interpreter/concurrency/Activity.cpp	(revision 13545)
++++ b/interpreter/concurrency/Activity.cpp	(working copy)
+@@ -1698,7 +1698,135 @@
+     // Rexx activation that catches it does not return here)
+ }
+ 
++
+ /**
++ * Create the condition object of a THROW, or of the Throw() API, and
++ * throw it (RFE #31).  This does not return.
++ *
++ * @param condition The condition name, in uppercase ("USER name" for a
++ *                  user condition).
++ * @param rc        The RC (ERROR and FAILURE), or, for SYNTAX, the error
++ *                  number as an Integer (major * 1000 + minor).
++ * @param description
++ *                  The DESCRIPTION, or OREF_NULL.
++ * @param additional
++ *                  The ADDITIONAL information, or OREF_NULL.  For SYNTAX,
++ *                  the Array of substitution values.
++ */
++void Activity::throwNewCondition(RexxString *condition, RexxObject *rc, RexxString *description, RexxObject *additional)
++{
++    Protected<DirectoryClass> conditionObj;
++    // THROW SYNTAX: an error, as RAISE SYNTAX raises it
++    if (condition->strCompare(GlobalNames::SYNTAX))
++    {
++        conditionObj = createExceptionObject((RexxErrorCodes)((RexxInteger *)rc)->getValue(), description, (ArrayClass *)additional, OREF_NULL);
++    }
++    else
++    {
++        conditionObj = createConditionObject(condition, rc, description, additional, OREF_NULL);
++    }
++    throwCondition(conditionObj);
++}
++
++
++/**
++ * The Throw() API (RFE #31): throw a condition from native code, as
++ * the THROW instruction does.  The arguments are checked as THROW
++ * checks them; then the condition is thrown, and this does not return:
++ * the native method, routine or exit ends here.
++ *
++ * @param name      The condition name, as for RaiseCondition(): one of
++ *                  the names THROW accepts, with "USER name" for a user
++ *                  condition.
++ * @param rc        The RC: required for ERROR, FAILURE and SYNTAX (for
++ *                  SYNTAX, the error code as in Rexx, "nn.nnn"), and not
++ *                  allowed for any other condition.
++ * @param description
++ *                  The description, or OREF_NULL.
++ * @param additional
++ *                  The additional information, or OREF_NULL.  For SYNTAX,
++ *                  an Array of substitution values.
++ */
++void Activity::apiThrow(const char *name, RexxObject *rc, RexxObject *description, RexxObject *additional)
++{
++    if (name == NULL)
++    {
++        reportException(Error_Incorrect_method_user_defined, new_string("Throw needs a condition name"));
++    }
++    Protected<RexxString> condition = new_upper_string(name);
++    // the names THROW accepts: one word, or USER and the user condition's name
++    wholenumber_t words = condition->words()->getValue();
++    Protected<RexxString> first = words == 0 ? GlobalNames::NULLSTRING : condition->word(IntegerOne);
++    if (first->strCompare("USER"))
++    {
++        if (words != 2)
++        {
++            reportException(Error_Incorrect_method_user_defined, new_string("Throw needs USER and one user condition name"));
++        }
++        // "USER name", with one blank, as THROW USER name has it
++        condition = first->concatWith(condition->word(IntegerTwo), ' ');
++    }
++    else if (words != 1 ||
++        !(first->strCompare(GlobalNames::ERRORNAME) || first->strCompare(GlobalNames::FAILURE) ||
++          first->strCompare(GlobalNames::SYNTAX) || first->strCompare(GlobalNames::HALT) ||
++          first->strCompare(GlobalNames::LOSTDIGITS) || first->strCompare(GlobalNames::NOMETHOD) ||
++          first->strCompare(GlobalNames::NOSTRING) || first->strCompare(GlobalNames::NOTREADY) ||
++          first->strCompare(GlobalNames::NOVALUE)))
++    {
++        reportException(Error_Incorrect_method_user_defined, new_string("Throw cannot throw a condition named \"")->concat(condition)->concatWithCstring("\""));
++    }
++
++    // an RC with ERROR, FAILURE and SYNTAX, and with nothing else
++    bool hasRC = condition->strCompare(GlobalNames::ERRORNAME) || condition->strCompare(GlobalNames::FAILURE) ||
++        condition->strCompare(GlobalNames::SYNTAX);
++    if (hasRC && rc == OREF_NULL)
++    {
++        reportException(Error_Incorrect_method_user_defined, new_string("Throw needs an RC for an ERROR, FAILURE or SYNTAX condition"));
++    }
++    if (!hasRC && rc != OREF_NULL)
++    {
++        reportException(Error_Incorrect_method_user_defined, new_string("Throw takes an RC only for an ERROR, FAILURE or SYNTAX condition"));
++    }
++    if (description != OREF_NULL && !isString(description))
++    {
++        reportException(Error_Incorrect_method_user_defined, new_string("the Throw description must be a String"));
++    }
++
++    Protected<RexxObject> rcValue = rc;
++    Protected<RexxObject> additionalValue = additional;
++    Protected<RexxString> descriptionValue = (RexxString *)description;
++    // as THROW SYNTAX does (see RexxInstructionRaise::execute())
++    if (condition->strCompare(GlobalNames::SYNTAX))
++    {
++        RexxString *errorcode = rc->requestString();
++        if (errorcode == TheNilObject)
++        {
++            reportException(Error_Conversion_raise, rc);
++        }
++        rcValue = new_integer(Interpreter::messageNumber(errorcode));
++        if (descriptionValue.isNull())
++        {
++            descriptionValue = GlobalNames::NULLSTRING;
++        }
++        if (additionalValue.isNull())
++        {
++            additionalValue = new_array();
++        }
++        else
++        {
++            // compared through a plain pointer (MSVC: C2666 with Protected)
++            RexxObject *array = additional->requestArray();
++            if (array == TheNilObject || ((ArrayClass *)array)->isMultiDimensional())
++            {
++                reportException(Error_Execution_syntax_additional);
++            }
++            additionalValue = array;
++        }
++    }
++    throwNewCondition(condition, rcValue, descriptionValue, additionalValue);
++}
++
++/**
+  * Sets a flag for as long as it exists, and gives it back the
+  * value it had, however the block is left.
+  */
+Index: interpreter/concurrency/Activity.hpp
+===================================================================
+--- a/interpreter/concurrency/Activity.hpp	(revision 13545)
++++ b/interpreter/concurrency/Activity.hpp	(working copy)
+@@ -149,6 +149,8 @@
+     void        reraiseException(DirectoryClass *);
+     void        raisePropagate(DirectoryClass *);
+     void        throwCondition(DirectoryClass *);
++    void        throwNewCondition(RexxString *, RexxObject *, RexxString *, RexxObject *);
++    void        apiThrow(const char *, RexxObject *, RexxObject *, RexxObject *);
+     static bool isThrown(RexxString *, DirectoryClass *);
+     DirectoryClass *uncaughtThrown(DirectoryClass *);
+     void        display(DirectoryClass *);
+Index: interpreter/instructions/RaiseInstruction.cpp
+===================================================================
+--- a/interpreter/instructions/RaiseInstruction.cpp	(revision 13545)
++++ b/interpreter/instructions/RaiseInstruction.cpp	(working copy)
+@@ -366,15 +366,12 @@
+         {
+             activity->completeSyntaxCondition(condition);
+         }
++        activity->throwCondition(condition);
+     }
+-    // THROW SYNTAX: an error, as RAISE SYNTAX raises it
+-    else if (instructionFlags[raise_syntax])
+-    {
+-        condition = activity->createExceptionObject((RexxErrorCodes)((RexxInteger *)rc)->getValue(), _description, (ArrayClass *)_additional, OREF_NULL);
+-    }
++    // a new condition, as the Throw() API throws it (THROW SYNTAX is an
++    // error, as RAISE SYNTAX raises it)
+     else
+     {
+-        condition = activity->createConditionObject(conditionName, rc, _description, _additional, OREF_NULL);
++        activity->throwNewCondition(conditionName, rc, _description, _additional);
+     }
+-    activity->throwCondition(condition);
+ }
+Index: testbinaries/orxfunction.cpp
+===================================================================
+--- a/testbinaries/orxfunction.cpp	(revision 13545)
++++ b/testbinaries/orxfunction.cpp	(working copy)
+@@ -994,13 +994,29 @@
+             OPTIONAL_RexxArrayObject, add,
+             OPTIONAL_RexxObjectPtr, result)
+ {
+-    context->ThrowCondition(name, (RexxStringObject)desc, add, result);
++    // desc is a C string: it must be passed as a String object
++    context->ThrowCondition(name, desc == NULL ? NULLOBJECT : context->String(desc), add, result);
+     // this should never execute
+     context->SetContextVariable("CONTINUE", context->True());
+     return 0;
+ }
+ 
++// Throw() (RFE #31): as the THROW instruction.  The arguments are passed as
++// they come, so that the tests can check how Throw() rejects bad ones
++RexxRoutine4(int,
++            TestThrow,
++            OPTIONAL_CSTRING, name,
++            OPTIONAL_RexxObjectPtr, rc,
++            OPTIONAL_RexxObjectPtr, desc,
++            OPTIONAL_RexxObjectPtr, add)
++{
++    context->Throw(name, rc, (RexxStringObject)desc, add);
++    // this should never execute
++    context->SetContextVariable("CONTINUE", context->True());
++    return 0;
++}
+ 
++
+ RexxRoutine1(RexxObjectPtr,
+              TestNestedAttach,
+              RexxObjectPtr, o)
+@@ -1096,6 +1112,7 @@
+     REXX_TYPED_ROUTINE(TestThrowException2,         TestThrowException2),
+     REXX_TYPED_ROUTINE(TestThrowException,          TestThrowException),
+     REXX_TYPED_ROUTINE(TestThrowCondition,          TestThrowCondition),
++    REXX_TYPED_ROUTINE(TestThrow,                   TestThrow),
+     REXX_TYPED_ROUTINE(TestNestedAttach,            TestNestedAttach),
+     REXX_TYPED_ROUTINE(TestHaltThread,              TestHaltThread),
+     REXX_LAST_ROUTINE()
+Index: testbinaries/orxmethod.cpp
+===================================================================
+--- a/testbinaries/orxmethod.cpp	(revision 13545)
++++ b/testbinaries/orxmethod.cpp	(working copy)
+@@ -2280,12 +2280,28 @@
+             OPTIONAL_RexxArrayObject, add,
+             OPTIONAL_RexxObjectPtr, result)
+ {
+-    context->ThrowCondition(name, (RexxStringObject)desc, add, result);
++    // desc is a C string: it must be passed as a String object
++    context->ThrowCondition(name, desc == NULL ? NULLOBJECT : context->String(desc), add, result);
+     // this should never execute
+     context->SetObjectVariable("CONTINUE", context->True());
+     return 0;
+ }
+ 
++// Throw() (RFE #31): as the THROW instruction.  The arguments are passed as
++// they come, so that the tests can check how Throw() rejects bad ones
++RexxMethod4(int,
++            TestThrow,
++            OPTIONAL_CSTRING, name,
++            OPTIONAL_RexxObjectPtr, rc,
++            OPTIONAL_RexxObjectPtr, desc,
++            OPTIONAL_RexxObjectPtr, add)
++{
++    context->Throw(name, rc, (RexxStringObject)desc, add);
++    // this should never execute
++    context->SetObjectVariable("CONTINUE", context->True());
++    return 0;
++}
++
+ RexxMethod1(int,
+             TestBufferInit,
+             int, initValue)
+@@ -2837,6 +2853,7 @@
+     REXX_METHOD(TestThrowException2,         TestThrowException2),
+     REXX_METHOD(TestThrowException,          TestThrowException),
+     REXX_METHOD(TestThrowCondition,          TestThrowCondition),
++    REXX_METHOD(TestThrow,                   TestThrow),
+     REXX_METHOD(TestSetGuard,                TestSetGuard),
+     REXX_METHOD(TestSetGuardOn,              TestSetGuardOn),
+     REXX_METHOD(TestSetGuardOff,             TestSetGuardOff),

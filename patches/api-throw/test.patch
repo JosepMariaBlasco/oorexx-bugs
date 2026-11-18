@@ -1,0 +1,257 @@
+Index: ooRexx/API/oo/FUNCTION.testGroup
+===================================================================
+--- a/ooRexx/API/oo/FUNCTION.testGroup	(revision 13544)
++++ b/ooRexx/API/oo/FUNCTION.testGroup	(working copy)
+@@ -1904,6 +1904,44 @@
+   self~assertSame("", b.2)
+   self~assertSame("Line3", b.3)
+ 
++-- Throw() (RFE #31, CALL_INTERFACE_VERSION_5_3_0) from a native routine:
++-- thrown as by THROW, through the Rexx routine between, and the native
++-- routine does not go on after the call
++::method TestThrowRoutine01
++  continue = .false
++  do
++    call throwRoutine_oneLevel "USER BOOM", "d1"
++    self~fail("not thrown")
++  catch c = user boom
++    self~assertSame("d1", c~description)
++    self~assertTrue(c~thrown)
++  end
++  do
++    call TestThrow "ERROR", 7
++    self~fail("not thrown")
++  catch c = error
++    self~assertSame(7, c~rc)
++    self~assertTrue(c~thrown)
++  end
++  -- native code must not have continued after the Throw call
++  self~assertFalse(continue)
++
++::method TestThrowRoutine02
++  do
++    call TestThrow "SYNTAX", 88.917, , .array~of(1, 2, 3)
++    self~fail("not thrown")
++  catch c = syntax
++    self~assertSame(88.917, c~code)
++    self~assertTrue(c~thrown)
++  end
++  do
++    call TestThrow "NOTREADY", 1
++    self~fail("no error")
++  catch c = syntax
++    self~assertSame(93.900, c~code)
++    self~assertFalse(c~thrown)
++  end
++
+ ::method TestRaiseException001
+   c = self~RaiseException0X(3000)
+   self~assertSame(3, c~rc)
+@@ -2146,6 +2184,12 @@
+ 
+ -- just a simple class we can send a message to while testing nested activities
+ -- forwards every command to the handler it was given (RFE #882)
++-- Throw() one Rexx level below the caller
++::routine throwRoutine_oneLevel
++  use strict arg name, desc
++  call TestThrow name, , desc
++  return
++
+ ::class ForwardingHandler inherit CommandHandler
+ ::method init
+   expose target
+Index: ooRexx/API/oo/FUNCTIONPackage.cls
+===================================================================
+--- a/ooRexx/API/oo/FUNCTIONPackage.cls	(revision 13544)
++++ b/ooRexx/API/oo/FUNCTIONPackage.cls	(working copy)
+@@ -101,6 +101,7 @@
+ ::routine TestAddCommandEnvironment PUBLIC EXTERNAL "LIBRARY orxfunction"
+ ::routine TestNestedSetCallerVariable PUBLIC EXTERNAL "LIBRARY orxfunction"
+ 
++::routine TestThrow PUBLIC EXTERNAL "LIBRARY orxfunction TestThrow"
+ ::routine TestRaiseException0 EXTERNAL "LIBRARY orxfunction TestRaiseException0"
+ ::routine TestRaiseException1 EXTERNAL "LIBRARY orxfunction TestRaiseException1"
+ ::routine TestRaiseException2 EXTERNAL "LIBRARY orxfunction TestRaiseException2"
+Index: ooRexx/API/oo/METHOD.testGroup
+===================================================================
+--- a/ooRexx/API/oo/METHOD.testGroup	(revision 13544)
++++ b/ooRexx/API/oo/METHOD.testGroup	(working copy)
+@@ -70,6 +70,7 @@
+ 
+ 
+ ::requires 'ooTest.frm' -- load the ooRexxUnit classes
++::requires 'FileUtils.cls' -- for issueCmd
+ 
+ -- class named exactly like file
+ ::class "METHOD.testGroup" subclass ooTestCase public
+@@ -3684,6 +3685,158 @@
+     self~assertTrue(c~thrown)
+   end
+ 
++-- Throw() (RFE #31, METHOD_INTERFACE_VERSION_5_3_0): native code throws a
++-- condition as the THROW instruction does.  It is thrown, it goes on from
++-- caller to caller, and the native method does not go on after the call
++::method TestThrow01
++  tester = .METHODTester~new
++  do
++    call throw_twoLevels tester, "user boom", .nil, "d1", .array~of("a1")
++    self~fail("not thrown")
++  catch c = user boom
++    self~assertSame("USER BOOM", c~condition)
++    self~assertSame("d1", c~description)
++    self~assertSame("a1", c~additional[1])
++    self~assertTrue(c~thrown)
++  end
++  -- native code must not have continued after the Throw call
++  self~assertSame(.nil, tester~TestGetObjectVariableOrNil("CONTINUE"))
++
++-- ERROR and FAILURE take an RC, as in THROW ERROR expr
++::method TestThrow02
++  tester = .METHODTester~new
++  do
++    call throw_twoLevels tester, "ERROR", 3, "cmd"
++    self~fail("not thrown")
++  catch c = error
++    self~assertSame(3, c~rc)
++    self~assertSame("cmd", c~description)
++    self~assertTrue(c~thrown)
++  end
++  do
++    call throw_twoLevels tester, "Failure", -1
++    self~fail("not thrown")
++  catch c = failure
++    self~assertSame(-1, c~rc)
++    self~assertSame("", c~description)
++    self~assertTrue(c~thrown)
++  end
++
++-- SYNTAX, as THROW SYNTAX: the error code as in Rexx, ADDITIONAL an Array,
++-- and the condition is thrown (ThrowException's is not)
++::method TestThrow03
++  tester = .METHODTester~new
++  do
++    call throw_twoLevels tester, "SYNTAX", "40.1", .nil, .array~of("FOO")
++    self~fail("not thrown")
++  catch c = syntax
++    self~assertSame(40, c~rc)
++    self~assertSame(40.1, c~code)
++    self~assertSame('External routine "FOO" failed.', c~message)
++    self~assertTrue(c~thrown)
++  end
++
++-- a CALL ON trap does not catch it: the level ends
++::method TestThrow04
++  tester = .METHODTester~new
++  out = ""
++  call on user boom name throw_callOn
++  do
++    call throw_twoLevels tester, "USER BOOM"
++    out = out "after"
++  catch c = user boom
++    out = out "caught"
++  end
++  self~assertSame(" caught", out)
++  return
++
++throw_callOn:
++  out = out "callon"
++  return
++
++-- nothing catches it: error 4.1 at the base, as for THROW
++::method TestThrow05
++  source = .array~of( -
++    "call r", -
++    "say 'never'", -
++    "::routine r", -
++    "  call TestThrow 'USER NOBODY'", -
++    "::routine TestThrow external 'LIBRARY orxfunction TestThrow'")
++  output = .array~new
++  program = .TemporaryTestFile~new(self, "api_throw_uncaught.tmp.rex")~create(source)
++  theRC = issueCmd("rexx" program~quotedName, output)
++  self~assertFalse(output~hasItem("never"), output~makeString)
++  self~assertSame("Error 4.1:  Program interrupted with USER NOBODY condition.", output~lastItem, output~makeString)
++  self~assertFalse(theRC = 0)
++
++-- bad arguments: a 93.900 error in the native method, raised as an error,
++-- not thrown
++::method TestThrow06
++  tester = .METHODTester~new
++  cases = .array~of( -
++    .array~of(.array~of(), 'Throw needs a condition name.'), -
++    .array~of(.array~of("ANY"), 'Throw cannot throw a condition named "ANY".'), -
++    .array~of(.array~of("user"), 'Throw needs USER and one user condition name.'), -
++    .array~of(.array~of("USER A B"), 'Throw needs USER and one user condition name.'), -
++    .array~of(.array~of("ERROR"), 'Throw needs an RC for an ERROR, FAILURE or SYNTAX condition.'), -
++    .array~of(.array~of("SYNTAX"), 'Throw needs an RC for an ERROR, FAILURE or SYNTAX condition.'), -
++    .array~of(.array~of("USER X", 5), 'Throw takes an RC only for an ERROR, FAILURE or SYNTAX condition.'), -
++    .array~of(.array~of("HALT", , .array~new), 'the Throw description must be a String.'))
++  do case over cases
++    do
++      tester~sendWith("TestThrow", case[1])
++      self~fail("no error for" case[2])
++    catch c = syntax
++      self~assertSame(93.900, c~code, case[2])
++      self~assertSame(case[2], c~message)
++      self~assertFalse(c~thrown, case[2])
++    end
++  end
++  -- SYNTAX: the same errors as THROW SYNTAX
++  do
++    tester~TestThrow("SYNTAX", "abc")
++    self~fail("no error for SYNTAX abc")
++  catch c = syntax
++    self~assertSame(33.904, c~code)
++  end
++
++-- ThrowCondition() (5.0), for comparison: despite its name it does what
++-- RAISE ... RETURN does.  The condition is raised, not thrown, and its
++-- description is a String (the test method used to pass a C string)
++::method TestThrowCondition01
++  tester = .METHODTester~new
++  do
++    r = tester~TestThrowCondition("USER BOOM", "d1")
++    self~fail("not raised")
++  catch c = user boom
++    self~assertSame("d1", c~description)
++    self~assertFalse(c~thrown)
++  end
++  -- not trapped by the caller: the caller gets the result
++  self~assertSame("r1", throwCondition_oneLevel(tester))
++  -- native code must not have continued after the ThrowCondition call
++  self~assertSame(.nil, tester~TestGetObjectVariableOrNil("CONTINUE"))
++
++::routine throwCondition_oneLevel
++  use strict arg tester
++  return tester~TestThrowCondition("USER BOOM", , , "r1")
++
++-- Throw() two levels below the caller: a routine that calls one that calls
++-- the native method; what is .nil is omitted
++::routine throw_twoLevels
++  use strict arg tester, name, rc = .nil, desc = .nil, add = .nil
++  call throw_oneLevel tester, name, rc, desc, add
++  return
++
++::routine throw_oneLevel
++  use strict arg tester, name, rc, desc, add
++  args = .array~of(name)
++  if rc \== .nil then args[2] = rc
++  if desc \== .nil then args[3] = desc
++  if add \== .nil then args[4] = add
++  tester~sendWith("TestThrow", args)
++  return
++
+ ::class ThrowBoom
+ ::method boom
+   throw user boom description 'm1'
+Index: ooRexx/API/oo/METHODPackage.cls
+===================================================================
+--- a/ooRexx/API/oo/METHODPackage.cls	(revision 13544)
++++ b/ooRexx/API/oo/METHODPackage.cls	(working copy)
+@@ -287,6 +287,7 @@
+ ::method TestThrowException1            EXTERNAL "LIBRARY orxmethod"
+ ::method TestThrowException2            EXTERNAL "LIBRARY orxmethod"
+ ::method TestThrowCondition             EXTERNAL "LIBRARY orxmethod"
++::method TestThrow                      EXTERNAL "LIBRARY orxmethod"
+ ::method TestGetObjectVariableOrNil     EXTERNAL "LIBRARY orxmethod"
+ 
+ ::method TestSendMessageScoped          EXTERNAL "LIBRARY orxmethod"
