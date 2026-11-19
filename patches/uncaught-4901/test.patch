@@ -1,0 +1,86 @@
+Index: ooRexx/API/oo/METHOD.testGroup
+===================================================================
+--- a/ooRexx/API/oo/METHOD.testGroup	(revision 13549)
++++ b/ooRexx/API/oo/METHOD.testGroup	(working copy)
+@@ -3769,6 +3769,19 @@
+   self~assertSame("Error 4.1:  Program interrupted with USER NOBODY condition.", output~lastItem, output~makeString)
+   self~assertFalse(theRC = 0)
+ 
++-- with a description: error 4.901, which says it
++::method TestThrow07
++  source = .array~of( -
++    "call r", -
++    "::routine r", -
++    "  call TestThrow 'USER NOBODY', , 'from native code'", -
++    "::routine TestThrow external 'LIBRARY orxfunction TestThrow'")
++  output = .array~new
++  program = .TemporaryTestFile~new(self, "api_throw_uncaught_desc.tmp.rex")~create(source)
++  theRC = issueCmd("rexx" program~quotedName, output)
++  self~assertSame("Error 4.901:  Program interrupted with USER NOBODY condition: from native code.", output~lastItem, output~makeString)
++  self~assertFalse(theRC = 0)
++
+ -- bad arguments: a 93.900 error in the native method, raised as an error,
+ -- not thrown
+ ::method TestThrow06
+Index: ooRexx/base/keyword/THROW.testGroup
+===================================================================
+--- a/ooRexx/base/keyword/THROW.testGroup	(revision 13549)
++++ b/ooRexx/base/keyword/THROW.testGroup	(working copy)
+@@ -498,6 +498,57 @@
+   self~assertTrue(output~hasItem("     4 *-* throw user nobody"), output~makeString)
+   self~assertFalse(theRC = 0)
+ 
++-- with a description, an uncaught thrown condition is error 4.901, which
++-- says it; the location and the traceback are those of the THROW
++::method test_uncaught_description
++  source = .array~of( -
++    "call r", -
++    "say 'never'", -
++    "::routine r", -
++    "  throw user badConfig description ""missing key 'port'""")
++  output = .array~new
++  program = .TemporaryTestFile~new(self, "throw_uncaught_desc.tmp.rex")~create(source)
++  theRC = issueCmd("rexx" program~quotedName, output)
++  self~assertFalse(output~hasItem("never"), output~makeString)
++  self~assertSame("Error 4.901:  Program interrupted with USER BADCONFIG condition: missing key 'port'.", output~lastItem, output~makeString)
++  self~assertTrue(output~hasItem("     4 *-* throw user badConfig description ""missing key 'port'"""), output~makeString)
++  self~assertFalse(theRC = 0)
++
++-- a null description gives 4.1, as no description does
++::method test_uncaught_description_null
++  output = self~runChild("throw_uncaught_null.tmp.rex", .array~of("throw user nobody description ''"))
++  self~assertSame("Error 4.1:  Program interrupted with USER NOBODY condition.", output~lastItem, output~makeString)
++
++-- a description of several lines is shown whole
++::method test_uncaught_description_lines
++  output = self~runChild("throw_uncaught_lines.tmp.rex", -
++    .array~of("throw user nobody description ('first' || .endOfLine || 'second')"))
++  self~assertTrue(output~hasItem("Error 4.901:  Program interrupted with USER NOBODY condition: first"), output~makeString)
++  self~assertSame("second.", output~lastItem, output~makeString)
++
++-- THROW PROPAGATE keeps the description, and so does a thread after REPLY
++::method test_uncaught_description_propagate
++  source = .array~of( -
++    "do", -
++    "  throw user a description 'first'", -
++    "catch user a", -
++    "  throw propagate", -
++    "end")
++  output = self~runChild("throw_uncaught_prop.tmp.rex", source)
++  self~assertSame("Error 4.901:  Program interrupted with USER A condition: first.", output~lastItem, output~makeString)
++
++::method test_uncaught_description_reply
++  source = .array~of( -
++    "say .t~new~m", -
++    "call syssleep 0.2", -
++    "::class t", -
++    "::method m", -
++    "  reply 'replied'", -
++    "  throw user later description 'after reply'")
++  output = self~runChild("throw_uncaught_reply.tmp.rex", source)
++  self~assertSame("replied", output[1])
++  self~assertTrue(output~hasItem("Error 4.901:  Program interrupted with USER LATER condition: after reply."), output~makeString)
++
+ ::method runChild
+   use strict arg name, source
+   program = .TemporaryTestFile~new(self, name)~create(source)

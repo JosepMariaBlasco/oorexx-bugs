@@ -1,0 +1,134 @@
+Index: api/oorexxerrors.h
+===================================================================
+--- a/api/oorexxerrors.h	(revision 13549)
++++ b/api/oorexxerrors.h	(working copy)
+@@ -64,6 +64,7 @@
+ #define Rexx_Error_Program_interrupted                                    4000
+ #define Rexx_Error_Program_interrupted_condition                          4001
+ #define Rexx_Error_Program_interrupted_user_defined                       4900
++#define Rexx_Error_Program_interrupted_condition_description              4901
+ #define Rexx_Error_System_resources                                       5000
+ #define Rexx_Error_System_resources_user_defined                          5900
+ #define Rexx_Error_Unmatched_quote                                        6000
+Index: interpreter/concurrency/Activity.cpp
+===================================================================
+--- a/interpreter/concurrency/Activity.cpp	(revision 13549)
++++ b/interpreter/concurrency/Activity.cpp	(working copy)
+@@ -621,8 +621,10 @@
+ /**
+  * The error a thrown condition that nothing has caught becomes at
+  * the base of a program or a thread: 4.1, "Program interrupted with
+- * condition condition.", with the location and traceback of the
+- * thrown condition (RFE #31).
++ * condition condition.", or 4.901, "Program interrupted with condition
++ * condition: description.", when its DESCRIPTION is a String that is
++ * not null, with the location and traceback of the thrown condition
++ * (RFE #31).
+  *
+  * @param conditionObj
+  *               The condition object.
+@@ -637,7 +639,18 @@
+     {
+         return conditionObj;
+     }
+-    Protected<DirectoryClass> error = createExceptionObject(Error_Program_interrupted_condition, OREF_NULL, new_array(condition), OREF_NULL);
++    // with a description, 4.901 says it.  A description that is not a String
++    // is left out: its string value could raise a condition of its own here
++    RexxObject *description = (RexxObject *)conditionObj->get(GlobalNames::DESCRIPTION);
++    Protected<DirectoryClass> error;
++    if (description != OREF_NULL && isString(description) && ((RexxString *)description)->getLength() > 0)
++    {
++        error = createExceptionObject(Error_Program_interrupted_condition_description, OREF_NULL, new_array(condition, description), OREF_NULL);
++    }
++    else
++    {
++        error = createExceptionObject(Error_Program_interrupted_condition, OREF_NULL, new_array(condition), OREF_NULL);
++    }
+     // where it was thrown, not where it is displayed
+     RexxInternalObject *items[] = { GlobalNames::TRACEBACK, GlobalNames::STACKFRAMES, GlobalNames::POSITION, GlobalNames::PROGRAM, GlobalNames::PACKAGE_REF };
+     for (size_t i = 0; i < sizeof(items) / sizeof(items[0]); i++)
+Index: interpreter/messages/RexxErrorCodes.h
+===================================================================
+--- a/interpreter/messages/RexxErrorCodes.h	(revision 13549)
++++ b/interpreter/messages/RexxErrorCodes.h	(working copy)
+@@ -66,6 +66,7 @@
+ Error_Program_interrupted                                    = 4000,
+ Error_Program_interrupted_condition                          = 4001,
+ Error_Program_interrupted_user_defined                       = 4900,
++Error_Program_interrupted_condition_description              = 4901,
+ Error_System_resources                                       = 5000,
+ Error_System_resources_user_defined                          = 5900,
+ Error_Unmatched_quote                                        = 6000,
+Index: interpreter/messages/RexxErrorMessages.h
+===================================================================
+--- a/interpreter/messages/RexxErrorMessages.h	(revision 13549)
++++ b/interpreter/messages/RexxErrorMessages.h	(working copy)
+@@ -68,6 +68,7 @@
+     MESSAGE(Error_Program_interrupted, "Program interrupted.")
+     MESSAGE(Error_Program_interrupted_condition, "Program interrupted with &1 condition.")
+     MESSAGE(Error_Program_interrupted_user_defined, "&1.")
++    MESSAGE(Error_Program_interrupted_condition_description, "Program interrupted with &1 condition: &2.")
+     MESSAGE(Error_System_resources, "System resources exhausted.")
+     MESSAGE(Error_System_resources_user_defined, "&1.")
+     MESSAGE(Error_Unmatched_quote, "Unmatched \"/*\" or quote.")
+Index: interpreter/messages/RexxMessageNumbers.h
+===================================================================
+--- a/interpreter/messages/RexxMessageNumbers.h	(revision 13549)
++++ b/interpreter/messages/RexxMessageNumbers.h	(working copy)
+@@ -784,6 +784,7 @@
+ #define Error_Invalid_subkeyword_throwoption_msg                     864
+ #define Error_Invalid_expression_throw_description_msg               865
+ #define Error_Invalid_expression_throw_additional_msg                866
++#define Error_Program_interrupted_condition_description_msg          867
+ 
+ 
+ #endif
+Index: interpreter/messages/RexxMessageTable.h
+===================================================================
+--- a/interpreter/messages/RexxMessageTable.h	(revision 13549)
++++ b/interpreter/messages/RexxMessageTable.h	(working copy)
+@@ -67,6 +67,7 @@
+   MAJOR(Error_Program_interrupted)
+       MINOR(Error_Program_interrupted_condition)
+       MINOR(Error_Program_interrupted_user_defined)
++      MINOR(Error_Program_interrupted_condition_description)
+   MAJOR(Error_System_resources)
+       MINOR(Error_System_resources_user_defined)
+   MAJOR(Error_Unmatched_quote)
+Index: interpreter/messages/errnums.xml
+===================================================================
+--- a/interpreter/messages/errnums.xml	(revision 13549)
++++ b/interpreter/messages/errnums.xml	(working copy)
+@@ -68,6 +68,12 @@
+ <emphasis role="italic">message</emphasis>.</para>
+ </listitem>
+ </varlistentry>
++<varlistentry>
++<term>901</term>
++<listitem>
++<para>Program interrupted with <emphasis role="italic">condition</emphasis> condition: <emphasis role="italic">description</emphasis>.</para>
++</listitem>
++</varlistentry>
+ </variablelist>
+ </section>
+ <section id="ERR5">
+Index: interpreter/messages/rexxmsg.xml
+===================================================================
+--- a/interpreter/messages/rexxmsg.xml	(revision 13549)
++++ b/interpreter/messages/rexxmsg.xml	(working copy)
+@@ -134,6 +134,15 @@
+         <SymbolicName>Error_Program_interrupted_user_defined</SymbolicName>
+         <Text><Sub position="1" name="message"/>.</Text>
+       </SubMessage>
++      <SubMessage>
++        <Code>4</Code>
++        <Subcode>901</Subcode>
++        <MessageNumber>867</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Program_interrupted_condition_description</SymbolicName>
++        <Text>Program interrupted with <Sub position="1" name="condition"/> condition: <Sub position="2" name="description"/>.</Text>
++      </SubMessage>
+     </Subcodes>
+   </Message>
+   <Message>
