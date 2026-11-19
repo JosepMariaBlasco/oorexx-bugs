@@ -1,0 +1,33 @@
+Index: ooRexx/base/keyword/TRACE.testGroup
+===================================================================
+--- a/ooRexx/base/keyword/TRACE.testGroup	(revision 13552)
++++ b/ooRexx/base/keyword/TRACE.testGroup	(working copy)
+@@ -1180,7 +1180,11 @@
+   -- test waits until every line has arrived, and compares the caller's
+   -- thread line by line; each other thread must have traced one or more of
+   -- the other expected blocks, whole and one after another (a thread can be
+-  -- reused), and every block must have been traced once
++  -- reused), and every block must have been traced once.
++  -- The TraceObjects are read while other threads are still tracing, so
++  -- they are taken from .TraceObject~notify, which gets each one complete:
++  -- .TraceObject~collector gets each one before its TRACELINE, THREAD and
++  -- the other entries are set (see "collector=" in rexxref)
+   results=42, "42 42", 42
+   do counter c1 name over "test_forwarded1.rex", "test_forwarded2.rex", "test_forwarded3.rex"
+      expected = expected_blocks(.resources~send(name"_expected"))  -- an array of blocks of lines, the caller's first
+@@ -1191,12 +1195,12 @@
+      as       = .ArrayStream~new                   -- keep the trace off the console
+      t        = .TraceOutput~destination(as)       -- capture .traceOutput
+      collected = .array~new                        -- the TraceObjects
+-     oldCollector = .TraceObject~collector
+-     .TraceObject~collector = collected
++     oldNotify = .TraceObject~notify
++     .TraceObject~notify = collected
+      r        = .routine~new(name, .resources~send(name))
+      res      = r~call
+      actual   = wait_for_trace(collected, expCount, 5)   -- an array of lines per thread, in order of appearance
+-     .TraceObject~collector = oldCollector
++     .TraceObject~notify = oldNotify
+      .TraceOutput~destination    -- remove destination object
+      expRes=results[c1]
+      self~assertSame(expRes, res, 'test "'name'": result must be "'expRes'"')
