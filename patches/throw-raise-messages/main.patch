@@ -1,0 +1,352 @@
+Index: api/oorexxerrors.h
+===================================================================
+--- a/api/oorexxerrors.h	(revision 13563)
++++ b/api/oorexxerrors.h	(working copy)
+@@ -317,6 +317,7 @@
+ #define Rexx_Error_Expression_result_signal                               33902
+ #define Rexx_Error_Expression_result_trace                                33903
+ #define Rexx_Error_Expression_result_raise                                33904
++#define Rexx_Error_Expression_result_throw                                33905
+ #define Rexx_Error_Logical_value                                          34000
+ #define Rexx_Error_Logical_value_if                                       34001
+ #define Rexx_Error_Logical_value_when                                     34002
+@@ -443,6 +444,7 @@
+ #define Rexx_Error_Conversion_exponent                                    41007
+ #define Rexx_Error_Conversion_user_defined                                41900
+ #define Rexx_Error_Conversion_raise                                       41901
++#define Rexx_Error_Conversion_throw                                       41902
+ #define Rexx_Error_Overflow                                               42000
+ #define Rexx_Error_Overflow_overflow                                      42001
+ #define Rexx_Error_Overflow_underflow                                     42002
+@@ -648,6 +650,7 @@
+ #define Rexx_Error_Execution_reply_exit                                   98937
+ #define Rexx_Error_Execution_super                                        98938
+ #define Rexx_Error_Execution_syntax_additional                            98939
++#define Rexx_Error_Execution_error_condition_throw                        98940
+ #define Rexx_Error_Execution_error_condition                              98941
+ #define Rexx_Error_Execution_mixinclass                                   98942
+ #define Rexx_Error_Execution_baseclass                                    98943
+Index: interpreter/concurrency/Activity.cpp
+===================================================================
+--- a/interpreter/concurrency/Activity.cpp	(revision 13563)
++++ b/interpreter/concurrency/Activity.cpp	(working copy)
+@@ -1842,12 +1842,7 @@
+     // as THROW SYNTAX does (see RexxInstructionRaise::execute())
+     if (condition->strCompare(GlobalNames::SYNTAX))
+     {
+-        RexxString *errorcode = rc->requestString();
+-        if (errorcode == TheNilObject)
+-        {
+-            reportException(Error_Conversion_raise, rc);
+-        }
+-        rcValue = new_integer(Interpreter::messageNumber(errorcode));
++        rcValue = new_integer(Interpreter::syntaxErrorNumber(rc, true));
+         if (descriptionValue.isNull())
+         {
+             descriptionValue = GlobalNames::NULLSTRING;
+Index: interpreter/instructions/RaiseInstruction.cpp
+===================================================================
+--- a/interpreter/instructions/RaiseInstruction.cpp	(revision 13563)
++++ b/interpreter/instructions/RaiseInstruction.cpp	(working copy)
+@@ -191,16 +191,10 @@
+         _additional = new_array();
+         // The description is a null string
+         _description = GlobalNames::NULLSTRING;
+-        // the RC must have a string value...this is an error if it doesn.
+-        RexxString *errorcode = rc->requestString();
+-        if (errorcode == TheNilObject)
+-        {
+-            reportException(Error_Conversion_raise, rc);
+-        }
+-
+         // convert this to decimal, then create an integer object
+-        // that we replace the input rc value with
+-        wholenumber_t msgNum = Interpreter::messageNumber(errorcode);
++        // that we replace the input rc value with (the errors name
++        // THROW for a THROW)
++        wholenumber_t msgNum = Interpreter::syntaxErrorNumber(rc, instructionFlags[raise_throw]);
+         rc = new_integer(msgNum);
+     }
+ 
+Index: interpreter/messages/RexxErrorCodes.h
+===================================================================
+--- a/interpreter/messages/RexxErrorCodes.h	(revision 13563)
++++ b/interpreter/messages/RexxErrorCodes.h	(working copy)
+@@ -319,6 +319,7 @@
+ Error_Expression_result_signal                               = 33902,
+ Error_Expression_result_trace                                = 33903,
+ Error_Expression_result_raise                                = 33904,
++Error_Expression_result_throw                                = 33905,
+ Error_Logical_value                                          = 34000,
+ Error_Logical_value_if                                       = 34001,
+ Error_Logical_value_when                                     = 34002,
+@@ -445,6 +446,7 @@
+ Error_Conversion_exponent                                    = 41007,
+ Error_Conversion_user_defined                                = 41900,
+ Error_Conversion_raise                                       = 41901,
++Error_Conversion_throw                                       = 41902,
+ Error_Overflow                                               = 42000,
+ Error_Overflow_overflow                                      = 42001,
+ Error_Overflow_underflow                                     = 42002,
+@@ -650,6 +652,7 @@
+ Error_Execution_reply_exit                                   = 98937,
+ Error_Execution_super                                        = 98938,
+ Error_Execution_syntax_additional                            = 98939,
++Error_Execution_error_condition_throw                        = 98940,
+ Error_Execution_error_condition                              = 98941,
+ Error_Execution_mixinclass                                   = 98942,
+ Error_Execution_baseclass                                    = 98943,
+Index: interpreter/messages/RexxErrorMessages.h
+===================================================================
+--- a/interpreter/messages/RexxErrorMessages.h	(revision 13563)
++++ b/interpreter/messages/RexxErrorMessages.h	(working copy)
+@@ -321,6 +321,7 @@
+     MESSAGE(Error_Expression_result_signal, "Incorrect expression result following VALUE keyword of SIGNAL instruction.")
+     MESSAGE(Error_Expression_result_trace, "Incorrect expression result following VALUE keyword of TRACE instruction.")
+     MESSAGE(Error_Expression_result_raise, "Incorrect expression result following SYNTAX keyword of RAISE instruction.")
++    MESSAGE(Error_Expression_result_throw, "Incorrect expression result following SYNTAX keyword of THROW instruction.")
+     MESSAGE(Error_Logical_value, "Logical value not 0 or 1.")
+     MESSAGE(Error_Logical_value_if, "Value of expression following IF keyword must be exactly \"0\" or \"1\"; found \"&1\".")
+     MESSAGE(Error_Logical_value_when, "Value of expression following WHEN keyword must be exactly \"0\" or \"1\"; found \"&1\".")
+@@ -447,6 +448,7 @@
+     MESSAGE(Error_Conversion_exponent, "Exponent exceeds &1 digits; found \"&2\".")
+     MESSAGE(Error_Conversion_user_defined, "&1.")
+     MESSAGE(Error_Conversion_raise, "Value of RAISE instruction SYNTAX expression must be numeric; found \"&1\".")
++    MESSAGE(Error_Conversion_throw, "Value of THROW instruction SYNTAX expression must be numeric; found \"&1\".")
+     MESSAGE(Error_Overflow, "Arithmetic overflow/underflow.")
+     MESSAGE(Error_Overflow_overflow, "Arithmetic overflow detected at:  \"&1&2&3\".")
+     MESSAGE(Error_Overflow_underflow, "Arithmetic underflow detected at:  \"&1&2&3\".")
+@@ -652,6 +654,7 @@
+     MESSAGE(Error_Execution_reply_exit, "EXIT cannot return a value after a REPLY.")
+     MESSAGE(Error_Execution_super, "Message search overrides can be used only from methods of the target object.")
+     MESSAGE(Error_Execution_syntax_additional, "Additional information for SYNTAX errors must be a single-dimensional array of values.")
++    MESSAGE(Error_Execution_error_condition_throw, "Unknown error number specified on THROW SYNTAX; found \"&1\".")
+     MESSAGE(Error_Execution_error_condition, "Unknown error number specified on RAISE SYNTAX; found \"&1\".")
+     MESSAGE(Error_Execution_mixinclass, "Class \"&1\" must be a MIXINCLASS for INHERIT.")
+     MESSAGE(Error_Execution_baseclass, "Class \"&1\" is not a subclass of \"&2\" base class \"&3\".")
+Index: interpreter/messages/RexxMessageNumbers.h
+===================================================================
+--- a/interpreter/messages/RexxMessageNumbers.h	(revision 13563)
++++ b/interpreter/messages/RexxMessageNumbers.h	(working copy)
+@@ -785,6 +785,9 @@
+ #define Error_Invalid_expression_throw_description_msg               865
+ #define Error_Invalid_expression_throw_additional_msg                866
+ #define Error_Program_interrupted_condition_description_msg          867
++#define Error_Expression_result_throw_msg                            868
++#define Error_Conversion_throw_msg                                   869
++#define Error_Execution_error_condition_throw_msg                    870
+ 
+ 
+ #endif
+Index: interpreter/messages/RexxMessageTable.h
+===================================================================
+--- a/interpreter/messages/RexxMessageTable.h	(revision 13563)
++++ b/interpreter/messages/RexxMessageTable.h	(working copy)
+@@ -320,6 +320,7 @@
+       MINOR(Error_Expression_result_signal)
+       MINOR(Error_Expression_result_trace)
+       MINOR(Error_Expression_result_raise)
++      MINOR(Error_Expression_result_throw)
+   MAJOR(Error_Logical_value)
+       MINOR(Error_Logical_value_if)
+       MINOR(Error_Logical_value_when)
+@@ -446,6 +447,7 @@
+       MINOR(Error_Conversion_exponent)
+       MINOR(Error_Conversion_user_defined)
+       MINOR(Error_Conversion_raise)
++      MINOR(Error_Conversion_throw)
+   MAJOR(Error_Overflow)
+       MINOR(Error_Overflow_overflow)
+       MINOR(Error_Overflow_underflow)
+@@ -651,6 +653,7 @@
+       MINOR(Error_Execution_reply_exit)
+       MINOR(Error_Execution_super)
+       MINOR(Error_Execution_syntax_additional)
++      MINOR(Error_Execution_error_condition_throw)
+       MINOR(Error_Execution_error_condition)
+       MINOR(Error_Execution_mixinclass)
+       MINOR(Error_Execution_baseclass)
+Index: interpreter/messages/errnums.xml
+===================================================================
+--- a/interpreter/messages/errnums.xml	(revision 13563)
++++ b/interpreter/messages/errnums.xml	(working copy)
+@@ -1832,6 +1832,12 @@
+ <para>Incorrect expression result following SYNTAX keyword of RAISE instruction.</para>
+ </listitem>
+ </varlistentry>
++<varlistentry>
++<term>905</term>
++<listitem>
++<para>Incorrect expression result following SYNTAX keyword of THROW instruction.</para>
++</listitem>
++</varlistentry>
+ </variablelist>
+ </section>
+ <section id="ERR34">
+@@ -2686,6 +2692,12 @@
+ <para>Value of RAISE instruction SYNTAX expression must be numeric; found "<emphasis role="italic">value</emphasis>".</para>
+ </listitem>
+ </varlistentry>
++<varlistentry>
++<term>902</term>
++<listitem>
++<para>Value of THROW instruction SYNTAX expression must be numeric; found "<emphasis role="italic">value</emphasis>".</para>
++</listitem>
++</varlistentry>
+ </variablelist>
+ </section>
+ <section id="ERR42">
+@@ -4013,6 +4025,12 @@
+ </listitem>
+ </varlistentry>
+ <varlistentry>
++<term>940</term>
++<listitem>
++<para>Unknown error number specified on THROW SYNTAX; found "<emphasis role="italic">number</emphasis>".</para>
++</listitem>
++</varlistentry>
++<varlistentry>
+ <term>941</term>
+ <listitem>
+ <para>Unknown error number specified on RAISE SYNTAX; found "<emphasis role="italic">number</emphasis>".</para>
+Index: interpreter/messages/rexxmsg.xml
+===================================================================
+--- a/interpreter/messages/rexxmsg.xml	(revision 13563)
++++ b/interpreter/messages/rexxmsg.xml	(working copy)
+@@ -2604,6 +2604,15 @@
+         <SymbolicName>Error_Expression_result_raise</SymbolicName>
+         <Text>Incorrect expression result following SYNTAX keyword of RAISE instruction.</Text>
+       </SubMessage>
++      <SubMessage>
++        <Code>33</Code>
++        <Subcode>905</Subcode>
++        <MessageNumber>868</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Expression_result_throw</SymbolicName>
++        <Text>Incorrect expression result following SYNTAX keyword of THROW instruction.</Text>
++      </SubMessage>
+     </Subcodes>
+   </Message>
+   <Message>
+@@ -3783,6 +3792,15 @@
+         <SymbolicName>Error_Conversion_raise</SymbolicName>
+         <Text>Value of RAISE instruction SYNTAX expression must be numeric; found <q><Sub position="1" name="value"/></q>.</Text>
+       </SubMessage>
++      <SubMessage>
++        <Code>41</Code>
++        <Subcode>902</Subcode>
++        <MessageNumber>869</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Conversion_throw</SymbolicName>
++        <Text>Value of THROW instruction SYNTAX expression must be numeric; found <q><Sub position="1" name="value"/></q>.</Text>
++      </SubMessage>
+     </Subcodes>
+   </Message>
+   <Message>
+@@ -5693,6 +5711,15 @@
+       </SubMessage>
+       <SubMessage>
+         <Code>98</Code>
++        <Subcode>940</Subcode>
++        <MessageNumber>870</MessageNumber>
++        <Component>Rexx</Component>
++        <Severity>Warning</Severity>
++        <SymbolicName>Error_Execution_error_condition_throw</SymbolicName>
++        <Text>Unknown error number specified on THROW SYNTAX; found <q><Sub position="1" name="number"/></q>.</Text>
++      </SubMessage>
++      <SubMessage>
++        <Code>98</Code>
+         <Subcode>941</Subcode>
+         <MessageNumber>505</MessageNumber>
+         <Component>Rexx</Component>
+Index: interpreter/runtime/Interpreter.cpp
+===================================================================
+--- a/interpreter/runtime/Interpreter.cpp	(revision 13563)
++++ b/interpreter/runtime/Interpreter.cpp	(working copy)
+@@ -729,10 +729,12 @@
+  * Parse out the error code string into the messagecode value
+  *
+  * @param errorcode The string version of the error code.
++ * @param isThrow   true if the code was given to THROW (or to the Throw()
++ *                  API), so that an error names THROW instead of RAISE.
+  *
+  * @return The composite error code number.
+  */
+-wholenumber_t Interpreter::messageNumber(RexxString *errorcode)
++wholenumber_t Interpreter::messageNumber(RexxString *errorcode, bool isThrow)
+ {
+     wholenumber_t  primary = 0;          /* Primary part of error code, major */
+     wholenumber_t  secondary = 0;        /* Secondary protion (minor code)    */
+@@ -747,7 +749,7 @@
+     // must be a whole number in the correct range
+     if (!new_string(errorcode->getStringData(), count)->numberValue(primary) || primary < 1 || primary >= 100)
+     {
+-        reportException(Error_Expression_result_raise);
++        reportException(isThrow ? Error_Expression_result_throw : Error_Expression_result_raise);
+ 
+     }
+ 
+@@ -759,7 +761,7 @@
+     {
+         if (!new_string(decimalPoint + 1, errorcode->getLength() - count -1)->numberValue(secondary) || secondary < 0  || secondary >= 1000)
+         {
+-            reportException(Error_Expression_result_raise);
++            reportException(isThrow ? Error_Expression_result_throw : Error_Expression_result_raise);
+         }
+     }
+     return primary + secondary;          // add two portions together, return
+@@ -767,6 +769,38 @@
+ 
+ 
+ /**
++ * Convert the RC of a SYNTAX condition given to RAISE or THROW (or to
++ * the Throw() API) to an error number, and check that the error exists.
++ *
++ * @param rc      The RC value.
++ * @param isThrow true for THROW and Throw(), so that the errors name THROW.
++ *
++ * @return The composite error code number.
++ */
++wholenumber_t Interpreter::syntaxErrorNumber(RexxObject *rc, bool isThrow)
++{
++    // the RC must have a string value
++    RexxString *errorcode = rc->requestString();
++    if (errorcode == TheNilObject)
++    {
++        reportException(isThrow ? Error_Conversion_throw : Error_Conversion_raise, rc);
++    }
++
++    wholenumber_t number = messageNumber(errorcode, isThrow);
++    wholenumber_t primary = (number / 1000) * 1000;
++    // both the primary and the secondary message must exist
++    if (getMessageText(primary) == OREF_NULL || (number != primary && getMessageText(number) == OREF_NULL))
++    {
++        // shown in the "nn.nnn" form of a CODE (93.9), not as 93009
++        char work[32];
++        snprintf(work, sizeof(work), "%d.%d", (int)(number / 1000), (int)(number % 1000));
++        reportException(isThrow ? Error_Execution_error_condition_throw : Error_Execution_error_condition, new_string(work));
++    }
++    return number;
++}
++
++
++/**
+  * Qualify a stream name for this system.
+  *
+  * @param name   The string stream name
+Index: interpreter/runtime/Interpreter.hpp
+===================================================================
+--- a/interpreter/runtime/Interpreter.hpp	(revision 13563)
++++ b/interpreter/runtime/Interpreter.hpp	(working copy)
+@@ -123,7 +123,8 @@
+ 
+ 
+     static void logicError (const char *desc);
+-    static wholenumber_t messageNumber(RexxString *);
++    static wholenumber_t messageNumber(RexxString *, bool isThrow = false);
++    static wholenumber_t syntaxErrorNumber(RexxObject *, bool isThrow);
+     static bool haltAllActivities(RexxString *);
+     static void decodeConditionData(DirectoryClass *conditionObj, RexxCondition *condData);
+     static RexxClass *findClass(RexxString *className);

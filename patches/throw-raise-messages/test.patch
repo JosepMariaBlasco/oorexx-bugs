@@ -1,0 +1,123 @@
+Index: ooRexx/API/oo/METHOD.testGroup
+===================================================================
+--- a/ooRexx/API/oo/METHOD.testGroup	(revision 13563)
++++ b/ooRexx/API/oo/METHOD.testGroup	(working copy)
+@@ -3981,8 +3981,15 @@
+     tester~TestThrow("SYNTAX", "abc")
+     self~fail("no error for SYNTAX abc")
+   catch c = syntax
+-    self~assertSame(33.904, c~code)
++    self~assertSame(33.905, c~code)
+   end
++  do
++    tester~TestThrow("SYNTAX", "93.9")
++    self~fail("no error for SYNTAX 93.9")
++  catch c = syntax
++    self~assertSame(98.940, c~code)
++    self~assertTrue(c~message~pos('found "93.9".') > 0, c~message)
++  end
+ 
+ -- ThrowCondition() (5.0), for comparison: despite its name it does what
+ -- RAISE ... RETURN does.  The condition is raised, not thrown, and its
+Index: ooRexx/base/keyword/RAISE.testGroup
+===================================================================
+--- a/ooRexx/base/keyword/RAISE.testGroup	(revision 13563)
++++ b/ooRexx/base/keyword/RAISE.testGroup	(working copy)
+@@ -478,6 +478,25 @@
+   end
+ 
+ 
++-- the errors of a SYNTAX code that is not valid name RAISE (THROW has its own)
++::method test_RAISE_SYNTAX_bad_code
++  do code over .array~of("abc", "0", "100", "40.1x")
++    do
++      raise syntax (code)
++      self~fail("no error for" code)
++    catch c = syntax
++      self~assertSame(33.904, c~code, code)
++      self~assertSame("Incorrect expression result following SYNTAX keyword of RAISE instruction.", c~message, code)
++    end
++  end
++  -- an RC with no string value; in a routine of its own, without this
++  -- package's ::OPTIONS (NOSTRING SYNTAX would stop it first)
++  r = .routine~new("nilString", "do; raise syntax (arg(1)); catch c = syntax; return c; end")
++  c = r~call(.RaiseNilString~new)
++  self~assertSame(41.901, c~code)
++  self~assertSame('Value of RAISE instruction SYNTAX expression must be numeric; found "a RAISENILSTRING".', c~message)
++
++
+ ::method "test_RAISE_USER"
+   self~expectCondition("USER RGF")
+   raise UseR rGf
+@@ -653,5 +672,10 @@
+ ::routine raiseNoValue
+   raise user nothing
+ 
++-- an object whose STRING method returns .nil: requestString gives .nil
++::class RaiseNilString
++::method string
++  return .nil
+ 
++
+ ::options all syntax error condition failure condition
+Index: ooRexx/base/keyword/THROW.testGroup
+===================================================================
+--- a/ooRexx/base/keyword/THROW.testGroup	(revision 13563)
++++ b/ooRexx/base/keyword/THROW.testGroup	(working copy)
+@@ -372,17 +372,39 @@
+     self~assertTrue(c~thrown)
+   end
+ 
+--- an error number that does not exist: 98.941, shown as a CODE (93.9, not 93009)
++-- an error number that does not exist: 98.940 (98.941 for RAISE), shown as a
++-- CODE (93.9, not 93009)
+ ::method test_throw_syntax_unknown_code
+-  do
+-    throw syntax 93.9
+-    self~fail("no error for 93.9")
+-  catch c = syntax
+-    self~assertSame(98.941, c~code)
+-    self~assertTrue(c~message~pos('found "93.9".') > 0, c~message)
+-    self~assertFalse(c~thrown)
++  do code over .array~of("93.9", "40.999", "1.0")
++    do
++      throw syntax (code)
++      self~fail("no error for" code)
++    catch c = syntax
++      self~assertSame(98.940, c~code, code)
++      self~assertSame("Unknown error number specified on THROW SYNTAX; found" '"'code'".', c~message, code)
++      self~assertFalse(c~thrown, code)
++    end
+   end
+ 
++-- the errors of a SYNTAX code that is not valid name THROW, not RAISE
++::method test_throw_syntax_bad_code
++  do code over .array~of("abc", "0", "100", "40.1x")
++    do
++      throw syntax (code)
++      self~fail("no error for" code)
++    catch c = syntax
++      self~assertSame(33.905, c~code, code)
++      self~assertSame("Incorrect expression result following SYNTAX keyword of THROW instruction.", c~message, code)
++      self~assertFalse(c~thrown, code)
++    end
++  end
++  -- an RC with no string value; in a routine of its own, without this
++  -- package's ::OPTIONS (NOSTRING SYNTAX would stop it first)
++  r = .routine~new("nilString", "do; throw syntax (arg(1)); catch c = syntax; return c; end")
++  c = r~call(.ThrowNilString~new)
++  self~assertSame(41.902, c~code)
++  self~assertSame('Value of THROW instruction SYNTAX expression must be numeric; found "a THROWNILSTRING".', c~message)
++
+ -- a message object that sends the message keeps the thrown condition, as it
+ -- keeps a SYNTAX error
+ ::method test_send_has_error
+@@ -699,3 +721,8 @@
+   return self~inner
+ ::method inner
+   throw user deep description "from inner"
++
++-- an object whose STRING method returns .nil: requestString gives .nil
++::class ThrowNilString
++::method string
++  return .nil
