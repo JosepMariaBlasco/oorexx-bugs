@@ -1,0 +1,224 @@
+Index: ooRexx/API/oo/METHOD.testGroup
+===================================================================
+--- a/ooRexx/API/oo/METHOD.testGroup	(revision 13553)
++++ b/ooRexx/API/oo/METHOD.testGroup	(working copy)
+@@ -3536,6 +3536,8 @@
+   self~assertSame("USER MINE", c~condition)
+   self~assertSame("hand made", c~description)
+   self~assertTrue(c~traceback~isA(.list))
++  -- every condition object has a THROWN entry (RFE #31)
++  self~assertSame(.false, c~thrown)
+ 
+   d = .directory~new
+   d~condition = "SYNTAX"
+@@ -3605,7 +3607,165 @@
+   self~assertSame(93.900, c~code)
+ 
+ 
++-- RaiseConditionObject always raises (RFE #31): a condition object whose
++-- THROWN is .true is raised one level, with THROWN .false, as RAISE
++-- PROPAGATE raises a thrown condition
++::method testRaiseConditionObjectThrownObject
++  tester = .METHODTester~new
++  d = .directory~new
++  d~condition = "USER MINE"
++  d~thrown = .true
++  -- the caller of the native code gets it, raised
++  c = tester~TestRaiseConditionObjectX(d)
++  self~assertSame("USER MINE", c~condition)
++  self~assertSame(.false, c~thrown)
++  self~assertSame(.true, tester~TestGetObjectVariableOrNil("CONTINUE"))
++  -- and it goes no further: a CATCH two levels up does not see it
++  do
++    r = rco_twoLevels(tester, "TestRaiseConditionObject", d)
++    self~assertSame(0, r)
++  catch c = user mine
++    self~fail("raised past the caller of the native code")
++  end
++  -- the caller's object is not changed
++  self~assertSame(.true, d~thrown)
+ 
++-- a thrown condition that native code passes on with RaiseConditionObject is
++-- raised in its caller: to pass it on thrown, ThrowObject (see below)
++::method testRaiseConditionObjectThrownFromCallee
++  tester = .METHODTester~new
++  r = .routine~new("callee", "throw user boom description 'kept'")
++  c = tester~TestCallRoutineAndReraiseX(r)
++  self~assertSame("USER BOOM", c~condition)
++  self~assertSame("kept", c~description)
++  self~assertSame(.false, c~thrown)
++
++
++-- ThrowObject (RFE #31, THREAD_INTERFACE_VERSION_5_3_0): throws a copy of a
++-- condition object, as THROW does, and returns; the condition is thrown when
++-- the native code returns, and goes from caller to caller until it is caught
++::method testThrowObjectUser
++  tester = .METHODTester~new
++  c0 = rco_userCondition()          -- a raised condition: THROWN .false
++  do
++    call rco_twoLevels tester, "TestThrowObject", c0
++    self~fail("not thrown")
++  catch c = user mine
++    self~assertSame("USER MINE", c~condition)
++    self~assertSame("user description", c~description)
++    self~assertSame("user additional", c~additional)
++    self~assertSame(.true, c~thrown)
++  end
++  -- native code must have continued after the ThrowObject call
++  self~assertSame(.true, tester~TestGetObjectVariableOrNil("CONTINUE"))
++  -- a copy was thrown: the original object is not changed
++  self~assertSame(.false, c0~thrown)
++
++::method testThrowObjectHandMade
++  tester = .METHODTester~new
++  d = .directory~new
++  d~condition = "user mine"
++  d~description = "hand made"
++  do
++    call rco_twoLevels tester, "TestThrowObject", d
++    self~fail("not thrown")
++  catch c = user mine
++    self~assertSame("USER MINE", c~condition)
++    self~assertSame("hand made", c~description)
++    self~assertSame(.true, c~thrown)
++    self~assertTrue(c~traceback~isA(.list))
++  end
++  self~assertSame(.false, d~hasIndex("THROWN"))
++
++::method testThrowObjectSyntax
++  -- as THROW SYNTAX: an error, with THROWN .true
++  tester = .METHODTester~new
++  c0 = rco_syntaxCondition()
++  do
++    call rco_twoLevels tester, "TestThrowObject", c0
++    self~fail("not thrown")
++  catch c = syntax
++    self~assertSame(40.1, c~code)
++    self~assertSame("the description", c~description)
++    self~assertTrue(c~message~pos("XYZ") > 0)
++    self~assertSame(.true, c~thrown)
++  end
++  self~assertSame(.true, tester~TestGetObjectVariableOrNil("CONTINUE"))
++  -- RaiseConditionObject raises it as RAISE SYNTAX does: THROWN .false
++  c = tester~TestRaiseConditionObjectX(c0)
++  self~assertSame(40.1, c~code)
++  self~assertSame(.false, c~thrown)
++
++::method testThrowObjectCallOn
++  -- a CALL ON trap does not catch it: the level ends
++  tester = .METHODTester~new
++  out = ""
++  call on user mine name throwObject_callOn
++  do
++    call rco_twoLevels tester, "TestThrowObject", rco_userCondition()
++    out = out "after"
++  catch c = user mine
++    out = out "caught"
++  end
++  self~assertSame(" caught", out)
++  return
++
++throwObject_callOn:
++  out = out "callon"
++  return
++
++::method testThrowObjectOptionsSyntax
++  -- ::OPTIONS ERROR SYNTAX does not turn a thrown ERROR into SYNTAX, as for
++  -- THROW
++  tester = .METHODTester~new
++  src = .array~of("use arg tester, c",                              -
++                  "signal on syntax",                               -
++                  "tester~TestThrowObject(c)",                      -
++                  "return .nil",                                    -
++                  "syntax: return condition('o')",                  -
++                  "::options error syntax")
++  r = .routine~new("optionsErrorSyntax", src)
++  do
++    c = r~call(tester, rco_errorCondition())
++    self~fail("not thrown past the routine:" c~condition c~code)
++  catch c = error
++    self~assertSame(127, c~rc)
++    self~assertSame(.true, c~thrown)
++  end
++
++::method testThrowObjectFromCallee
++  -- what a bridge does to pass a thrown condition through: native code calls
++  -- Rexx code, gets the condition it threw, and throws it again
++  tester = .METHODTester~new
++  r = .routine~new("callee", "throw user boom description 'kept'")
++  do
++    call rco_twoLevels tester, "TestCallRoutineAndRethrow", r
++    self~fail("not thrown again")
++  catch c = user boom
++    self~assertSame("kept", c~description)
++    self~assertSame(.true, c~thrown)
++  end
++  -- a raised condition is raised again, one level
++  r = .routine~new("callee", "raise user boom description 'raised' return 'rr'")
++  self~assertSame("rr", rco_twoLevels(tester, "TestCallRoutineAndRethrow", r))
++
++::method testThrowObjectErrors
++  -- the same checks as RaiseConditionObject; the error is raised, not thrown
++  tester = .METHODTester~new
++  c = tester~TestThrowObjectX()
++  self~assertSame(93.911, c~code)
++  self~assertSame(.false, c~thrown)
++  c = tester~TestThrowObjectX("not a directory")
++  self~assertSame(93.948, c~code)
++  c = tester~TestThrowObjectX(.directory~new)
++  self~assertSame(93.900, c~code)
++  d = .directory~new
++  d~condition = "SYNTAX"
++  d~code = "100.1"
++  c = tester~TestThrowObjectX(d)
++  self~assertSame(93.900, c~code)
++
++
+ -- #2108 "LoadPackageFromData: a later ::REQUIRES of its name fails after a
+ -- garbage collection"
+ ::method test_bug_2108_LoadPackageFromData_requires_after_gc
+@@ -3947,6 +4107,15 @@
+   nomethod:
+   return condition('o')
+ 
++-- calls a native method of tester two levels down; returns what it returns
++::routine rco_twoLevels
++  use strict arg tester, method, arg
++  return rco_oneLevel(tester, method, arg)
++
++::routine rco_oneLevel
++  use strict arg tester, method, arg
++  return tester~send(method, arg)
++
+ ::routine rco_raise
+   use arg which
+   select
+Index: ooRexx/API/oo/METHODPackage.cls
+===================================================================
+--- a/ooRexx/API/oo/METHODPackage.cls	(revision 13553)
++++ b/ooRexx/API/oo/METHODPackage.cls	(working copy)
+@@ -212,6 +212,8 @@
+ ::method TestRaiseCondition EXTERNAL "LIBRARY orxmethod TestRaiseCondition"
+ ::method TestRaiseConditionObject EXTERNAL "LIBRARY orxmethod TestRaiseConditionObject"
+ ::method TestCallRoutineAndReraise EXTERNAL "LIBRARY orxmethod TestCallRoutineAndReraise"
++::method TestThrowObject EXTERNAL "LIBRARY orxmethod TestThrowObject"
++::method TestCallRoutineAndRethrow EXTERNAL "LIBRARY orxmethod TestCallRoutineAndRethrow"
+ ::method TestInterpreterVersion EXTERNAL "LIBRARY orxmethod TestInterpreterVersion"
+ ::method TestLanguageLevel EXTERNAL "LIBRARY orxmethod TestLanguageLevel"
+ ::method TestNewStringFromAsciiz EXTERNAL "LIBRARY orxmethod TestNewStringFromAsciiz"
+@@ -334,6 +336,15 @@
+   trapped:
+      return condition('o')
+ 
++::method TestThrowObjectX
++  signal on syntax name trapped
++  signal on any name trapped
++  forward message("TestThrowObject") continue
++  return .nil
++
++  trapped:
++     return condition('o')
++
+ -- these trap SYNTAX only
+ ::method TestRaiseConditionObjectSyntaxX
+   signal on syntax

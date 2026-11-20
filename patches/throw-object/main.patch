@@ -1,0 +1,247 @@
+Index: api/oorexxapi.h
+===================================================================
+--- a/api/oorexxapi.h	(revision 13553)
++++ b/api/oorexxapi.h	(working copy)
+@@ -688,6 +688,7 @@
+      RexxInstance *(RexxEntry *GetInterpreterInstance)(RexxThreadContext *);
+      // added in THREAD_INTERFACE_VERSION_5_3_0
+      void             (RexxEntry *RaiseConditionObject)(RexxThreadContext *, RexxDirectoryObject);
++     void             (RexxEntry *ThrowObject)(RexxThreadContext *, RexxDirectoryObject);
+ 
+ } RexxThreadInterface;
+ 
+@@ -1657,6 +1658,10 @@
+      {
+          functions->RaiseConditionObject(this, d);
+      }
++     void ThrowObject(RexxDirectoryObject d)
++     {
++         functions->ThrowObject(this, d);
++     }
+      logical_t CheckCondition()
+      {
+          return functions->CheckCondition(this);
+@@ -2412,6 +2417,10 @@
+      {
+          threadContext->RaiseConditionObject(d);
+      }
++     void ThrowObject(RexxDirectoryObject d)
++     {
++         threadContext->ThrowObject(d);
++     }
+      logical_t CheckCondition()
+      {
+          return threadContext->CheckCondition();
+@@ -3274,6 +3283,10 @@
+      {
+          threadContext->RaiseConditionObject(d);
+      }
++     void ThrowObject(RexxDirectoryObject d)
++     {
++         threadContext->ThrowObject(d);
++     }
+      logical_t CheckCondition()
+      {
+          return threadContext->CheckCondition();
+@@ -4116,6 +4129,10 @@
+      {
+          threadContext->RaiseConditionObject(d);
+      }
++     void ThrowObject(RexxDirectoryObject d)
++     {
++         threadContext->ThrowObject(d);
++     }
+      logical_t CheckCondition()
+      {
+          return threadContext->CheckCondition();
+Index: interpreter/api/ThreadContextStubs.cpp
+===================================================================
+--- a/interpreter/api/ThreadContextStubs.cpp	(revision 13553)
++++ b/interpreter/api/ThreadContextStubs.cpp	(working copy)
+@@ -1945,7 +1945,7 @@
+             reportException(Error_Incorrect_method_noclass, 1, new_string("Directory"));
+         }
+         context.context->enableConditionTrap();
+-        context.activity->raiseConditionObject((DirectoryClass *)d);
++        context.activity->raiseConditionObject((DirectoryClass *)d, Activity::CONDITION_RAISE);
+     }
+     catch (NativeActivation *)
+     {
+@@ -1952,6 +1952,27 @@
+     }
+ }
+ 
++void RexxEntry ThrowObject(RexxThreadContext *c, RexxDirectoryObject d)
++{
++    ApiContext context(c);
++    try
++    {
++        if (d == NULLOBJECT)
++        {
++            reportException(Error_Incorrect_method_null, 1);
++        }
++        if (!isOfClass(Directory, (RexxObject *)d))
++        {
++            reportException(Error_Incorrect_method_noclass, 1, new_string("Directory"));
++        }
++        context.context->enableConditionTrap();
++        context.activity->raiseConditionObject((DirectoryClass *)d, Activity::CONDITION_THROW);
++    }
++    catch (NativeActivation *)
++    {
++    }
++}
++
+ logical_t RexxEntry CheckCondition(RexxThreadContext *c)
+ {
+     ApiContext context(c, false);     // no lock required
+@@ -2293,4 +2314,5 @@
+     SendMessageScoped,
+     GetInterpreterInstance,
+     RaiseConditionObject,
++    ThrowObject,
+ };
+Index: interpreter/concurrency/Activity.cpp
+===================================================================
+--- a/interpreter/concurrency/Activity.cpp	(revision 13553)
++++ b/interpreter/concurrency/Activity.cpp	(working copy)
+@@ -856,15 +856,24 @@
+ 
+ /**
+  * Raise a condition described by an existing condition object,
+- * for the RaiseConditionObject() API.  A copy of the object is
+- * raised, with everything it holds (RC, DESCRIPTION, ADDITIONAL,
+- * RESULT...), as the condition it describes: a SYNTAX error is
+- * raised as an error, any other condition as RaiseCondition()
+- * raises it, after the ::OPTIONS condition SYNTAX checks.
++ * for the RaiseConditionObject() and ThrowObject() APIs.  A copy of
++ * the object is raised, with everything it holds (RC, DESCRIPTION,
++ * ADDITIONAL, RESULT...), as the condition it describes: a SYNTAX
++ * error is raised as an error; any other condition, if it is raised,
++ * as RaiseCondition() raises it, after the ::OPTIONS condition SYNTAX
++ * checks, and if it is thrown, as Throw() throws it, but left pending
++ * until the native code returns (RFE #31).
+  *
+  * @param source The condition object.
++ * @param mode   CONDITION_RAISE (RaiseConditionObject()): THROWN is set
++ *               .false, and the condition is raised one level, as RAISE
++ *               does.  CONDITION_THROW (ThrowObject()): THROWN is set
++ *               .true, and the condition is thrown, as THROW does.
++ *               CONDITION_AS_IS (the interpreter raising again a
++ *               condition it got): thrown if its THROWN is .true, and
++ *               raised otherwise, with THROWN .false.
+  */
+-void Activity::raiseConditionObject(DirectoryClass *source)
++void Activity::raiseConditionObject(DirectoryClass *source, ConditionObjectMode mode)
+ {
+     RexxInternalObject *name = source->get(GlobalNames::CONDITION);
+     if (name == OREF_NULL || !isString(name))
+@@ -877,6 +886,11 @@
+     Protected<DirectoryClass> conditionObj = (DirectoryClass *)source->copy();
+     conditionObj->put(condition, GlobalNames::CONDITION);
+ 
++    // every condition object has a THROWN entry, .true or .false (an object
++    // built by hand may have none)
++    bool thrown = mode == CONDITION_THROW || (mode == CONDITION_AS_IS && conditionObj->get(GlobalNames::THROWN) == TheTrueObject);
++    conditionObj->put(thrown ? TheTrueObject : TheFalseObject, GlobalNames::THROWN);
++
+     RexxObject *description = (RexxObject *)conditionObj->get(GlobalNames::DESCRIPTION);
+     RexxObject *result = (RexxObject *)conditionObj->get(GlobalNames::RESULT);
+     if (description == OREF_NULL)
+@@ -906,9 +920,16 @@
+         return;
+     }
+ 
+-    // ::OPTIONS condition SYNTAX applies as for RaiseCondition()
+-    checkConditionSyntaxOptions(condition, description, result);
++    // ::OPTIONS condition SYNTAX applies as for RaiseCondition(), and not
++    // to a thrown condition, as for THROW
++    if (!thrown)
++    {
++        checkConditionSyntaxOptions(condition, description, result);
++    }
+     conditionObj->put(TheFalseObject, GlobalNames::PROPAGATED);
++    // a thrown condition is kept by the native activation, as an error is,
++    // and thrown again when the native code returns (see
++    // NativeActivation::checkConditions())
+     raiseCondition(conditionObj);
+ }
+ 
+Index: interpreter/concurrency/Activity.hpp
+===================================================================
+--- a/interpreter/concurrency/Activity.hpp	(revision 13553)
++++ b/interpreter/concurrency/Activity.hpp	(working copy)
+@@ -122,7 +122,11 @@
+     bool        raiseCondition(RexxString *, RexxObject *, RexxObject *, RexxObject *, RexxObject *);
+     bool        raiseCondition(DirectoryClass *);
+     void        checkConditionSyntaxOptions(RexxString *, RexxObject *, RexxObject *);
+-    void        raiseConditionObject(DirectoryClass *);
++    // how raiseConditionObject() raises: as the object says (the
++    // interpreter's own uses), always raised (RaiseConditionObject()), or
++    // always thrown (ThrowObject())
++    typedef enum { CONDITION_AS_IS, CONDITION_RAISE, CONDITION_THROW } ConditionObjectMode;
++    void        raiseConditionObject(DirectoryClass *, ConditionObjectMode mode = CONDITION_AS_IS);
+     void        completeSyntaxCondition(DirectoryClass *);
+     bool        checkCondition(RexxString *condition);
+     DirectoryClass *createConditionObject(RexxString *, RexxObject *, RexxObject *, RexxObject *, RexxObject *);
+Index: testbinaries/orxmethod.cpp
+===================================================================
+--- a/testbinaries/orxmethod.cpp	(revision 13553)
++++ b/testbinaries/orxmethod.cpp	(working copy)
+@@ -2207,6 +2207,47 @@
+     return 0;
+ }
+ 
++// ThrowObject() (RFE #31): throws a copy of the condition object, and
++// returns; the condition is thrown when the native method returns
++RexxMethod1(int,
++            TestThrowObject,
++            OPTIONAL_RexxObjectPtr, condition)
++{
++    context->ThrowObject((RexxDirectoryObject)condition);
++    // this should still get executed
++    context->SetObjectVariable("CONTINUE", context->True());
++    return 0;
++}
++
++// what a bridge does to pass a thrown condition through: call Rexx code and
++// throw any condition it threw again in our caller, raising the others
++RexxMethod2(RexxObjectPtr,
++            TestCallRoutineAndRethrow,
++            RexxObjectPtr, routine,
++            OPTIONAL_RexxArrayObject, args)
++{
++    if (args == NULLOBJECT)
++    {
++        args = context->NewArray(0);
++    }
++    RexxObjectPtr result = context->CallRoutine((RexxRoutineObject)routine, args);
++    if (context->CheckCondition())
++    {
++        RexxDirectoryObject condition = context->GetConditionInfo();
++        context->ClearCondition();
++        if (context->DirectoryAt(condition, "THROWN") == context->True())
++        {
++            context->ThrowObject(condition);
++        }
++        else
++        {
++            context->RaiseConditionObject(condition);
++        }
++        return NULLOBJECT;
++    }
++    return result;
++}
++
+ // what a bridge does: call Rexx code and raise any condition it raised
+ // again in our caller
+ RexxMethod2(RexxObjectPtr,
+@@ -2821,6 +2862,8 @@
+     REXX_METHOD(TestRaiseException,          TestRaiseException),
+     REXX_METHOD(TestRaiseCondition,          TestRaiseCondition),
+     REXX_METHOD(TestRaiseConditionObject,    TestRaiseConditionObject),
++    REXX_METHOD(TestThrowObject,             TestThrowObject),
++    REXX_METHOD(TestCallRoutineAndRethrow,   TestCallRoutineAndRethrow),
+     REXX_METHOD(TestCallRoutineAndReraise,   TestCallRoutineAndReraise),
+     REXX_METHOD(TestInterpreterVersion,      TestInterpreterVersion),
+     REXX_METHOD(TestLanguageLevel,           TestLanguageLevel),
