@@ -1,0 +1,99 @@
+Index: ooRexx/API/oo/FUNCTION.testGroup
+===================================================================
+--- a/ooRexx/API/oo/FUNCTION.testGroup	(revision 13556)
++++ b/ooRexx/API/oo/FUNCTION.testGroup	(working copy)
+@@ -68,6 +68,7 @@
+ return .ooTestResult~new(5)~~addException(err)
+ 
+ ::requires 'ooTest.frm' -- load the ooRexxUnit classes
++::requires 'FileUtils.cls' -- for issueCmd
+ 
+ -- class named exactly like file
+ ::class "FUNCTION.testGroup" subclass ooTestCase public
+@@ -1340,6 +1341,72 @@
+   if c~additional == .nil then return c~condition rc ".nil"
+   return c~condition rc c~additional~toString("L", " ")
+ 
++-- RFE #31: a condition that a native command handler throws (Throw()) goes
++-- on from caller to caller, as THROW: past the routine that issued the
++-- command, and not only to the issuer, as a condition the handler raises
++::method test_AddCommandEnvironment_throw
++  call TestAddCommandEnvironment "rc-throw", "throw"
++  do
++    call throwCommand_oneLevel "rc-throw", "USER BOOM"
++    self~fail("not thrown")
++  catch c = user boom
++    self~assertTrue(c~thrown)
++    self~assertSame("thrown", c~description)
++  end
++
++::method test_AddCommandEnvironment_throw_redirecting
++  -- ... from a REDIRECTING handler too
++  call TestAddCommandEnvironment "rc-throw-r", "throw-redirecting"
++  do
++    call throwCommand_oneLevel "rc-throw-r", "USER BOOM"
++    self~fail("not thrown")
++  catch c = user boom
++    self~assertTrue(c~thrown)
++    self~assertSame("thrown", c~description)
++  end
++
++::method test_AddCommandEnvironment_throw_error
++  -- ... a thrown ERROR too: it is not the command's ERROR, which stops at
++  -- the issuer; the code that catches it gets its RC
++  call TestAddCommandEnvironment "rc-throw", "throw"
++  rc = "unset"
++  do
++    call throwCommand_oneLevel "rc-throw", "ERROR"
++    self~fail("not thrown")
++  catch c = error
++    self~assertTrue(c~thrown)
++    self~assertSame(7, c~rc)
++    self~assertSame(7, rc)
++  end
++
++::method test_AddCommandEnvironment_throw_uncaught
++  -- ... and uncaught it is error 4.901, as an uncaught THROW (it was ignored)
++  source = .array~of( -
++    "call TestAddCommandEnvironment 'rc-throw', 'throw'", -
++    "address 'rc-throw' 'USER BOOM'", -
++    "say 'went on'", -
++    "::routine TestAddCommandEnvironment external 'LIBRARY orxfunction TestAddCommandEnvironment'")
++  program = .TemporaryTestFile~new(self, self~getName".tmp.rex")~create(source)
++  output = .array~new
++  call issueCmd "rexx" program~quotedName, output
++  self~assertFalse(output~hasItem("went on"), output~makeString)
++  self~assertSame("Error 4.901:  Program interrupted with USER BOOM condition: thrown.", output~lastItem, output~makeString)
++
++::method test_NativeCommandHandler_forward_throw
++  -- ... and when a handler written in Rexx forwards the command to it
++  call TestAddCommandEnvironment "rc-throw", "throw"
++  native = .CommandHandler~handler("rc-throw")
++  .CommandHandler~register("rc-forward", .ForwardingHandler~new(native))
++  do
++    call throwCommand_oneLevel "rc-forward", "USER BOOM"
++    self~fail("not thrown")
++  catch c = user boom
++    self~assertTrue(c~thrown)
++    self~assertSame("thrown", c~description)
++  finally
++    .CommandHandler~deregister("rc-forward")
++  end
++
+ ::method test_simple_with
+ 
+   address io 'ISREDIRECTIONREQUESTED' with input using "This is a test"
+@@ -2190,6 +2257,13 @@
+   call TestThrow name, , desc
+   return
+ 
++-- issues a command one Rexx level below the caller (RFE #31)
++::routine throwCommand_oneLevel
++  use strict arg environment, command
++  address value environment
++  command
++  return
++
+ ::class ForwardingHandler inherit CommandHandler
+ ::method init
+   expose target
