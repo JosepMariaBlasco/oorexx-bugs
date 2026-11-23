@@ -34,9 +34,16 @@ jobs:
             sleep 20
           done
           svn --version --quiet
+          # an export has no working copy, so CMake would set the build level
+          # to 0 (the Rexx Parser refuses to load on r0): give it the revision
+          # a checkout would report, as windows-installer.yml does
+          lvl=$(svn info -r $REV https://svn.code.sf.net/p/oorexx/code-0/main/trunk --show-item last-changed-revision)
+          echo "build level $lvl"
           for variant in clean patched; do
             svn export -q -r $REV https://svn.code.sf.net/p/oorexx/code-0/main/trunk src-$variant/main
             svn export -q -r $REV https://svn.code.sf.net/p/oorexx/code-0/test/trunk src-$variant/test
+            sed -i "s/^set (ORX_BLD_LVL 0)/set (ORX_BLD_LVL $lvl)/" src-$variant/main/CMakeLists.txt
+            grep -n "^set (ORX_BLD_LVL" src-$variant/main/CMakeLists.txt
           done
           if [ -f patches/$PATCHSET/main.patch ]; then (cd src-patched/main && patch -p1 < $GITHUB_WORKSPACE/patches/$PATCHSET/main.patch); fi
           if [ -f patches/$PATCHSET/test.patch ]; then (cd src-patched/test && patch -p1 < $GITHUB_WORKSPACE/patches/$PATCHSET/test.patch); fi
