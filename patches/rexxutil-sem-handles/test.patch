@@ -1,0 +1,146 @@
+Index: ooRexx/base/rexxutil/SysEventSem.testGroup
+===================================================================
+--- a/ooRexx/base/rexxutil/SysEventSem.testGroup	(nonexistent)
++++ b/ooRexx/base/rexxutil/SysEventSem.testGroup	(working copy)
+@@ -0,0 +1,91 @@
++#!/usr/bin/env rexx
++/*----------------------------------------------------------------------------*/
++/*                                                                            */
++/* Copyright (c) 2026 Rexx Language Association. All rights reserved.         */
++/*                                                                            */
++/* This program and the accompanying materials are made available under       */
++/* the terms of the Common Public License v1.0 which accompanies this         */
++/* distribution. A copy is also available at the following address:           */
++/* https://www.oorexx.org/license.html                                        */
++/*                                                                            */
++/* Redistribution and use in source and binary forms, with or                 */
++/* without modification, are permitted provided that the following            */
++/* conditions are met:                                                        */
++/*                                                                            */
++/* Redistributions of source code must retain the above copyright             */
++/* notice, this list of conditions and the following disclaimer.              */
++/* Redistributions in binary form must reproduce the above copyright          */
++/* notice, this list of conditions and the following disclaimer in            */
++/* the documentation and/or other materials provided with the distribution.   */
++/*                                                                            */
++/* Neither the name of Rexx Language Association nor the names                */
++/* of its contributors may be used to endorse or promote products             */
++/* derived from this software without specific prior written permission.      */
++/*                                                                            */
++/* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS        */
++/* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT          */
++/* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS          */
++/* FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT   */
++/* OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,      */
++/* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED   */
++/* TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,        */
++/* OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY     */
++/* OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING    */
++/* NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS         */
++/* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.               */
++/*                                                                            */
++parse source . . s
++
++group = .TestGroup~new(s)
++-- macOS has no sem_xxx functions, so RexxUtil has no Sys*EventSem functions there
++group~restrictOS(group~knownOSes~difference(.set~of("DARWIN", "MACOSX")))
++group~add(.SysEventSem.testGroup)
++if group~isAutomatedTest then
++  return group
++else
++  return group~suite~execute~~print
++
++
++::requires 'ooTest.frm'
++::requires 'FileUtils.cls' -- for issueCmd
++
++::class SysEventSem.testGroup subclass ooTestCase public
++
++::method test_post_wait_reset_close
++  h = SysCreateEventSem()
++  self~assertFalse(h == "", "no handle")
++  self~assertSame(0, SysPostEventSem(h))
++  self~assertSame(0, SysWaitEventSem(h, 1000))
++  self~assertSame(0, SysResetEventSem(h))
++  self~assertSame(0, SysCloseEventSem(h))
++
++-- a handle that was closed was used as an address on Unix and crashed; it
++-- now answers 6 (invalid handle), as on Windows; run in a child process
++::method test_closed_handle
++  source = .array~of( -
++    "h = SysCreateEventSem()", -
++    "call SysCloseEventSem h", -
++    "say SysPostEventSem(h) SysResetEventSem(h) SysWaitEventSem(h, 100) SysCloseEventSem(h)")
++  program = .TemporaryTestFile~new(self, "SysEventSem_closed.tmp.rex")~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName, output)
++  self~assertSame(0, theRC, "rexx ended with rc" theRC)
++  self~assertSame(1, output~items, "rexx ended with rc" theRC "after" output~items "lines")
++  self~assertSame("6 6 6 6", output[1])
++
++-- a number that no SysCreateEventSem answered (a handle rounded by arithmetic,
++-- or made up) was used as an address on Unix and crashed; it now answers 6.
++-- Only on Unix: on Windows such a number may be another handle of the process
++::method test_made_up_handle
++  if .ooRexxUnit.OSName == "WINDOWS" then return
++  source = .array~of( -
++    "h = SysCreateEventSem()", -
++    "say SysPostEventSem(h + 8) SysResetEventSem(12345678) SysWaitEventSem(0, 100) SysCloseEventSem(h + 8)", -
++    "say SysPostEventSem(h) SysWaitEventSem(h, 1000) SysCloseEventSem(h)")
++  program = .TemporaryTestFile~new(self, "SysEventSem_made_up.tmp.rex")~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName, output)
++  self~assertSame(0, theRC, "rexx ended with rc" theRC)
++  self~assertSame(2, output~items, "rexx ended with rc" theRC "after" output~items "lines")
++  self~assertSame("6 6 6 6", output[1])
++  self~assertSame("0 0 0", output[2], "the real handle still works")
+
+Property changes on: ooRexx/base/rexxutil/SysEventSem.testGroup
+___________________________________________________________________
+Added: svn:eol-style
+## -0,0 +1 ##
++native
+\ No newline at end of property
+Added: svn:executable
+## -0,0 +1 ##
++*
+\ No newline at end of property
+Index: ooRexx/base/rexxutil/SysMutexSem.testGroup
+===================================================================
+--- a/ooRexx/base/rexxutil/SysMutexSem.testGroup	(revision 13621)
++++ b/ooRexx/base/rexxutil/SysMutexSem.testGroup	(working copy)
+@@ -71,3 +71,34 @@
+   self~assertSame(0, SysRequestMutexSem(h))
+   self~assertSame(0, SysReleaseMutexSem(h))
+   self~assertSame(0, SysCloseMutexSem(h))
++
++-- a handle that was closed was used as an address on Unix and crashed; it
++-- now answers 6 (invalid handle), as on Windows; run in a child process
++::method test_closed_handle
++  source = .array~of( -
++    "h = SysCreateMutexSem()", -
++    "call SysCloseMutexSem h", -
++    "say SysRequestMutexSem(h, 100) SysReleaseMutexSem(h) SysCloseMutexSem(h)")
++  program = .TemporaryTestFile~new(self, "SysMutexSem_closed.tmp.rex")~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName, output)
++  self~assertSame(0, theRC, "rexx ended with rc" theRC)
++  self~assertSame(1, output~items, "rexx ended with rc" theRC "after" output~items "lines")
++  self~assertSame("6 6 6", output[1])
++
++-- a number that no SysCreateMutexSem answered (a handle rounded by arithmetic,
++-- or made up) was used as an address on Unix and crashed; it now answers 6.
++-- Only on Unix: on Windows such a number may be another handle of the process
++::method test_made_up_handle
++  if .ooRexxUnit.OSName == "WINDOWS" then return
++  source = .array~of( -
++    "h = SysCreateMutexSem()", -
++    "say SysRequestMutexSem(h + 8, 100) SysReleaseMutexSem(12345678) SysCloseMutexSem(0)", -
++    "say SysRequestMutexSem(h) SysReleaseMutexSem(h) SysCloseMutexSem(h)")
++  program = .TemporaryTestFile~new(self, "SysMutexSem_made_up.tmp.rex")~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName, output)
++  self~assertSame(0, theRC, "rexx ended with rc" theRC)
++  self~assertSame(2, output~items, "rexx ended with rc" theRC "after" output~items "lines")
++  self~assertSame("6 6 6", output[1])
++  self~assertSame("0 0 0", output[2], "the real handle still works")
