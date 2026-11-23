@@ -1,0 +1,133 @@
+Index: ooRexx/base/class/Object.testGroup
+===================================================================
+--- a/ooRexx/base/class/Object.testGroup	(revision 13623)
++++ b/ooRexx/base/class/Object.testGroup	(working copy)
+@@ -507,6 +507,84 @@
+   -- name
+   self~assertEquals(obj~defaultName||'abc', obj||'abc')
+ 
++-- bug #1743: a STRING method that answered something with no string value
++-- (a Directory, .nil, self) crashed the interpreter or gave garbage; so did a
++-- REQUEST method with no value.  Such an answer now counts as no answer: the
++-- default STRING is used, and in the end the default name.  Run in a child
++-- process, so that a crash cannot take the test suite with it
++::method test_string_method_not_a_string
++  source = .array~of( -
++    "o = .answersDirectory~new", -
++    "name = o~defaultName", -
++    "call check '' || o == name, 'concatenation'", -
++    "call check length(o) == length(name), 'LENGTH'", -
++    "call check words(o) == words(name), 'WORDS'", -
++    "call check pos('z', o) == 0, 'POS'", -
++    "call check strip(o) == name, 'STRIP'", -
++    "call check changestr('a', o, 'b') == changestr('a', name, 'b'), 'CHANGESTR'", -
++    "call check countstr('a', o) == countstr('a', name), 'COUNTSTR'", -
++    "v = o", -
++    "drop (v)", -
++    "call check 1, 'DROP'", -
++    "call exposer", -
++    "call check 1, 'PROCEDURE EXPOSE'", -
++    "o = .answersNil~new", -
++    "call check '' || o == o~defaultName, '.nil'", -
++    "o = .answersSelf~new", -
++    "call check '' || o == o~defaultName, 'self'", -
++    "o = .requestAnswersNothing~new", -
++    "call check '' || o == o~defaultName, 'REQUEST with no value'", -
++    "o = .requestAnswersDirectory~new", -
++    "call check '' || o == 'from STRING', 'REQUEST with no string value'", -
++    "o = .objectNameAnswersDirectory~new", -
++    "call check '' || o == o~defaultName, 'OBJECTNAME with no string value'", -
++    "o = .objectNameAnswersNothing~new", -
++    "call check '' || o == o~defaultName, 'STRING and OBJECTNAME with no value'", -
++    "o = .answersMakeString~new", -
++    "call check '' || o == 'from MAKESTRING', 'an answer with MAKESTRING'", -
++    "o = .answersArray~new", -
++    "call check '' || o == 'a' || .endOfLine || 'b', 'an Array'", -
++    "signal on nostring", -
++    "x = '' || .answersDirectory~new", -
++    "call check 0, 'NOSTRING'", -
++    "exit", -
++    "nostring: call check condition('d') == .answersDirectory~new~defaultName, 'NOSTRING'", -
++    "exit", -
++    "exposer: procedure expose (v)", -
++    "  return", -
++    "check: say (arg(1) == 1) arg(2)", -
++    "  return", -
++    "::class answersDirectory", -
++    "::method string; return .directory~new", -
++    "::class answersNil", -
++    "::method string; return .nil", -
++    "::class answersSelf", -
++    "::method string; return self", -
++    "::class requestAnswersNothing", -
++    "::method request; return", -
++    "::class requestAnswersDirectory", -
++    "::method request; return .directory~new", -
++    "::method string; return 'from STRING'", -
++    "::class objectNameAnswersDirectory", -
++    "::method objectName; return .directory~new", -
++    "::class objectNameAnswersNothing", -
++    "::method string; return", -
++    "::method objectName; return", -
++    "::class answersMakeString", -
++    "::method string; return .makesAString~new", -
++    "::class makesAString", -
++    "::method makeString; return 'from MAKESTRING'", -
++    "::class answersArray", -
++    "::method string; return .array~of('a', 'b')")
++  program = .TemporaryTestFile~new(self, "string_not_a_string" self~getName ".tmp.rex")~create(source)
++  output = .array~new
++  theRC = issueCmd("rexx" program~quotedName, output)
++  self~assertSame(0, theRC, "rexx ended with rc" theRC)
++  self~assertSame(18, output~items, "rexx ended with rc" theRC "after" output~items "lines")
++  do line over output
++    self~assertSame("1", line~word(1), line)
++  end
++
+ ::method test_string_method_error
+   obj = .testbadstring2~new
+   self~expectSyntax(42.3)
+Index: ooRexx/base/keyword/RAISE.testGroup
+===================================================================
+--- a/ooRexx/base/keyword/RAISE.testGroup	(revision 13623)
++++ b/ooRexx/base/keyword/RAISE.testGroup	(working copy)
+@@ -489,12 +489,13 @@
+       self~assertSame("Incorrect expression result following SYNTAX keyword of RAISE instruction.", c~message, code)
+     end
+   end
+-  -- an RC with no string value; in a routine of its own, without this
+-  -- package's ::OPTIONS (NOSTRING SYNTAX would stop it first)
++  -- an RC whose STRING answers no string value: its default name is used
++  -- (bug #1743), which is not a valid code; in a routine of its own,
++  -- without this package's ::OPTIONS (NOSTRING SYNTAX would stop it first)
+   r = .routine~new("nilString", "do; raise syntax (arg(1)); catch c = syntax; return c; end")
+   c = r~call(.RaiseNilString~new)
+-  self~assertSame(41.901, c~code)
+-  self~assertSame('Value of RAISE instruction SYNTAX expression must be numeric; found "a RAISENILSTRING".', c~message)
++  self~assertSame(33.904, c~code)
++  self~assertSame("Incorrect expression result following SYNTAX keyword of RAISE instruction.", c~message)
+ 
+ 
+ ::method "test_RAISE_USER"
+Index: ooRexx/base/keyword/THROW.testGroup
+===================================================================
+--- a/ooRexx/base/keyword/THROW.testGroup	(revision 13623)
++++ b/ooRexx/base/keyword/THROW.testGroup	(working copy)
+@@ -398,12 +398,13 @@
+       self~assertFalse(c~thrown, code)
+     end
+   end
+-  -- an RC with no string value; in a routine of its own, without this
+-  -- package's ::OPTIONS (NOSTRING SYNTAX would stop it first)
++  -- an RC whose STRING answers no string value: its default name is used
++  -- (bug #1743), which is not a valid code; in a routine of its own,
++  -- without this package's ::OPTIONS (NOSTRING SYNTAX would stop it first)
+   r = .routine~new("nilString", "do; throw syntax (arg(1)); catch c = syntax; return c; end")
+   c = r~call(.ThrowNilString~new)
+-  self~assertSame(41.902, c~code)
+-  self~assertSame('Value of THROW instruction SYNTAX expression must be numeric; found "a THROWNILSTRING".', c~message)
++  self~assertSame(33.905, c~code)
++  self~assertSame("Incorrect expression result following SYNTAX keyword of THROW instruction.", c~message)
+ 
+ -- a message object that sends the message keeps the thrown condition, as it
+ -- keeps a SYNTAX error
