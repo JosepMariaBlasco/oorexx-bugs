@@ -1,0 +1,81 @@
+Index: CMakeLists.txt
+===================================================================
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt	(revision 13602)
++++ b/CMakeLists.txt	(working copy)
+@@ -2094,6 +2094,7 @@
+    install(FILES ${build_extensions_oodialog_dir}/ooDialog_ReleaseNotes.txt COMPONENT Docs DESTINATION ${INSTALL_DOC_DIR})
+    install(FILES ${DOC_SOURCE_DIR}/oodguide.pdf COMPONENT Docs DESTINATION ${INSTALL_DOC_DIR})
+    install(FILES ${DOC_SOURCE_DIR}/rexxextensions.pdf COMPONENT Docs DESTINATION ${INSTALL_DOC_DIR})
++   install(FILES ${DOC_SOURCE_DIR}/rexxparser.pdf COMPONENT Docs DESTINATION ${INSTALL_DOC_DIR})
+    install(FILES ${DOC_SOURCE_DIR}/winextensions.pdf COMPONENT Docs DESTINATION ${INSTALL_DOC_DIR})
+    install(FILES ${SAMPLES_SOURCE}/windows/oodialog/ooRexxTry/doc/ooRexxTry.pdf COMPONENT Docs DESTINATION ${INSTALL_DOC_DIR})
+ 
+@@ -2110,6 +2111,7 @@
+    install_doc_shortcut("ooDialog Release Notes" "ooDialog_ReleaseNotes.txt")
+    install_doc_shortcut("ooDialog User Guide" "oodguide.pdf")
+    install_doc_shortcut("ooRexx Extensions Reference" "rexxextensions.pdf")
++   install_doc_shortcut("ooRexx Rexx Parser Reference" "rexxparser.pdf")
+    install_doc_shortcut("ooRexx Windows Reference" "winextensions.pdf")
+    install_doc_shortcut("ooRexxTry Reference" "ooRexxTry.pdf")
+ 
+@@ -2163,6 +2165,7 @@
+                  ${DOC_SOURCE_DIR}/oodialog.pdf
+                  ${DOC_SOURCE_DIR}/oodguide.pdf
+                  ${DOC_SOURCE_DIR}/rexxextensions.pdf
++                 ${DOC_SOURCE_DIR}/rexxparser.pdf
+                  ${DOC_SOURCE_DIR}/winextensions.pdf
+                  ${build_platform_dir}/install/cpack.nsi
+          VERBATIM
+@@ -2235,6 +2238,7 @@
+ 
+ 	   install(FILES ${DOC_SOURCE_DIR}/rexxapi.pdf COMPONENT Docs DESTINATION ${INSTALL_DOC_DIR})
+ 	   install(FILES ${DOC_SOURCE_DIR}/rexxextensions.pdf COMPONENT Docs DESTINATION ${INSTALL_DOC_DIR})
++	   install(FILES ${DOC_SOURCE_DIR}/rexxparser.pdf COMPONENT Docs DESTINATION ${INSTALL_DOC_DIR})
+ 
+ 	   install(FILES ${DOC_SOURCE_DIR}/rexxpg.pdf COMPONENT Docs DESTINATION ${INSTALL_DOC_DIR})
+ 	   install(FILES ${DOC_SOURCE_DIR}/rexxref.pdf COMPONENT Docs DESTINATION ${INSTALL_DOC_DIR})
+Index: platform/windows/install/cpack.nsi
+===================================================================
+diff --git a/platform/windows/install/cpack.nsi b/platform/windows/install/cpack.nsi
+--- a/platform/windows/install/cpack.nsi	(revision 13602)
++++ b/platform/windows/install/cpack.nsi	(working copy)
+@@ -1248,6 +1248,7 @@
+   ${File} "${SRCDIR}\extensions\platform\windows\oodialog\" "ooDialog_ReleaseNotes.txt"
+   ${File} "${DOCDIR}\" "oodguide.pdf"
+   ${File} "${DOCDIR}\" "rexxextensions.pdf"
++  ${File} "${DOCDIR}\" "rexxparser.pdf"
+   ${File} "${DOCDIR}\" "winextensions.pdf"
+   ${File} "${SRCDIR}\samples\windows\oodialog\ooRexxTry\doc\" "ooRexxTry.pdf"
+ 
+@@ -1279,6 +1280,8 @@
+   ${AddItem} "$SMPROGRAMS\${LONGNAME}\${SHORTNAME} Documentation\ooDialog User Guide.lnk"
+   CreateShortCut "$SMPROGRAMS\${LONGNAME}\${SHORTNAME} Documentation\ooRexx Rexx Extensions Reference.lnk" "$INSTDIR\doc\rexxextensions.pdf" "" "$INSTDIR\doc\rexxextensions.pdf" 0
+   ${AddItem} "$SMPROGRAMS\${LONGNAME}\${SHORTNAME} Documentation\ooRexx Rexx Extensions Reference.lnk"
++  CreateShortCut "$SMPROGRAMS\${LONGNAME}\${SHORTNAME} Documentation\ooRexx Rexx Parser Reference.lnk" "$INSTDIR\doc\rexxparser.pdf" "" "$INSTDIR\doc\rexxparser.pdf" 0
++  ${AddItem} "$SMPROGRAMS\${LONGNAME}\${SHORTNAME} Documentation\ooRexx Rexx Parser Reference.lnk"
+   CreateShortCut "$SMPROGRAMS\${LONGNAME}\${SHORTNAME} Documentation\ooRexx Unix Extensions Reference.lnk" "$INSTDIR\doc\unixextensions.pdf" "" "$INSTDIR\doc\unixextensions.pdf" 0
+   ${AddItem} "$SMPROGRAMS\${LONGNAME}\${SHORTNAME} Documentation\ooRexx Unix Extensions Reference.lnk"
+   CreateShortCut "$SMPROGRAMS\${LONGNAME}\${SHORTNAME} Documentation\ooRexx Windows Extensions Reference.lnk" "$INSTDIR\doc\winextensions.pdf" "" "$INSTDIR\doc\winextensions.pdf" 0
+Index: platform/windows/install/oorexx.nsi
+===================================================================
+diff --git a/platform/windows/install/oorexx.nsi b/platform/windows/install/oorexx.nsi
+--- a/platform/windows/install/oorexx.nsi	(revision 13602)
++++ b/platform/windows/install/oorexx.nsi	(working copy)
+@@ -1256,6 +1256,7 @@
+   ${File} "${SRCDIR}\extensions\platform\windows\oodialog\" "ooDialog_ReleaseNotes.txt"
+   ${File} "${SRCDIR}\doc\" "oodguide.pdf"
+   ${File} "${SRCDIR}\doc\" "rexxextensions.pdf"
++  ${File} "${SRCDIR}\doc\" "rexxparser.pdf"
+   ${File} "${SRCDIR}\doc\" "unixextensions.pdf"
+   ${File} "${SRCDIR}\doc\" "winextensions.pdf"
+   ${File} "${SRCDIR}\samples\windows\oodialog\ooRexxTry\doc\" "ooRexxTry.pdf"
+@@ -1288,6 +1289,8 @@
+   ${AddItem} "$SMPROGRAMS\${LONGNAME}\${SHORTNAME} Documentation\ooDialog User Guide.lnk"
+   CreateShortCut "$SMPROGRAMS\${LONGNAME}\${SHORTNAME} Documentation\ooRexx Rexx Extensions Reference.lnk" "$INSTDIR\doc\rexxextensions.pdf" "" "$INSTDIR\doc\rexxextensions.pdf" 0
+   ${AddItem} "$SMPROGRAMS\${LONGNAME}\${SHORTNAME} Documentation\ooRexx Rexx Extensions Reference.lnk"
++  CreateShortCut "$SMPROGRAMS\${LONGNAME}\${SHORTNAME} Documentation\ooRexx Rexx Parser Reference.lnk" "$INSTDIR\doc\rexxparser.pdf" "" "$INSTDIR\doc\rexxparser.pdf" 0
++  ${AddItem} "$SMPROGRAMS\${LONGNAME}\${SHORTNAME} Documentation\ooRexx Rexx Parser Reference.lnk"
+   CreateShortCut "$SMPROGRAMS\${LONGNAME}\${SHORTNAME} Documentation\ooRexx Unix Extensions Reference.lnk" "$INSTDIR\doc\unixextensions.pdf" "" "$INSTDIR\doc\unixextensions.pdf" 0
+   ${AddItem} "$SMPROGRAMS\${LONGNAME}\${SHORTNAME} Documentation\ooRexx Unix Extensions Reference.lnk"
+   CreateShortCut "$SMPROGRAMS\${LONGNAME}\${SHORTNAME} Documentation\ooRexx Windows Extensions Reference.lnk" "$INSTDIR\doc\winextensions.pdf" "" "$INSTDIR\doc\winextensions.pdf" 0
