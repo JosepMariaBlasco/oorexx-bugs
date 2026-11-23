@@ -1,0 +1,87 @@
+Index: ooRexx/extensions/rxregexp/rxregexp.testGroup
+===================================================================
+--- a/ooRexx/extensions/rxregexp/rxregexp.testGroup	(revision 13619)
++++ b/ooRexx/extensions/rxregexp/rxregexp.testGroup	(working copy)
+@@ -763,4 +763,82 @@
+   self~assertTrue(p~match(('" " ,')~copies(20) ' "final"'), "unmatched at" p~position)
+ 
+ 
++-- a pattern that began with a group whose first alternative began with a
++-- repeated element, followed by "|", built an automaton with a cycle of
++-- epsilon transitions: matching never ended, or crashed
++::method test_alternation_after_repeated_group
++  -- pattern; strings it matches; strings it does not match
++  cases = .array~of( -
++    "(c*|b)c|d    ; c cc bc d         ; a b cd cbc dd", -
++    "(c*|bb)c|d   ; c bbc d           ; a bc cd cbbc", -
++    "(c*|b)|d     ; '' c cc b d       ; a cb cd bb", -
++    "(c*|b)cb|ba  ; cb ccb bcb ba     ; a cba cbcb", -
++    "(c*|b)c|dd   ; c bc dd           ; a d cdd", -
++    "(a*)*        ; '' a aa           ; b ab", -
++    "(a*|b)*c     ; c ac bc abac      ; '' a ca")
++  do case over cases
++    parse var case pattern ";" yes ";" no
++    pattern = pattern~strip
++    yes = yes~space
++    no = no~space
++    p = .RegularExpression~new
++    self~assertEquals(0, p~parse(pattern), "parse of" pattern)
++    do s over yes~makeArray(" ")
++      if s == "''" then s = ""
++      self~assertTrue(p~match(s), pattern "should match '"s"'")
++    end
++    do s over no~makeArray(" ")
++      if s == "''" then s = ""
++      self~assertFalse(p~match(s), pattern "should not match '"s"'")
++    end
++  end
++  p = .RegularExpression~new("(c*|b)c|d")
++  self~assertEquals(0, p~pos("a"))
++  self~assertEquals(2, p~pos("xbcx"))
++  self~assertEquals(3, p~position)
++
++
++-- "*" changed the state before its factor, and "|" the one before its term:
++-- when that state was not one that simply went to them, the automaton was
++-- wrong ("a*b|c" matched "ac", "c+b*" did not match "cc")
++::method test_repetition_and_alternation
++  cases = .array~of( -
++    "a*b|c        ; b ab aab c        ; ac aac '' a", -
++    "c*|d         ; '' c cc d         ; cd ccd dd", -
++    "(c*)c|d      ; c cc d            ; cd ccd ''", -
++    "c+b*         ; c cc cb cbb       ; '' b cbc bc", -
++    "a(b*|c)d     ; ad abd abbd acd   ; abcd acbd", -
++    "(ab|c)*d|e   ; d abd cd ccd e    ; ce abe abce", -
++    "x(c*|b)c|d   ; xc xcc xbc d      ; xcbc x xd", -
++    "(b|c*)c|d    ; bc c cc d         ; bd bbc bcc", -
++    "(a|bc*){2}c  ; aac abcc bac bcbc ; ac abcac", -
++    "(ab){2}|c    ; abab c            ; ab ababc abc")
++  do case over cases
++    parse var case pattern ";" yes ";" no
++    pattern = pattern~strip
++    yes = yes~space
++    no = no~space
++    p = .RegularExpression~new
++    self~assertEquals(0, p~parse(pattern), "parse of" pattern)
++    do s over yes~makeArray(" ")
++      if s == "''" then s = ""
++      self~assertTrue(p~match(s), pattern "should match '"s"'")
++    end
++    do s over no~makeArray(" ")
++      if s == "''" then s = ""
++      self~assertFalse(p~match(s), pattern "should not match '"s"'")
++    end
++  end
++  -- POS: the leftmost match, longest (MAXIMAL) or shortest (MINIMAL)
++  p = .RegularExpression~new("a*b|c")
++  self~assertEquals(2, p~pos("xaabc"))
++  self~assertEquals(4, p~position)
++  p = .RegularExpression~new("c+b*", "MINIMAL")
++  self~assertEquals(2, p~pos("xccbb"))
++  self~assertEquals(2, p~position)
++  p = .RegularExpression~new("c+b*")
++  self~assertEquals(2, p~pos("xccbbc"))
++  self~assertEquals(5, p~position)
++
++
+ ::options novalue error
