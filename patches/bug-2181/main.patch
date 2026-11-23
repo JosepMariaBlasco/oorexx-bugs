@@ -1,0 +1,13 @@
+Index: interpreter/classes/PackageClass.cpp
+===================================================================
+--- a/interpreter/classes/PackageClass.cpp	(revision 13597)
++++ b/interpreter/classes/PackageClass.cpp	(working copy)
+@@ -1855,6 +1855,8 @@
+     else
+     {
+         Protected<ArrayClass> source = arrayArgument(s, "source");
++        // every item must be a string value, as for Package~new
++        stringArrayArgument(source, "source");
+         return loadRequires(ActivityManager::currentActivity, packageName, source);
+     }
+ }

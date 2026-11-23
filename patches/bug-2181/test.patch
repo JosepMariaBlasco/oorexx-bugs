@@ -1,0 +1,31 @@
+Index: ooRexx/base/class/Package.testGroup
+===================================================================
+--- a/ooRexx/base/class/Package.testGroup	(revision 13599)
++++ b/ooRexx/base/class/Package.testGroup	(working copy)
+@@ -619,6 +619,26 @@
+   self~expectSyntax(93.952)
+   r = .package~new("test", ("x = something",.nil,"return 123"))
+ 
++-- loadPackage with a source array checks its items as Package~new does
++-- (it crashed on a hole)
++::method test_loadPackage_sparse_array_source
++  self~expectSyntax(93.952)
++  r = .package~new("test", "nop")~loadPackage("loadSparse", ("x = something",,"return 123"))
++
++::method test_loadPackage_hole_first
++  self~expectSyntax(93.952)
++  r = .package~new("test", "nop")~loadPackage("loadHoleFirst", .array~new(2)~~put("nop", 2))
++
++::method test_loadPackage_non_string_array_value
++  self~expectSyntax(93.952)
++  r = .package~new("test", "nop")~loadPackage("loadNoString", ("x = something",.object~new,"return 123"))
++
++::method test_loadPackage_string_values
++  -- items with a string value are taken by it
++  p = .package~new("test", "nop")~loadPackage("loadStringValues", -
++    (.mutableBuffer~new("::routine r1 public"), "return", 12))
++  self~assertEquals(1, p~routines~items)
++
+ ::method test_new_hashbang
+   -- should be ok if code starts with a hashbang line
+   .Package~new("", .resources~hashBang)
