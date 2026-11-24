@@ -1,0 +1,49 @@
+name: tz-gmtoff
+
+# DATE()/TIME() time zone offset from tm_gmtoff (patches/tm-gmtoff): trunk with
+# and without the patch on OpenBSD and macOS. See ci/tz-gmtoff.sh.
+
+on:
+  workflow_dispatch:
+    inputs:
+      rev:
+        description: ooRexx SVN revision
+        default: "13643"
+      rounds:
+        description: rounds of DateTime.testGroup per build and TZ mode
+        default: "3"
+      full:
+        description: also run the full suite with both builds (yes/no)
+        default: "yes"
+
+jobs:
+  openbsd:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and measure in an OpenBSD VM
+        uses: vmactions/openbsd-vm@v1
+        with:
+          usesh: true
+          mem: 6144
+          prepare: pkg_add -I cmake subversion
+          run: sh ci/tz-gmtoff.sh ${{ inputs.rev }} ${{ inputs.rounds }} ${{ inputs.full }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tz-gmtoff-openbsd
+          path: tz-gmtoff
+
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install subversion
+      - run: sh ci/tz-gmtoff.sh ${{ inputs.rev }} ${{ inputs.rounds }} ${{ inputs.full }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tz-gmtoff-macos
+          path: tz-gmtoff
