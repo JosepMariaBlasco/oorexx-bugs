@@ -17,6 +17,12 @@ on:
       reps:
         description: repetitions of each benchmark
         default: "3"
+      only:
+        description: comma-separated benchmark names (empty = all; when set, the suites are skipped)
+        default: ""
+      arches:
+        description: JSON list of architectures
+        default: '["x64", "x86"]'
 
 env:
   REV: ${{ inputs.rev }}
@@ -56,7 +62,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [x64, x86]
+        arch: ${{ fromJSON(inputs.arches) }}
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -79,6 +85,7 @@ jobs:
             build-%%v\bin\rexx -v
           )
       - name: Full suite, both
+        if: inputs.only == ''
         shell: cmd
         continue-on-error: true
         timeout-minutes: 90
@@ -98,7 +105,7 @@ jobs:
         run: |
           $env:PATH_ORIG = $env:PATH
           $sizes = if ("${{ matrix.arch }}" -eq "x86") { "small" } else { "normal" }
-          & bench\bench.ps1 -Root $env:GITHUB_WORKSPACE -Out "$env:GITHUB_WORKSPACE\bench.txt" -Reps ${{ inputs.reps }} -Sizes $sizes
+          & bench\bench.ps1 -Root $env:GITHUB_WORKSPACE -Out "$env:GITHUB_WORKSPACE\bench.txt" -Reps ${{ inputs.reps }} -Sizes $sizes -Only "${{ inputs.only }}"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

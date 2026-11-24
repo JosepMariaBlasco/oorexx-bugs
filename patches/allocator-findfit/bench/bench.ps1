@@ -1,7 +1,7 @@
 # bench.ps1 BUILDS_ROOT OUT REPS
 # Runs each workload with the clean and the patched build, alternating, and
 # writes "name variant rep seconds peakMB lastline" lines to OUT.
-param([string]$Root, [string]$Out, [int]$Reps = 3, [string]$Sizes = "normal")
+param([string]$Root, [string]$Out, [int]$Reps = 3, [string]$Sizes = "normal", [string]$Only = "")
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $here
 if ($Sizes -eq "small") {
@@ -21,11 +21,17 @@ if ($Sizes -eq "small") {
     "churn|churn.rex 300000 2000", "churnbig|churn.rex 300000 20000", "large|large.rex 40000",
     "bigheap|bigheap.rex 1000000 3000", "sort|sort.rex 1000000")
 }
+if ($Only -ne "") {
+  $names = $Only -split ','
+  $work = $work | Where-Object { $names -contains ($_ -split '\|')[0] }
+}
 Set-Content $Out ""
 foreach ($w in $work) {
   $name, $cmd = $w -split '\|', 2
   for ($r = 1; $r -le $Reps; $r++) {
-    foreach ($v in "clean", "patched") {
+    # alternate which build goes first
+    $order = if ($r % 2 -eq 1) { @("clean", "patched") } else { @("patched", "clean") }
+    foreach ($v in $order) {
       $bin = Join-Path $Root "build-$v\bin"
       $env:PATH = "$bin;" + $env:PATH_ORIG
       $sw = [Diagnostics.Stopwatch]::StartNew()
