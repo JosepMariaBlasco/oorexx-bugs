@@ -1,0 +1,210 @@
+Index: interpreter/memory/DeadObject.hpp
+===================================================================
+--- a/interpreter/memory/DeadObject.hpp	(revision 13625)
++++ b/interpreter/memory/DeadObject.hpp	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2019 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -162,10 +162,6 @@
+ #endif
+     }
+ 
+-    // the threshold for deciding the large object chain is getting fragmented.
+-    // this tells us we need to move larger blocks to the front of the chain.
+-    #define ReorderThreshold 100
+-
+     inline void  setID(const char *poolID) { this->id = poolID; }
+     inline void  empty() { anchor.reset(); }
+     inline bool  isEmpty() { return anchor.next->isReal(); }
+@@ -232,40 +228,34 @@
+     /* from the pool before return.                                               */
+     /******************************************************************************/
+     {
++        // Every block we pass is too small for this request, and it is moved to
++        // the tail of the chain.  Without this, the small remainders that
++        // splitting leaves at the front pile up there, and every later search
++        // has to walk past all of them: the cost of an allocation grows with
++        // the number of blocks, and a program that allocates many of them is
++        // quadratic.  We stop after the block that was last when we started,
++        // so that each block is examined at most once.
++        DeadObject *lastObject = anchor.previous;
+         DeadObject *newObject = anchor.next;
+-        size_t newLength;
+-        int probes = 1;
+-        for (newLength = newObject->getObjectSize(); newLength != 0; newLength = newObject->getObjectSize()) {
+-            if (newLength >= length) {
+-                // we had to examine a lot of objects to get a match.
+-                // it's worthwhile percolating the larger objects on the rest of the
+-                // chain toward the front.  We only do this when we're starting to have problems
+-                // allocating objects because of fragmentation.
+-                DeadObject *tailObject = newObject->next;
+-
++        while (newObject->isReal())
++        {
++            DeadObject *nextObject = newObject->next;
++            size_t newLength = newObject->getObjectSize();
++            if (newLength >= length)
++            {
+                 newObject->remove();
+                 logHit();
+                 *realLength = newLength;
+-                if (probes > ReorderThreshold)
+-                {
+-                    for (size_t tailLength = tailObject->getObjectSize(); tailLength != 0; tailLength = tailObject->getObjectSize())
+-                    {
+-                        // the size we just had problems with is a good marker for
+-                        // selecting candidates to move toward the front.  The will guarantee
+-                        // that a similar request for the same size will succeed faster in the future.
+-                        DeadObject *nextObject = tailObject->next;
+-                        if (tailLength > length)
+-                        {
+-                            tailObject->remove();
+-                            add(tailObject);
+-                        }
+-                        tailObject = nextObject;
+-                    }
+-                }
+                 return newObject;
+             }
+-            probes++;
+-            newObject = newObject->next;
++            bool wasLast = newObject == lastObject;
++            newObject->remove();
++            anchor.insertBefore(newObject);
++            if (wasLast)
++            {
++                break;
++            }
++            newObject = nextObject;
+         }
+         logMiss();
+         return NULL;
+Index: interpreter/memory/MemorySegment.cpp
+===================================================================
+--- a/interpreter/memory/MemorySegment.cpp	(revision 13625)
++++ b/interpreter/memory/MemorySegment.cpp	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2024 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -52,6 +52,9 @@
+ // tend to be large blocks and can be frequently longer lived, we try to run with
+ // a little more head room than the normal set
+ const double LargeSegmentSet::LargeMemoryExpansionThreshold = .40;
++// after a collection started by the large segment set, the free space it keeps
++// as a fraction of the live bytes of the normal segment set.
++const double LargeSegmentSet::LargeMinimumFreeRatio = .05;
+ // the absolute smallest segment we will allocate.
+ const size_t MemorySegmentSet::MinimumSegmentSize = (MemorySegment::SegmentSize/2);
+ // amount of usable space in a minimum sized segment
+@@ -1224,6 +1227,7 @@
+     // Step 2, now that we have good GC data, decide if we need to adjust
+     // the heap size.
+     adjustMemorySize();
++    ensureFreeSpace();
+     // Step 2, see if can allocate now
+     RexxInternalObject *newObject = findObject(allocationLength);
+     // Nothing in the current space?
+@@ -1262,6 +1266,28 @@
+ 
+ 
+ /**
++ * After a collection started by this segment set, make sure it
++ * has free space in proportion to the live data of the normal
++ * segment set.  A collection marks the whole heap, so its cost
++ * grows with the live data of the normal set.  This set can stay
++ * small (its expansion threshold looks only at its own free
++ * percentage), and then it fills again after a few requests: a
++ * program that keeps asking for blocks of this size runs a
++ * collection of the whole heap for every few of them, and the
++ * total cost grows with the square of its live data.
++ */
++void LargeSegmentSet::ensureFreeSpace()
++{
++    size_t wanted = (size_t)((double)memory->normalLiveBytes() * LargeMinimumFreeRatio);
++    if (deadObjectBytes < wanted)
++    {
++        memory->verboseMessage("Expanding %s by %zu bytes" line_end, name, wanted - deadObjectBytes);
++        addSegments(wanted - deadObjectBytes);
++    }
++}
++
++
++/**
+  * Handle a first-attempt allocation failure from the single
+  * object segment set. A failure here means we were unable to obtain
+  * a block of the required size from the system. Our only option
+Index: interpreter/memory/MemorySegment.hpp
+===================================================================
+--- a/interpreter/memory/MemorySegment.hpp	(revision 13625)
++++ b/interpreter/memory/MemorySegment.hpp	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2021 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -271,6 +271,9 @@
+       // space available in a larger allocation.
+       static const size_t LargeSegmentDeadSpace;
+ 
++      // the bytes of live objects found by the last sweep
++      inline size_t liveBytes() { return liveObjectBytes; }
++
+   protected:
+ 
+       virtual void addDeadObject(DeadObject *object);
+@@ -570,6 +573,7 @@
+     MemorySegment *allocateSegment(size_t requestLength, size_t minimumLength) override;
+     size_t suggestMemoryExpansion() override;
+     void expandSegmentSet(size_t allocationLength);
++    void ensureFreeSpace();
+     void prepareForSweep() override;
+     void completeSweepOperation() override;
+ 
+@@ -577,6 +581,9 @@
+ 
+     // the threshold to trigger expansion of the normal segment set.
+     static const double LargeMemoryExpansionThreshold;
++    // the free space this set keeps after a collection it has started, as a
++    // fraction of the live bytes of the normal segment set.
++    static const double LargeMinimumFreeRatio;
+     inline size_t recommendedMemorySize() { return (size_t)((float)liveObjectBytes/(1.0 - LargeMemoryExpansionThreshold)); }
+ 
+     RexxInternalObject *findObject(size_t allocationLength);
+Index: interpreter/memory/RexxMemory.hpp
+===================================================================
+--- a/interpreter/memory/RexxMemory.hpp	(revision 13625)
++++ b/interpreter/memory/RexxMemory.hpp	(working copy)
+@@ -1,7 +1,7 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+ /* Copyright (c) 1995, 2004 IBM Corporation. All rights reserved.             */
+-/* Copyright (c) 2005-2019 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2005-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -196,6 +196,8 @@
+     void        collectAndUninit(bool clearStack);
+     void        lastChanceUninit();
+     inline StringTable *getGlobalStrings() { return globalStrings; }
++    // the bytes of live objects in the normal segment set at the last collection
++    inline size_t normalLiveBytes() { return newSpaceNormalSegments.liveBytes(); }
+     void        addWeakReference(WeakReference *ref);
+     void        checkWeakReferences();
+     void        addGlobalReference(RexxInternalObject *obj);

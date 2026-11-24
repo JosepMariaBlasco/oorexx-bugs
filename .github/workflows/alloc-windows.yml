@@ -1,0 +1,110 @@
+name: alloc-windows
+
+# Builds a revision with and without a patch set, for x64 and for x86 (32-bit),
+# on the same runner, runs the full suite with each, and then the benchmark
+# programs of the patch set (patches/<set>/bench/bench.ps1) alternating the
+# two builds, so that both are timed on the same machine.
+
+on:
+  workflow_dispatch:
+    inputs:
+      rev:
+        description: ooRexx SVN revision
+        default: "13626"
+      patchset:
+        description: directory under patches/
+        default: allocator-findfit
+      reps:
+        description: repetitions of each benchmark
+        default: "3"
+
+env:
+  REV: ${{ inputs.rev }}
+  PATCHSET: ${{ inputs.patchset }}
+
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    container: debian:bookworm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export trunk and apply the patch set
+        run: |
+          for try in 1 2 3; do
+            timeout 300 apt-get update -qq > /dev/null && timeout 300 apt-get install -y -qq subversion patch ca-certificates > /dev/null && break
+            sleep 20
+          done
+          lvl=$(svn info -r $REV https://svn.code.sf.net/p/oorexx/code-0/main/trunk --show-item last-changed-revision)
+          echo "build level $lvl"
+          for variant in clean patched; do
+            svn export -q -r $REV https://svn.code.sf.net/p/oorexx/code-0/main/trunk src-$variant/main
+            sed -i "s/^set (ORX_BLD_LVL 0)/set (ORX_BLD_LVL $lvl)/" src-$variant/main/CMakeLists.txt
+          done
+          svn export -q -r $REV https://svn.code.sf.net/p/oorexx/code-0/test/trunk test
+          if [ -f patches/$PATCHSET/main.patch ]; then (cd src-patched/main && patch -p1 < $GITHUB_WORKSPACE/patches/$PATCHSET/main.patch); fi
+          cp -r patches/$PATCHSET/bench bench
+          tar czf src.tgz src-clean src-patched test bench
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sources
+          path: src.tgz
+
+  windows:
+    needs: source
+    runs-on: windows-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, x86]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: sources
+      - name: Unpack
+        shell: bash
+        run: tar xzf src.tgz
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch }}
+      - name: Build both
+        shell: cmd
+        run: |
+          for %%v in (clean patched) do (
+            mkdir build-%%v
+            cd build-%%v
+            cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ..\src-%%v\main > ..\cmake-%%v.log 2>&1 || (type ..\cmake-%%v.log & exit /b 1)
+            ninja > ..\ninja-%%v.log 2>&1 || (findstr /i /c:"error" ..\ninja-%%v.log & exit /b 1)
+            cd ..
+            build-%%v\bin\rexx -v
+          )
+      - name: Full suite, both
+        shell: cmd
+        continue-on-error: true
+        timeout-minutes: 90
+        run: |
+          set PATH0=%PATH%
+          for %%v in (clean patched) do (
+            set "PATH=%GITHUB_WORKSPACE%\build-%%v\bin;%PATH0%"
+            cd test
+            ..\build-%%v\bin\rexx testOORexx.rex -s < NUL > %GITHUB_WORKSPACE%\suite-%%v.log 2>&1
+            cd ..
+            findstr /c:"Tests ran" /c:"Failures" /c:"Errors" /c:"Total time" /c:"Test:" suite-%%v.log
+          )
+      - name: Benchmarks, alternating
+        shell: pwsh
+        continue-on-error: true
+        timeout-minutes: 200
+        run: |
+          $env:PATH_ORIG = $env:PATH
+          $sizes = if ("${{ matrix.arch }}" -eq "x86") { "small" } else { "normal" }
+          & bench\bench.ps1 -Root $env:GITHUB_WORKSPACE -Out "$env:GITHUB_WORKSPACE\bench.txt" -Reps ${{ inputs.reps }} -Sizes $sizes
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs-${{ matrix.arch }}
+          path: |
+            cmake-*.log
+            ninja-*.log
+            suite-*.log
+            bench.txt
