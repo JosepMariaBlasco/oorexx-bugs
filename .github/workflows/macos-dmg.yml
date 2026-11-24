@@ -1,0 +1,51 @@
+name: macos-dmg
+
+# Builds the macOS .dmg of a trunk revision the way a release does it
+# (BUILD_DMG, the PDFs from SourceForge as DOC_SOURCE_DIR, make install, then
+# build_macOS_dmg.sh) and lists what the image contains.
+
+on:
+  workflow_dispatch:
+    inputs:
+      rev:
+        description: ooRexx SVN revision
+        default: "13646"
+      docs:
+        description: folder under oorexx-docs/ on SourceForge for the PDFs
+        default: 5.3.0beta
+
+jobs:
+  dmg:
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - run: brew install subversion
+      - name: Sources and PDFs
+        run: |
+          svn checkout -q -r ${{ inputs.rev }} https://svn.code.sf.net/p/oorexx/code-0/main/trunk main
+          curl -sSL --retry 3 --fail -o docs.zip "https://sourceforge.net/projects/oorexx/files/oorexx-docs/${{ inputs.docs }}/ooRexx-${{ inputs.docs }}-pdf.zip/download"
+          mkdir docs && (cd docs && unzip -q ../docs.zip)
+          docdir=$(dirname "$(find $PWD/docs -iname rexxref.pdf | head -1)")
+          echo "DOCDIR=$docdir" >> $GITHUB_ENV
+          mkdir -p out && ls -l "$docdir" | tee out/docs-zip.txt
+      - name: Build, install, dmg
+        run: |
+          mkdir build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_DMG=1 -DDOC_SOURCE_DIR="$DOCDIR" -DCMAKE_INSTALL_PREFIX=$PWD/inst ../main > ../out/cmake.log 2>&1 || { tail -50 ../out/cmake.log; exit 1; }
+          make -j$(sysctl -n hw.ncpu) > ../out/make.log 2>&1 || { tail -50 ../out/make.log; exit 1; }
+          make install > ../out/install.log 2>&1 || { tail -50 ../out/install.log; exit 1; }
+          bash build_macOS_dmg.sh > ../out/dmg.log 2>&1 || { tail -50 ../out/dmg.log; exit 1; }
+          ls -l *.dmg | tee -a ../out/summary.txt
+      - name: What the image holds
+        run: |
+          dmg=$(ls build/*.dmg | grep -v '/ooRexx5.dmg$' | head -1)
+          hdiutil attach -nobrowse -readonly -mountpoint /tmp/dmg "$dmg"
+          find /tmp/dmg | sort > out/dmg-files.txt
+          echo "PDFs in $(basename "$dmg"):" | tee -a out/summary.txt
+          grep -i '\.pdf$' out/dmg-files.txt | tee -a out/summary.txt
+          hdiutil detach /tmp/dmg
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: macos-dmg
+          path: out
