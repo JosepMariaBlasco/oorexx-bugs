@@ -1,0 +1,38 @@
+Index: ooRexx/API/classic/CLASSIC.testGroup
+===================================================================
+--- a/ooRexx/API/classic/CLASSIC.testGroup	(revision 13634)
++++ b/ooRexx/API/classic/CLASSIC.testGroup	(working copy)
+@@ -883,6 +883,17 @@
+   call rxfuncquery 'NoSuchRegistered2134'
+   self~assertEquals(1, result)
+ 
++-- a classic function in a library that is not an ooRexx package can still be
++-- declared with ::ROUTINE ... EXTERNAL "REGISTERED ..."
++::method 'test_59_externalfunction_registered_directive_classic'
++  -- MyTestExtFunc called with no arguments only answers 0; the directive
++  -- registers RegisteredDirective, dropped at the end
++  r = .routine~new('x', ('call RegisteredDirective', 'return result', -
++    '::routine RegisteredDirective external "REGISTERED orxclassic1 MyTestExtFunc"'))
++  self~assertEquals(0, r~call)
++  call rxfuncdrop 'RegisteredDirective'
++  self~assertEquals(0, result)
++
+ -- Note: The order of these tests is very important.
+ 
+ ::method 'test_60_subcom'
+Index: ooRexx/base/directives/ROUTINE.testGroup
+===================================================================
+--- a/ooRexx/base/directives/ROUTINE.testGroup	(revision 13634)
++++ b/ooRexx/base/directives/ROUTINE.testGroup	(working copy)
+@@ -164,6 +164,11 @@
+ ::method testExternalRegisteredBadLibraryName
+   self~assertSyntaxError(90.999, "::routine foo external 'REGISTERED rxmathxxxxx RxCalxPi'")
+ 
++-- an entry that the library defines as a new-style routine cannot be
++-- declared as a registered (classic) function: calling it crashed
++::method testExternalRegisteredNewStyleEntry
++  self~assertSyntaxError(90.999, "::routine foo external 'REGISTERED rxmath RxCalcTan'")
++
+ ::method testExternalLibraryMissingRegisteredName
+   self~assertSyntaxError(99.917, "::routine foo external 'REGISTERED'")
+ 
