@@ -1,0 +1,23 @@
+Index: ooRexx/base/class/CommandHandler.testGroup
+===================================================================
+--- a/ooRexx/base/class/CommandHandler.testGroup	(revision 13640)
++++ b/ooRexx/base/class/CommandHandler.testGroup	(working copy)
+@@ -369,6 +369,18 @@
+   self~assertSame("98.900", staleCode(.message~new(.local~kept, "[]", "I", "x")))
+   self~assertSame("98.900", staleCode(.message~new(.local~kept, "RAISE", "I", "ERROR", 1)))
+ 
++-- a context made with ~new belongs to no command; forwarding through it
++-- to a native handler crashed
++::method test_hand_made_context_is_syntax
++  native = .CommandHandler~handler(address())
++  ctx = .CommandContext~new(.object~new, "x")
++  self~assertSame(0, ctx~isValid)
++  self~assertSame("98.900", staleCode(.message~new(native, "COMMAND", "I", "exit 0", ctx)))
++  self~assertSame("98.900", staleCode(.message~new(ctx, "[]", "I", "x")))
++  in.0 = 0
++  address t "KEEP" with input stem in.
++  self~assertSame("98.900", staleCode(.message~new(native, "COMMAND", "I", "exit 0", .local~kept)))
++
+ ::method test_context_refused_on_another_thread
+   .local~replied = .nil
+   address t "REPLY"
