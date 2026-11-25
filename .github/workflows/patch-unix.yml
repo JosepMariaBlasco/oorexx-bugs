@@ -1,0 +1,53 @@
+name: patch-unix
+
+# A patch set (patches/<set>) on macOS and OpenBSD: trunk built with and
+# without it, some test groups and optionally the full suite with both.
+# See ci/patch-unix.sh.
+
+on:
+  workflow_dispatch:
+    inputs:
+      rev:
+        description: ooRexx SVN revision
+        default: "13646"
+      patchset:
+        description: directory under patches/
+        default: bug-2188-stale-registration
+      groups:
+        description: test groups to run (paths under test/trunk, space separated)
+        default: ooRexx/API/classic/CLASSIC.testGroup ooRexx/base/directives/ROUTINE.testGroup
+      full:
+        description: also run the full suite with both builds (yes/no)
+        default: "yes"
+
+jobs:
+  openbsd:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test in an OpenBSD VM
+        uses: vmactions/openbsd-vm@v1
+        with:
+          usesh: true
+          mem: 6144
+          prepare: pkg_add -I cmake subversion
+          run: sh ci/patch-unix.sh ${{ inputs.rev }} ${{ inputs.patchset }} "${{ inputs.groups }}" ${{ inputs.full }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: patch-unix-openbsd
+          path: patch-unix
+
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install subversion
+      - run: sh ci/patch-unix.sh ${{ inputs.rev }} ${{ inputs.patchset }} "${{ inputs.groups }}" ${{ inputs.full }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: patch-unix-macos
+          path: patch-unix

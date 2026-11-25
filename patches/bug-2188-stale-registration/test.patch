@@ -1,0 +1,74 @@
+Index: ooRexx/API/classic/CLASSIC.testGroup
+===================================================================
+--- a/ooRexx/API/classic/CLASSIC.testGroup	(revision 13646)
++++ b/ooRexx/API/classic/CLASSIC.testGroup	(working copy)
+@@ -1012,7 +1012,27 @@
+   self~assertEquals(0, t2~TestDeregisterFunction("MYFUNCTION"))
+   self~assertEquals(30, t2~TestQueryFunction("MYFUNCTION"))
+ 
++-- bug #2188: a function registered, by a host or by an earlier process
++-- (rxapi keeps registrations), to an entry that an ooRexx package defines
++-- as a new-style routine cannot be called as a classic function: calling it
++-- crashed, and a ::ROUTINE ... "REGISTERED" directive with the same name
++-- resolved to that registration
++::method 'test_78_function_dll_new_style_entry'
++  t2 = .TestFunctionRegistration~new
++  t2~TestDeregisterFunction("NEWSTYLE2188")   -- in case an older run left it
++  self~assertEquals(0, t2~TestRegisterFunctionDll("NEWSTYLE2188", "rxmath", "RxCalcTan"))
+ 
++  self~assertEquals(43.1, callNewStyle2188())
++  self~assertEquals(90.999, directiveNewStyle2188())
++
++  -- the directive leaves a reference of its own to the registration (rxapi
++  -- counts them), so drop until it is gone
++  do 3 while t2~TestQueryFunction("NEWSTYLE2188") == 0
++    self~assertEquals(0, t2~TestDeregisterFunction("NEWSTYLE2188"))
++  end
++  self~assertEquals(30, t2~TestQueryFunction("NEWSTYLE2188"))
++
++
+ ::method locateTestFile
+   use arg file
+   parse source . . me
+@@ -1357,4 +1377,22 @@
+   return TestFNVariablePool(arg(1))
+ 
+ 
++-- bug #2188: the SYNTAX code of a call of NEWSTYLE2188, or "no error"
++::routine callNewStyle2188
++  signal on syntax
++  call NEWSTYLE2188 1
++  return "no error"
++syntax:
++  return condition("o")~code
++
++-- bug #2188: the SYNTAX code of a ::ROUTINE directive for NEWSTYLE2188
++-- with an entry that does not exist, or "no error"
++::routine directiveNewStyle2188
++  signal on syntax
++  .routine~new("x", '::routine NEWSTYLE2188 external "REGISTERED rxmath RxCalxPi2188"')
++  return "no error"
++syntax:
++  return condition("o")~code
++
++
+ ::options all syntax
+Index: ooRexx/API/classic/CLASSICPackage.cls
+===================================================================
+--- a/ooRexx/API/classic/CLASSICPackage.cls	(revision 13646)
++++ b/ooRexx/API/classic/CLASSICPackage.cls	(working copy)
+@@ -1,6 +1,6 @@
+ /*----------------------------------------------------------------------------*/
+ /*                                                                            */
+-/* Copyright (c) 2008-2024 Rexx Language Association. All rights reserved.    */
++/* Copyright (c) 2008-2026 Rexx Language Association. All rights reserved.    */
+ /*                                                                            */
+ /* This program and the accompanying materials are made available under       */
+ /* the terms of the Common Public License v1.0 which accompanies this         */
+@@ -123,5 +123,6 @@
+ 
+ ::class TestFunctionRegistration public
+ ::method TestRegisterFunctionExe PUBLIC EXTERNAL "LIBRARY orxclassic TestRegisterFunctionExe"
++::method TestRegisterFunctionDll PUBLIC EXTERNAL "LIBRARY orxclassic TestRegisterFunctionDll"
+ ::method TestDeregisterFunction PUBLIC EXTERNAL "LIBRARY orxclassic TestDeregisterFunction"
+ ::method TestQueryFunction PUBLIC EXTERNAL "LIBRARY orxclassic TestQueryFunction"
